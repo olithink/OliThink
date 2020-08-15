@@ -1,17 +1,20 @@
-OliThink5 (c) Oliver Brausch 22.Dec.2009, ob112@web.de, http://home.arcor.de/dreamlike
+OliThink5 (c) Oliver Brausch 31.Dec.2009, ob112@web.de, http://home.arcor.de/dreamlike
 
-Version: 5.2.4
+Version: 5.2.6
 Protocol: Winboard 2
 HashSize: 48mb
 Ponder: Yes
 OpeningBook: Small
 EndgameTables: No
 AnalyzeMode: No
-SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, Singular Replay Extension
+SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, Singular Reply Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing/pawnhanging evaluation
-LinesOfCode: 1653
+LinesOfCode: 1659
 Stability: 100%
 Strength: slightly weaker than Glaurung/Crafty
+
+v5.2.6: changes since 5.2.5:
+Successful implementation of Late Move Reduction (LMR)
 
 v5.2.5: changes since 5.2.4:
 Storing moves history and flags for whole match

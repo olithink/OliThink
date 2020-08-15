@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 25.Dec.2009, ob112@web.de, http://home.arcor.de/dreamlike */
-#define VER "5.2.5"
+/* OliThink5 (c) Oliver Brausch 31.Dec.2009, ob112@web.de, http://home.arcor.de/dreamlike */
+#define VER "5.2.6"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -1352,12 +1352,18 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		nch = attacked(kingpos[c^1], c^1);
 		if (nch) ext++; // Check Extension
 		else if (n == 1) ext++; //Singular reply extension
+		else if (d >= 3 && i >= 4 && !pvnode) { //LMR
+			if (CAP(m) || PROM(m)); //Don't reduce Captures and Promotions
+			else if (PIECE(m) == PAWN && ((TO(m) + 16) & 48) < 32); //Don't reduce pawns moving to 7th rank
+			else ext--;
+	        }
 
 		if (first && pvnode) {
 			w = -search(nch, c^1, d-1+ext, ply+1, -beta, -alpha, 1, 1);
 			if (!ply) noabort = (iter > 1 && w < value[iter-1] - 40) ? 1 : 0;
 		} else {
 			w = -search(nch, c^1, d-1+ext, ply+1, -alpha-1, -alpha, 0, 1);
+			if (w > alpha && ext < 0) w = -search(nch, c^1, d-1, ply+1, -alpha-1, -alpha, 0, 1);
 			if (w > alpha && w < beta && pvnode) w = -search(nch, c^1, d-1+ext, ply+1, -beta, -alpha, 1, 1);
 		}
 		undoMove(m, c);
