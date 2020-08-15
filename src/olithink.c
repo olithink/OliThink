@@ -1,8 +1,10 @@
-/* OliThink5 (c) Oliver Brausch 06.Feb.2008, ob112@web.de, http://home.arcor.de/dreamlike */
-#define VER "5.0.9"
+/* OliThink5 (c) Oliver Brausch 19.Mar.2008, ob112@web.de, http://home.arcor.de/dreamlike */
+#define VER "5.1.0"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <signal.h>
 #ifdef _WIN32
 #include <windows.h>
 #include <conio.h>
@@ -124,7 +126,6 @@ Move pv[64][64];
 int pvlength[64];
 const char pieceChar[] = "*PNK.BRQ";
 u64 searchtime;
-u64 maxtime;
 u64 starttime;
 int sabort;
 int count;
@@ -194,18 +195,20 @@ void _parse_fen(char *fen) {
 	for (i = 0; i < COUNT; i++) hstack[i] = 0LL;
 }
 
+#define LOW16(x) ((x) & 0xFFFF)
+#define LOW32(x) ((x) & 0xFFFFFFFF)
 static u32 r_x = 30903, r_y = 30903, r_z = 30903, r_w = 30903, r_carry = 0;
 u32 _rand_32() {
 	u32 t;
-	r_x = r_x * 69069 + 1;
-	r_y ^= r_y << 13;
-	r_y ^= r_y >> 17;
-	r_y ^= r_y << 5;
-	t = (r_w << 1) + r_z + r_carry;
-	r_carry = ((r_z >> 2) + (r_w >> 3) + (r_carry >> 2)) >> 30;
+	r_x = LOW32(r_x * 69069 + 1);
+	r_y ^= LOW32(r_y << 13);
+	r_y ^= LOW32(r_y >> 17);
+	r_y ^= LOW32(r_y << 5);
+	t = LOW32((r_w << 1) + r_z + r_carry);
+	r_carry = (LOW32(r_z >> 2) + LOW32(r_w >> 3) + LOW32(r_carry >> 2)) >> 30;
 	r_z = r_w;
 	r_w = t;
-	return r_x + r_y + r_w;
+	return LOW32(r_x + r_y + r_w);
 }
 
 u64 _rand_64() { u64 c = _rand_32(); return _rand_32() | (c << 32); }
@@ -221,14 +224,14 @@ u64 getTime() {
 }
 
 char getLsb(u64 bm) {
-	u32 n = (u32) (bm & 0xFFFFFFFF);
+	u32 n = (u32) LOW32(bm);
 	if (n) {
-		if (n & 0xFFFF) return LSB[n & 0xFFFF];
-		else return 16 | LSB[(n >> 16) & 0xFFFF];
+		if LOW16(n) return LSB[LOW16(n)];
+		else return 16 | LSB[LOW16(n >> 16)];
 	} else {
 		n = (u32)(bm >> 32);
-		if (n & 0xFFFF) return 32 | LSB[n & 0xFFFF];
-		else return 48 | LSB[(n >> 16) & 0xFFFF];
+		if LOW16(n) return 32 | LSB[LOW16(n)];
+		else return 48 | LSB[LOW16(n >> 16)];
 	}
 }
 
@@ -238,8 +241,8 @@ char _slow_lsb(u64 bm) {
 	return (char)k;
 }
 
-char pullLsb(u64* bit) {
-	char f = getLsb(*bit);
+int pullLsb(u64* bit) {
+	int f = getLsb(*bit);
 	*bit ^= BIT[f];
 	return f;
 }
@@ -251,13 +254,13 @@ char _bitcnt(u64 bit) {
 }
 
 char bitcnt (u64 n) {    
-     return BITC[n         & 0xFFFF]
-         +  BITC[(n >> 16) & 0xFFFF]
-         +  BITC[(n >> 32) & 0xFFFF]
-         +  BITC[(n >> 48) & 0xFFFF];
+     return BITC[LOW16(n)]
+         +  BITC[LOW16(n >> 16)]
+         +  BITC[LOW16(n >> 32)]
+         +  BITC[LOW16(n >> 48)];
 }
 
-char identPiece(int f) {
+int identPiece(int f) {
 	if (TEST(f, pieceb[PAWN])) return PAWN;
 	if (TEST(f, pieceb[KNIGHT])) return KNIGHT;
 	if (TEST(f, pieceb[BISHOP])) return BISHOP;
@@ -434,7 +437,7 @@ void displaym(Move m) {
 	if (PROM(m)) printf("%c", pieceChar[PROM(m)]+32);
 }
 
-/* This one is the same as in OliThink4. It's quite annoying code */
+/* This one is the same as in OliThink 4. It's quite annoying code */
 int bioskey() {
 #ifndef _WIN32
   fd_set readfds;
@@ -889,7 +892,7 @@ void displayb() {
 /* In quiesce the moves are ordered just for the value of the captured piece */
 Move qpick(Move* ml, int mn, int s) {
 	Move m;
-	int i, t, pi, vmax = -HEUR;
+	int i, t, pi = 0, vmax = -HEUR;
 	for (i = s; i < mn; i++) {
 		m = ml[i];
 		t = capval[CAP(m)];
@@ -908,7 +911,7 @@ int history[0x1000];
 /* In normal search some basic move ordering heuristics are used */
 Move spick(Move* ml, int mn, int s, int ply) {
 	Move m;
-	int i, t, pi, vmax = -HEUR;
+	int i, t, pi = 0, vmax = -HEUR;
 	for (i = s; i < mn; i++) {
 		m = ml[i];
 		t = capval[CAP(m)];
@@ -974,7 +977,6 @@ int evalc(int c, int* sf) {
 	}
 
 	xorBit(kingpos[oc], colorb+oc); //Opposite King doesn't block mobility at all
-
 	b = pieceb[QUEEN] & cb;
 	while (b) {
 		*sf += 4;
@@ -985,7 +987,6 @@ int evalc(int c, int* sf) {
 	}
 
 	colorb[oc] ^= RQU & ocb; //Opposite Queen & Rook doesn't block mobility for bishop
-
 	b = pieceb[BISHOP] & cb;
 	while (b) {
 		*sf += 1;
@@ -997,7 +998,6 @@ int evalc(int c, int* sf) {
 
 	colorb[oc] ^= pieceb[ROOK] & ocb; //Opposite Queen doesn't block mobility for rook.
 	colorb[c] ^= pieceb[ROOK] & cb; //Own non-pinned Rook doesn't block mobility for rook.
-
 	b = pieceb[ROOK] & cb;
 	while (b) {
 		*sf += 2;
@@ -1008,7 +1008,6 @@ int evalc(int c, int* sf) {
 	}
 
 	colorb[c] ^= pieceb[ROOK] & cb; // Back
-
 	b = pin & (pieceb[ROOK] | pieceb[BISHOP] | pieceb[QUEEN]); 
 	while (b) {
 		int p;
@@ -1106,7 +1105,7 @@ int search(int c, int d, int ply, int alpha, int beta, int null) {
 	u64 hb, hp, he, ch;
 	if ((++nodes & CNODES) == 0) {
 		u64 consumed = getTime() - starttime;
-		if (consumed > searchtime || consumed > maxtime || bioskey()) sabort = 1;
+		if (consumed > searchtime || bioskey()) sabort = 1;
 	}
 	if (sabort) return alpha;
 
@@ -1120,7 +1119,7 @@ int search(int c, int d, int ply, int alpha, int beta, int null) {
 	hb = HASHB(d);
 	he = hashDB[hb & HMASK];
 	if (!((he^hb) & HINV)) {
-		w = (u32)(he & 0xFFFF) - 32768;
+		w = (u32)LOW16(he) - 32768;
 		if (he & 0x10000) {
 			null = 0;
 			if (w <= alpha) return alpha;
@@ -1136,7 +1135,7 @@ int search(int c, int d, int ply, int alpha, int beta, int null) {
 	ch = attacked(kingpos[c], c);
 	if (ch) d++; // Check Extension. The only extension at all.
 
-	if (!ch && null && d>1 && bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1))) > 2) {
+	if (!ch && null && d > 1 && _bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1))) > 2) {
 		flags &= 960;
 		count += 0x801;
 		w = -search(c^1, d/2-1, ply+1, -beta, -beta + 1, 0);
@@ -1228,18 +1227,23 @@ int execMove(Move m) {
 int engine = -1;
 int sd = 32;
 int ttime = 300000;
+int mps = 0;
+int base = 5;
+int inc = 0;
 int ponder = 0;
 int post = 1;
 char *sfen = "rnbqkbnr/pppppppp/////PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 int calc(int sd, int tm, int pon) {
-		int i, t1, ws = 0, alpha = -32000, beta = 32000, w = 100;
+		int i, t1 = 0, ws = 0, alpha = -32000, beta = 32000, w = 100, m2go = 36;
 		Move ms = pv[0][0];
 		eval1 = sabort = 0;
 		qnodes = nodes = 0LL;
 		if (pon) tm = 99999999;
-		maxtime = (tm * 10LL) / 5;
-		searchtime = (tm * 10LL) / 40;
+		if (mps > 0) m2go = 1 + mps - ((COUNT/2) % mps);
+
+		searchtime = (tm*10ULL)/m2go + inc*1000ULL;
+		if (searchtime > tm*5ULL) searchtime = tm*5LL;
 		starttime = getTime();
 		for (i = 1; i <= sd; i++) {
 			w = search(onmove, i, 0, alpha, beta, 0);
@@ -1276,6 +1280,7 @@ int input() {
 		if (!strncmp(buf,"setboard",8)) _parse_fen(buf+9);
 		if (!strncmp(buf,"sd",2)) sscanf(buf+3,"%d",&sd);
 		if (!strncmp(buf,"time",4)) sscanf(buf+5,"%d",&ttime);
+		if (!strncmp(buf,"level",4)) sscanf(buf+6,"%d %d %d",&mps, &base, &inc);
 		if (!strncmp(buf,"hard",4)) { ponder = 1; return 0; }
 		if (!strncmp(buf,"easy",4)) ponder = 0;
 		if (!strncmp(buf,"post",4)) post = 1;
@@ -1304,6 +1309,7 @@ int main(int argc, char **argv)
 	int i, ex = -1;
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
+	signal(SIGINT, SIG_IGN);
 	if (argc > 1 && !strncmp(argv[1],"-sd",3)) {
 		if (argc > 2) {
 			sscanf(argv[2], "%d", &sd);
