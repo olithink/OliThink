@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 17.Jul.2020, ob112@web.de, http://brausch.org */
-#define VER "5.5.6"
+/* OliThink5 (c) Oliver Brausch 19.Jul.2020, ob112@web.de, http://brausch.org */
+#define VER "5.5.7"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -1167,8 +1167,8 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 	if (ply == 127) return eval(c, mat);
 	if (!ch) do {
 		int cmat = evallazy(c, mat);
-		if (cmat - 100 >= beta) return beta;
-		if (cmat + 100 <= alpha) break;
+		if (cmat - 150 >= beta) return beta;
+		if (cmat + 150 <= alpha) break;
 		best = eval(c, mat);
 		if (best > alpha) {
 			alpha = best;
