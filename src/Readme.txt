@@ -1,19 +1,23 @@
-OliThink5 (c) Oliver Brausch 11.Jun.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 12.Jun.2020, ob112@web.de, http://brausch.org
 
 Version: 5.3.5
 Protocol: Winboard 2
 HashSize: 512MB
 Ponder: Yes
-OpeningBook: No
+OpeningBook: Small
 EndgameTables: No
-AnalyzeMode: No
+AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing/pawnhanging evaluation
-LinesOfCode: 1628
+LinesOfCode: 1629
 Stability: 100%
+Special thanks to Dann Corbit for his support and contribution!
+
+v5.3.5: changes since 5.3.4:
+Analyze mode and Mate score.
 
 v5.3.4: changes since 5.3.3:
-Expanding HashSize to 512MB 
+Expanding HashSize to 512MB
 
 v5.3.3: changes since 5.3.2:
 Eliminating bug in getDir thanks to Francisto Modesto

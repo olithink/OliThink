@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 11.Jun.2020, ob112@web.de, http://brausch.org */
-#define VER "5.3.4"
+/* OliThink5 (c) Oliver Brausch 12.Jun.2020, ob112@web.de, http://brausch.org */
+#define VER "5.3.5"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -94,6 +94,7 @@ const int pawnrun[] = {0, 0, 1, 8, 16, 32, 64, 128};
 #define ENPASS (flags & 63)
 #define CASTLE (flags & 960)
 #define COUNT (count & 0x3FF)
+#define MEVAL(w) (w > 31000 ? (232001-w)/2 : (w < -31000 ? (-232000-w)/2 : w))
 
 #define HSIZEB 0x2000000
 #define HMASKB 0x1FFFFFF
@@ -136,10 +137,10 @@ int iter;
 const char pieceChar[] = "*PNK.BRQ";
 u64 searchtime, maxtime, starttime;
 int sabort, noabort;
-int ponder = 0, pondering = 0;
+int ponder = 0, pondering = 0, analyze = 0;
 Move pon = 0;
 int count, flags, mat, onmove, engine =-1;
-int sd = 32;
+int sd = 48;
 int kingpos[2];
 u64 pieceb[8];
 u64 colorb[2];
@@ -248,7 +249,7 @@ void _readbook(char *bk) {
 	_parse_fen(sfen);
 	if (bkcount[0] > 0 || bkcount[1] > 0) book = 1;
 	engine = 1;
-	sd = 32;
+	sd = 48;
 }
 
 #define LOW16(x) ((x) & 0xFFFF)
@@ -1193,11 +1194,15 @@ int inputSearch() {
 	int ex;
 	if (!pondering) return 1;
 	fgets(irbuf,255,stdin);
+	if (analyze) {
+		if (irbuf[0] == '.') { irbuf[0] = 0; return 0; }
+		return 1;
+	}
 	ex = protV2(irbuf);
 	if (!ponder || ex || engine != onmove) pondering = 0;
 	if (!ex) irbuf[0] = 0;
-	if (ex != -1) return !pondering; 
-	ex = parseMove(irbuf, ONMV(pon), pon); 
+	if (ex != -1) return !pondering;
+	ex = parseMove(irbuf, ONMV(pon), pon);
 	if (!ex || ex == -1) return 1;
 	irbuf[0] = 0;
 	return (pon = 0);
@@ -1443,12 +1448,7 @@ void undo() {
 	undoMove((mstack[cnt] >> 42L), onmove);
 }
 
-int ttime = 30000;
-int mps = 0;
-int base = 5;
-int inc = 0;
-int post = 1;
-int st = 0;
+int ttime = 30000, mps = 0, base = 5, inc = 0, post = 1, st = 0;
 
 int calc(int sd, int tm) {
 	int i, j, t1 = 0, m2go = 32;
@@ -1472,18 +1472,19 @@ int calc(int sd, int tm) {
 			}
 		}
 	}
-	if (!book) for (iter = 1; iter <= sd; iter++) {
+	if (!book || analyze) for (iter = 1; iter <= sd; iter++) {
 		noabort = 0;
 		value[iter] = search(ch, onmove, iter, 0, -32000, 32000, 1, 0);
 		t1 = (int)(getTime() - starttime);
 		if (sabort && !pvlength[0] && iter--) break;
 		if (post && pvlength[0] > 0) { 
-			printf("%2d %5d %6d %9lu  ", iter, value[iter], t1/10, (u32)(nodes + qnodes));
+			printf("%2d %5d %6d %9lu  ", iter, MEVAL(value[iter]), t1/10, (u32)(nodes + qnodes));
 			displaypv(); printf("\n"); 
 		}
 		if (!pondering && (iter >= 32000-value[iter] || (u32)t1 > searchtime/2)) break;
 		if (sabort) break;
 	}
+	if (analyze) return 1;
 	pondering = 0;
 	if (pon) {
 	 	undo();	
@@ -1492,7 +1493,7 @@ int calc(int sd, int tm) {
 	}
 	printf("move "); displaym(pv[0][0]); printf("\n");
 
-	if (post) printf("\nkibitz W: %d Nodes: %lu QNodes: %lu Evals: %d cs: %d knps: %lu\n", value[iter > sd ? sd : iter], (u32)nodes, (u32)qnodes, eval1, t1/10, (u32)(nodes+qnodes)/(t1+1));
+	if (post) printf("\nkibitz W: %d Nodes: %lu QNodes: %lu Evals: %d cs: %d knps: %lu\n", MEVAL(value[iter > sd ? sd : iter]), (u32)nodes, (u32)qnodes, eval1, t1/10, (u32)(nodes+qnodes)/(t1+1));
 	return execMove(pv[0][0]);
 }
 
@@ -1526,7 +1527,7 @@ u64 perft(int c, int d, int div) {
 }
 
 int protV2(char* buf) {
-		if (!strncmp(buf,"protover",8)) printf("feature setboard=1 myname=\"OliThink " VER "\" colors=0 analyze=0 done=1\n");
+		if (!strncmp(buf,"protover",8)) printf("feature setboard=1 myname=\"OliThink " VER "\" colors=0 analyze=1 done=1\n");
 		else if (!strncmp(buf,"xboard",6));
 		else if (!strncmp(buf,"quit",4)) return -2;
 		else if (!strncmp(buf,"new",3)) return -3; 
@@ -1537,6 +1538,8 @@ int protV2(char* buf) {
 		else if (!strncmp(buf,"undo",4)) undo();
 		else if (!strncmp(buf,"easy",4)) ponder = 0;
 		else if (!strncmp(buf,"hard",4)) ponder = 1;
+		else if (!strncmp(buf,"analyze",7)) analyze = pondering = 1;
+		else if (!strncmp(buf,"exit",4)) analyze = pondering = 0;
 		else if (!strncmp(buf,"sd",2)) sscanf(buf+3,"%d",&sd);
 		else if (!strncmp(buf,"time",4)) sscanf(buf+5,"%d",&ttime);
 		else if (!strncmp(buf,"level",4)) sscanf(buf+6,"%d %d %d",&mps, &base, &inc);
@@ -1616,7 +1619,7 @@ int main(int argc, char **argv)
 	irbuf[0] = 0;
 
 	for (;;) {
-		if (engine == onmove) ex = calc(sd, ttime);
+		if (engine == onmove || analyze) ex = calc(sd, ttime);
 		else if (ex == 0 && ponder && engine != -1 && !book) ex = doponder(onmove);
 
 		if (!ponder || book || engine == -1 || ex != 0) ex = input(onmove);
