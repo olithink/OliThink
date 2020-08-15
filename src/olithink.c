@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 01.Aug.2020, ob112@web.de, http://brausch.org */
-#define VER "5.6.1"
+/* OliThink5 (c) Oliver Brausch 08.Aug.2020, ob112@web.de, http://brausch.org */
+#define VER "5.6.2"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -138,7 +138,6 @@ u64 whitesq;
 Move movelist[128*256];
 int movenum[128];
 Move pv[128][128];
-int pvlength[128];
 int value[128];
 int iter;
 const char pieceChar[] = "*PNK.BRQ";
@@ -555,7 +554,7 @@ int bioskey() {
 void displaypv() {
 	int i;
 	if (pon && pondering) { printf("("); displaym(pon); printf(") "); }
-	for (i = 0; i < pvlength[0]; i++) {
+	for (i = 0; pv[0][i]; i++) {
 		displaym(pv[0][i]); printf(" ");
 	}
 }
@@ -767,7 +766,7 @@ int generateNonCaps(u64 ch, int c, int f, u64 pin, int *ml, int *mn) {
 			u64 a = PCAP(f, c);
 			regPromotions(f, c, m, ml, mn, 0, 0);
 			if (a) regPromotions(f, c, a, ml, mn, 1, 0);
-		} else if (!RANK(f, c ? 0x10 : 0x28)) {
+		} else {
 			regMoves(PREMOVE(f, PAWN), m, ml, mn, 0);
 		}
 	}
@@ -786,7 +785,7 @@ int generateNonCaps(u64 ch, int c, int f, u64 pin, int *ml, int *mn) {
 			u64 a = (t & 32) ? PCA3(f, c) : ((t & 64) ? PCA4(f, c) : 0LL);
 			regPromotions(f, c, m, ml, mn, 0, 0);
 			if (a) regPromotions(f, c, a, ml, mn, 1, 0);
-		} else if (!RANK(f, c ? 0x10 : 0x28)) {
+		} else {
 			regMoves(PREMOVE(f, PAWN), m, ml, mn, 0);
 		}
 	}
@@ -852,8 +851,6 @@ int generateCaps(u64 ch, int c, int f, u64 pin, int *ml, int *mn) {
 		a = PCAP(f, c);
 		if (RANK(f, c ? 0x08 : 0x30)) {
 			regMovesCaps(PREMOVE(f, PAWN) | _PROM(QUEEN), a, PMOVE(f, c), ml, mn);
-		} else if (RANK(f, c ? 0x10 : 0x28)) {
-			regMovesCaps(PREMOVE(f, PAWN), a, PMOVE(f, c), ml, mn);
 		} else {
 			if (ENPASS && (BIT[ENPASS] & pcaps[(f) | ((c)<<6)])) {
 				xorBit(ENPASS^8, colorb+(c^1));
@@ -881,8 +878,6 @@ int generateCaps(u64 ch, int c, int f, u64 pin, int *ml, int *mn) {
 		}
 		if (RANK(f, c ? 0x08 : 0x30)) {
 			regMovesCaps(PREMOVE(f, PAWN) | _PROM(QUEEN), a, m, ml, mn);
-		} else if (RANK(f, c ? 0x10 : 0x28)) {
-			regMovesCaps(PREMOVE(f, PAWN), a, m, ml, mn);
 		} else {
 			regMoves(PREMOVE(f, PAWN), a, ml, mn, 1);
 		}
@@ -1005,8 +1000,7 @@ Move qpick(Move* ml, int mn, int s) {
 	return m;
 }
 
-Move matekiller[128];
-Move killer[128];
+Move killer[128], matekiller[128];
 long long history[0x1000];
 /* In normal search some basic move ordering heuristics are used */
 Move spick(Move* ml, int mn, int s, int ply) {
@@ -1014,7 +1008,7 @@ Move spick(Move* ml, int mn, int s, int ply) {
 	int i, pi = 0; long long vmax = -9999L;
 	for (i = s; i < mn; i++) {
 		m = ml[i];
-		if (m == killer[ply] || m == matekiller[ply]) {
+		if (m == killer[ply]) {
 			pi = i;
 			break;
 		}
@@ -1220,6 +1214,8 @@ int retPVMove(int c, int ply) {
 	return 0;
 }
 
+int ttime = 30000, mps = 0, inc = 0, post = 1, st = 0; char base[16];
+
 int inputSearch() {
 	int ex;
 	fgets(irbuf,255,stdin);
@@ -1230,9 +1226,9 @@ int inputSearch() {
 	if (ex < -1) return ex;
 	if (ex != -1) return !pondering;
 	ex = parseMove(irbuf, ONMV(pon), pon);
-	if (!ex || ex == -1) return 1;
-	irbuf[0] = 0;
-	return (pon = 0);
+	if (!ex || ex == -1) return -1;
+	irbuf[0] = 0; pon = 0;
+	return -(ttime < 50);
 }
 
 const int nullvar[] = {13, 43, 149, 519, 1809, 6311, 22027};
@@ -1247,10 +1243,10 @@ static int nullvariance(int delta) {
 int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int null) {
 	int i, j, n, w;
 	u64 hb, hp, he, hismax = 0LL;
-
-	pvlength[ply] = ply;
+	
+	if (ply) pv[ply][ply] = 0;
 	if ((++nodes & CNODES) == 0) {
-		if (bioskey()) sabort = inputSearch();
+		while (bioskey() && !sabort) sabort = inputSearch();
 		if (!pondering && getTime() - starttime > maxtime) sabort = 1;
 	}
 	if (sabort) return alpha;
@@ -1271,12 +1267,12 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		} else {
 			if (w >= beta) return beta;
 		}
-	} else w = c ? -mat : mat;
+	} 
 
 	//Null Move
 	if (!ch && null && d > 1 && (n = bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1)))) > 1) {
 		int flagstore = flags;
-		int R = (10 + d + nullvariance(w - alpha))/4; if (n <= 2) R--;
+		int R = (10 + d + nullvariance(evallazy(c, mat) - alpha))/4; if (n <= 2) R--;
 		if (R > d) R = d;
 		flags &= 960;
 		count += 0x401;
@@ -1328,10 +1324,10 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		doMove(m, c);
 		nch = attacked(kingpos[c^1], c^1);
 		if (nch) ext++; // Check Extension
-		else if (PIECE(m) == PAWN && !(pawnfree[TO(m) + (c << 6)] & pieceb[PAWN] & colorb[c^1])); //Don't reduce free pawns
-		else if (n == 2 && !pvnode && d >= 2 && !ch && !PROM(m) && CAP(m) && swap(m) < 0) ext--; //Reduce bad exchanges
+		else if (n == 2 && !pvnode && d >= 2 && !ch && !PROM(m) && swap(m) < 0) ext--; //Reduce bad exchanges
 		else if (n == 3 && !pvnode) { //LMR
 			if (m == killer[ply] || m == matekiller[ply] || PROM(m)); //Don't reduce killers or promotions
+			else if (PIECE(m) == PAWN && !(pawnfree[TO(m) + (c << 6)] & pieceb[PAWN] & colorb[c^1])); //Don't reduce free pawns
 			else {
 				u32 his = history[m & 0xFFF];
 				if (his > hismax) { hismax = his;} 
@@ -1355,6 +1351,9 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 			hashDP[hp & HMASKP] = (hp & HINVP) | m;
 			alpha = w;
 			first = -1;
+			pv[ply][ply] = m;
+			for (j = ply +1; pv[ply +1][j]; j++) pv[ply][j] = pv[ply +1][j];
+			pv[ply][j] = 0;
 
 			if (w >= beta) {
 				if (CAP(m) == 0) {
@@ -1363,11 +1362,6 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 				}
 				hashDB[hb & HMASKB] = (hb & HINVB) | (w + MAXSCORE); 
 				return beta;
-			}
-			if (pvnode && w >= alpha) {
-				pv[ply][ply] = m;
-				for (j = ply +1; j < pvlength[ply +1]; j++) pv[ply][j] = pv[ply +1][j];
-				pvlength[ply] = pvlength[ply +1];
 			}
 			if (w == MAXSCORE-1 - ply) { matekiller[ply] = m; return w; }
 		}
@@ -1386,9 +1380,8 @@ void reseth(int level) {
 	for (i = istart; i < 127; i++) killer[i] = level <= 1 ? killer[i+level] : 0;
 	for (i = istart; i < 127; i++) matekiller[i] = level <= 1 ? matekiller[i+level] : 0;
 	for (i = istart; i < 127; i++) pv[0][i] = level <= 1 ? pv[0][i+level] : 0;
-	pvlength[0] = level <= 1 && pvlength[0] - level > 0 ? pvlength[0] - level : 0;
 	if (level <= 1) return;
-	pvlength[0] = pv[0][0] = 0;
+	pv[0][0] = 0;
 	if (level < 3) return;
 	memset(hashDB, 0, sizeof(hashDB));
 	memset(hashDP, 0, sizeof(hashDP));
@@ -1487,8 +1480,6 @@ void undo() {
 	pv[0][0] = m;
 }
 
-int ttime = 30000, mps = 0, inc = 0, post = 1, st = 0; char base[16];
-
 int calc(int sd, int tm) {
 	int i, j, t1 = 0, m2go = mps == 0 ? 32 : 1 + mps - ((COUNT/2) % mps);
 	u64 ch = attacked(kingpos[onmove], onmove); long tmsh = tm*8L-50-m2go*5; if (tmsh < 10) tmsh = 10;
@@ -1513,11 +1504,9 @@ int calc(int sd, int tm) {
 		}
 	}
 	if (!book || analyze) for (iter = 1; iter <= sd; iter++) {
-		int pvlengsave = pvlength[0];
 		value[iter] = search(ch, onmove, iter, 0, -MAXSCORE, MAXSCORE, 1, 0);
-		if (pvlength[0] == 0 && iter > 1) { pvlength[0] = pvlengsave; value[iter] = value[iter -1]; }
 		t1 = (int)(getTime() - starttime);
-		if (post && pvlength[0] > 0 && (!sabort || (!analyze && sabort>=1))) { 
+		if (post && pv[0][0] && (!sabort || (!analyze && sabort>=1)) && value[iter] > -MAXSCORE) { 
 			printf("%2d %5d %6d %9llu  ", iter, MEVAL(value[iter]), t1/10, nodes + qnodes);
 			displaypv(); printf("\n"); 
 		}

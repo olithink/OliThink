@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 01.Aug.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 08.Aug.2020, ob112@web.de, http://brausch.org
 
-Version: 5.6.1
+Version: 5.6.2
 Protocol: Winboard 2
 HashSize: 96MB
 Ponder: Yes
@@ -9,9 +9,12 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1705
+LinesOfCode: 1694
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
+
+v5.6.2: changes since 5.6.1:
+Matekillers only prevent reduction. pv refactor and fix time management when pondering.
 
 v5.6.1: changes since 5.6.0:
 Matekillers. Progress to 7th rank is not quiet.
