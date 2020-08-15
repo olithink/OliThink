@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 27.Oct.2008, ob112@web.de, http://home.arcor.de/dreamlike */
-#define VER "5.1.7"
+#define VER "5.1.8alpha"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -1161,10 +1161,8 @@ int eval(int c) {
 	int ev1 = evalc(1, &sf1);
 	eval1++;
 
-	if (sf1 > 6) ev0 -= kmobil[kingpos[0]];
-	else if (sf1 < 6) ev0 += kmobil[kingpos[0]]*(6-sf1);
-	if (sf0 > 6) ev1 -= kmobil[kingpos[1]];
-	else if (sf0 < 6) ev1 += kmobil[kingpos[1]]*(6-sf0);
+	if (sf1 < 6 && sf1 > 1) ev0 += kmobil[kingpos[0]]*(6-sf1);
+	if (sf0 < 6 && sf0 > 1) ev1 += kmobil[kingpos[1]]*(6-sf0);
 
 	return (c ? (ev1 - ev0) : (ev0 - ev1));
 }

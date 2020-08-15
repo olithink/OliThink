@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 27.Oct.2008, ob112@web.de, http://home.arcor.de/dreamlike
+OliThink5 (c) Oliver Brausch 29.Oct.2008, ob112@web.de, http://home.arcor.de/dreamlike
 
-Version: 5.1.7
+Version: 5.1.8
 Protocol: Winboard 2
 HashSize: 128mb
 Ponder: Yes
@@ -9,13 +9,17 @@ EndgameTables: No
 AnalyzeMode: No
 SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension
 Evaluation: Just mobility and a very simple pawnprogressing/pawnhanging evaluation
-LinesOfCode: 1562
+LinesOfCode: 1561
 Stability: 100%
 Strength: slightly weaker than Glaurung/Crafty
 
+v5.1.8: changes since 5.1.7:
+Minor change in the king mobility evaluation that has a notable effect.
+Opening book removed from the standard package.
+
 v5.1.7: changes since 5.1.6:
 Knight mobility evaluation reduced
-Constant for "draw for insufficiant matierial" reduced 
+Constant for "draw for insufficiant material" reduced 
 Minor infrastructual changes and little bugs removed (setboard, moveparser)
 
 v5.1.6: changes since 5.1.5:
@@ -40,8 +44,3 @@ Minor changes in time control
 Draw Check for insufficient Material
 Pruning Window in Quiescence reduced
 Search extension moved into the move-loop
-
-Create/Change book: 
-- The file must be named "olibook.pgn".
-- The Substring "[Black: OliThink" indicates that the engine can play this opening if black.
-- Only the first line of the opening will be read and the line must end with "*"
