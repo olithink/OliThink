@@ -1,7 +1,8 @@
-/* OliThink5 (c) Oliver Brausch 03.Apr.2008, ob112@web.de, http://home.arcor.de/dreamlike */
-#define VER "5.1.2"
+/* OliThink5 (c) Oliver Brausch 11.Apr.2008, ob112@web.de, http://home.arcor.de/dreamlike */
+#define VER "5.1.3"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <signal.h>
 #ifdef _WIN32
@@ -127,7 +128,7 @@ int iter;
 const char pieceChar[] = "*PNK.BRQ";
 u64 searchtime, maxtime, starttime;
 int sabort, noabort, neverabort = 0;
-int count, flags, mat, onmove;
+int count, flags, mat, onmove, engine =-1;
 int kingpos[2];
 u64 pieceb[8];
 u64 colorb[2];
@@ -147,48 +148,92 @@ u64 getLowestBit(u64 bb) {
 	return bb & (-(long long)bb);
 }
 
+int _getpiece(char s, int *c) {
+	int i;
+	for (i = 1; i < 8; i++) 
+		if (pieceChar[i] == s) { *c = 0; return i; } 
+		else if (pieceChar[i] == s-32) { *c = 1; return i; }
+	return 0;
+}
+
 void _parse_fen(char *fen) {
-	char c, mv, pos[128], cas[5], enps[3];
-	int i, j = 0, halfm = 0, fullm = 1, col = 0, row = 7;
+	char s, mv, pos[128], cas[5], enps[3];
+	int c, i, halfm = 0, fullm = 1, col = 0, row = 7;
 	for (i = 0; i < 8; i++) pieceb[i] = 0LL;
 	colorb[0] = colorb[1] = hashb = 0LL;
-	mat = 0;
+	mat = i = c = 0;
 	sscanf(fen, "%s %c %s %s %d %d", pos, &mv, cas, enps, &halfm, &fullm);
-	while ((c = pos[j++])) {
-		if (c == '/') {
+	while ((s = pos[i++])) {
+		if (s == '/') {
 			row--;
 			col = 0;
-		} else if (c >= '1' && c <= '8') {
-			col += c - '0';
-		} else for (i = 1; i < 8; i++) {
-			if (pieceChar[i] == c) {
-				if (i == KING) kingpos[0] = row*8 + col;
-				else mat += pval[i];
-				hashb ^= hashxor[col | row << 3 | i << 6];
-				setBit(row*8 + col, pieceb+i);
-				setBit(row*8 + (col++), colorb);
-				break;
-			} else if (pieceChar[i] == c - 32) {
-				if (i == KING) kingpos[1] = row*8 + col;
-				else mat -= pval[i];
-				hashb ^= hashxor[col | row << 3 | i << 6 | 512];
-				setBit(row*8 + col, pieceb+i);
-				setBit(row*8 + (col++), colorb+1);
-				break;
-			}
+		} else if (s >= '1' && s <= '8') {
+			col += s - '0';
+		} else {
+			int p = _getpiece(s, &c);
+			if (p == KING) kingpos[c] = row*8 + col;
+			else mat += c ? -pval[p] : pval[p];
+			hashb ^= hashxor[col | row << 3 | i << 6 | (c ? 512 : 0)];
+			setBit(row*8 + col, pieceb + p);
+			setBit(row*8 + (col++), colorb + c);			
 		}
 	}
 	onmove = mv == 'b' ? 1 : 0;
-	flags = j = 0;
-	while ((c = cas[j++])) {
-		if (c == 'K') flags |= BIT[6];
-		if (c == 'k') flags |= BIT[7];
-		if (c == 'Q') flags |= BIT[8];
-		if (c == 'q') flags |= BIT[9];
+	flags = i = 0;
+	while ((s = cas[i++])) {
+		if (s == 'K') flags |= BIT[6];
+		if (s == 'k') flags |= BIT[7];
+		if (s == 'Q') flags |= BIT[8];
+		if (s == 'q') flags |= BIT[9];
 	}
 	if (enps[0] != '-') flags |= 8*(enps[1] - '1') + enps[0] - 'a'; 
 	count = (fullm - 1)*2 + onmove + (halfm << 11);
 	for (i = 0; i < COUNT; i++) hstack[i] = 0LL;
+}
+
+int parseMove(char*, int, Move*);
+char *sfen = "rnbqkbnr/pppppppp/////PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+#define BKSIZE 1024
+Move bkmove[BKSIZE*32];
+int bkflag[BKSIZE];
+int bkcount[3];
+int book;
+
+void _readbook(char *bk) {
+	char buf[256], s0[64], s1[64], s2[64];
+	int k, n = 0;
+	FILE *in = fopen(bk, "r");
+	book = bkcount[0] = bkcount[1] = 0;
+	for (k = 0; k < BKSIZE; k++) bkflag[k] = 2;
+	if (in != NULL) {
+		while (!feof(in)) {
+			fgets(buf, 255, in);
+			if (buf[0] == '[') {
+				sscanf(buf,"%s %s", s1, s2);
+				if (!strncmp(s2, "\"OliThink", 8)) bkflag[n] = strncmp(s1, "[Black", 6) ? 0 : 1;
+			} else if (buf[0] == '1') {
+				int i = 0, j = 0;
+				_parse_fen(sfen);
+				for (;;) {
+					sscanf(buf+i,"%s %s", s0, s2);
+					if (s0[0] < '1' || s0[0] > '9') break;
+					i += strlen(s0) + strlen(s2) + 2;
+					sscanf(s0,"%*[^.].%[^.]", s1);
+					parseMove(s1, 0, bkmove + n*32+ (j++));
+					if (s2[0] == 0 || s2[0] == '*') break;
+					parseMove(s2, 1, bkmove + n*32+ (j++));
+					if (j > 30) break;
+				}
+				bkmove[n*32 + j] = 0;
+				if (j) bkcount[bkflag[n]]++;
+				if (++n == BKSIZE) break;
+			} 
+		}
+		fclose(in);
+		book = 1;
+	}
+	_parse_fen(sfen);
+	engine = 1;
 }
 
 #define LOW16(x) ((x) & 0xFFFF)
@@ -1097,26 +1142,36 @@ int eval(int c) {
 	return (c ? (ev1 - ev0) : (ev0 - ev1));
 }
 
+void displayb() {
+	int i, j;
+	for (i = 0; i < 8; i++) {
+		for (j = 0; j < 8; j++) {
+			int f = j + (7-i)*8;
+			printf(" %c", pieceChar[identPiece(f)] + identColor(f)*32);
+		} printf("\n");
+	} printf("\n");
+}
+
 u64 nodes;
 u64 qnodes;
 int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
-	int i, w = -99999, poff;
+	int i, w, best = -32000, poff;
 	int flagstore = flags;
 	int countstore = count;
 	int matstore = mat;
 	int cmat = c ? -mat: mat;
 	if (!ch) do {
-		if (cmat + 200 < alpha) break;
 		if (cmat - 200 >= beta) return beta;
-		w = eval(c) + cmat;
-		if (w > alpha) {
-			if (w >= beta) return beta;
-			alpha = w;
+		if (cmat + 200 <= alpha) break;
+		best = eval(c) + cmat;
+		if (best > alpha) {
+			alpha = best;
+			if (best >= beta) return beta;
 		}
 	} while(0);
 
 	generateCaps(ch, c, ply);
-	if (movenum[ply] == 0) return ch ? -32000 + ply : (w == -99999 ? eval(c) + cmat : w);
+	if (ch && movenum[ply] == 0) return -32000 + ply;
 	poff = ply << 8;
 
 	for (i = 0; i < movenum[ply]; i++) {
@@ -1133,12 +1188,15 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 		count = countstore;
 		mat = matstore;
 
-		if (w > alpha) {
-			if (w >= beta) return beta;
-			alpha = w;
+		if (w > best) {
+			best = w;
+			if (w > alpha) {
+				alpha = w;
+				if (w >= beta) return beta;
+			}
 		}
 	}
-	return alpha;
+	return best >= alpha ? best : eval(c) + cmat;
 }
 
 #define HASHP (hashb ^ hashxor[flags | 1024 | c << 11])
@@ -1176,10 +1234,6 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		}
 	}
 
-	hsave = hmove = 0;
-	he = hashDP[hp & HMASK];
-	if (!((he^hp) & HINV)) hsave = hmove = (Move)(he & HMASK);
-
 	if (!pvnode && !ch && null && d > 1 && bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1))) > 2) {
 		flags &= 960;
 		count += 0x801;
@@ -1191,6 +1245,10 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 			return beta;
 		}
 	}
+
+	hsave = hmove = 0;
+	he = hashDP[hp & HMASK];
+	if (!((he^hp) & HINV)) hsave = hmove = (Move)(he & HMASK);
 
 	if (d >= 4 && hmove == 0) { // Simple version of Internal Iterative Deepening
 		w = search(ch, c, d-3, ply, alpha, beta, 0, pvnode);
@@ -1275,6 +1333,12 @@ int execMove(Move m) {
 	doMove(m, onmove);
 	onmove ^= 1; 
 	c = onmove;
+	if (book) for (i = 0; i < BKSIZE; i++) {
+		if (bkflag[i] < 2 && (bkmove[i*32 + COUNT - 1] != m || bkmove[i*32 + COUNT] == 0)) {
+			bkcount[bkflag[i]]--;
+			bkflag[i] = 2;
+		}
+	}
 	hstack[COUNT] = HASHP;
 	for (i = 0; i < 127; i++) killer[i] = killer[i+1];
 	for (i = 0; i < 0x1000; i++) history[i] = 0;
@@ -1295,7 +1359,56 @@ int execMove(Move m) {
 	return 0;
 }
 
-int engine = -1;
+#define ISRANK(c) (c >= '1' && c <= '8')
+#define ISFILE(c) (c >= 'a' && c <= 'h')
+int _parseMove(char *s, int c, Move* mp) {
+	int i, to, from = -1, piece = PAWN, prom = 0;
+    char h = 0, c1, c2;
+	char *t = s;
+	*mp = 0;
+	if (!strcmp(s, "O-O")) strcpy(s, c ? "Kg8" : "Kg1");
+	else if (!strcmp(s, "O-O-O")) strcpy(s, c ? "Kc8" : "Kc1");
+	if (s[0] >= 'A' && s[0] <= 'Z') if ((piece = _getpiece(*s++, &i)) < 1) return -1;
+	if (s[0] == 'x') s++;
+	if (ISRANK(s[0])) {h = *s++; if (s[0] == 'x') s++; }
+	if (!ISFILE(s[0])) return -1;
+	c1 = *s++;
+	if (s[0] == 'x') s++;
+	if (ISFILE(s[0])) {h = c1; c1 = *s++;}
+	c2 = *s++;
+	if (!ISRANK(c2)) return -1;
+	if (*s >= '0') {
+		if (*s == '=') prom = _getpiece(s[1], &i);
+		else { // Algebraic Notation
+			from = c1 - 'a' + 8*(c2 - '1');
+			c1 = *s++; c2 = *s++;
+			if (!ISFILE(c1) || !ISRANK(c2)) return -1;
+			prom = _getpiece(*s, &i);
+		}
+	}
+	to = c1 - 'a' + 8*(c2 - '1');
+   GENERATE(c);
+	for (i = 0; i < movenum[0]; i++) {
+		Move m = movelist[i];
+		if (TO(m) != to) continue;
+		if (from < 0 && PIECE(m) != piece) continue;
+		if (from >= 0 && FROM(m) != from) continue;
+		if (ISFILE(h) && (FROM(m) & 7) != h - 'a') continue;
+		if (ISRANK(h) && (FROM(m) & 56) != 8*(h - '1')) continue;
+		if (prom && PROM(m) != prom) continue;
+		*mp = m;
+	}
+	if (*mp == 0) fprintf(stderr,"Illegal move: %s\n",t);
+	else return execMove(*mp);
+	return -1;
+}
+
+int parseMove(char *s, int c, Move* mp) {
+	int r = _parseMove(s, c, mp);
+	if (r < 0) printf("UNKNOWN COMMAND: %s\n", s);
+		return r;
+}
+
 int sd = 32;
 int ttime = 30000;
 int mps = 0;
@@ -1303,12 +1416,11 @@ int base = 5;
 int inc = 0;
 int ponder = 0;
 int post = 1;
-char *sfen = "rnbqkbnr/pppppppp/////PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 int calc(int sd, int tm, int pon) {
-		int t1 = 0, m2go = 32;
+		int i, j, t1 = 0, m2go = 32;
 		u64 ch = attacked(kingpos[onmove], onmove);
-		eval1 = sabort = 0;
+		eval1 = sabort = iter = value[0] = 0;
 		qnodes = nodes = 0LL;
 		if (pon) tm = 99999999;
 		if (mps > 0) m2go = 1 + mps - ((COUNT/2) % mps);
@@ -1317,11 +1429,21 @@ int calc(int sd, int tm, int pon) {
 		maxtime = inc ? tm*3LL : tm*2LL;
 
 		starttime = getTime();
-		for (iter = 1; iter <= sd; iter++) {
+		srand((u32)starttime);
+		if (book) {
+			if (!bkcount[onmove]) book = 0;
+			else {
+				j = rand() % bkcount[onmove];
+				for (i = 0; i < BKSIZE; i++) {
+					if (bkflag[i] == onmove && j == t1++) { pv[0][0] = bkmove[i*32 + COUNT]; break; }
+				}
+			}
+		}
+		if (!book) for (iter = 1; iter <= sd; iter++) {
 			noabort = neverabort;
 			value[iter] = search(ch, onmove, iter, 0, -32000, 32000, 1, 0);
 			t1 = (int)(getTime() - starttime);
-			if (sabort && !pvlength[0]) break;
+			if (sabort && !pvlength[0] && iter--) break;
 			if (post && pvlength[0] > 0) { 
 				printf("%2d %5d %6d %9llu  ", iter, value[iter], t1/10, nodes + qnodes);
 				displaypv(); printf("\n"); 
@@ -1337,38 +1459,32 @@ int calc(int sd, int tm, int pon) {
 }
 
 int input() {
-		int i;
+		Move m;
 		char buf[256];
 		fgets(buf,255,stdin);
 		if (!strncmp(buf,"xboard",6)) printf("feature setboard=1 myname=\"OliThink " VER "\" colors=0 done=1\n");
-		if (!strncmp(buf,"quit",4)) return -2;
-		if (!strncmp(buf,"force",5)) engine = -1;
-		if (!strncmp(buf,"go",2)) engine = onmove;
-		if (!strncmp(buf,"new",2)) { _parse_fen(sfen); engine = 1; }
-		if (!strncmp(buf,"setboard",8)) _parse_fen(buf+9);
-		if (!strncmp(buf,"sd",2)) sscanf(buf+3,"%d",&sd);
-		if (!strncmp(buf,"time",4)) sscanf(buf+5,"%d",&ttime);
-		if (!strncmp(buf,"level",4)) sscanf(buf+6,"%d %d %d",&mps, &base, &inc);
-		if (!strncmp(buf,"hard",4)) { ponder = 1; return 0; }
-		if (!strncmp(buf,"easy",4)) ponder = 0;
-		if (!strncmp(buf,"post",4)) post = 1;
-		if (!strncmp(buf,"nopost",6)) post = 0;
-
-		if (buf[0] >= 'a' && buf[0] <= 'h' && buf[1] >= '1' && buf[1] <= '8') {
-			Move _m = 0;
-			int from = 8*(buf[1] - '1') + buf[0] - 'a';
-			int to = 8*(buf[3] - '1') + buf[2] - 'a';
-			GENERATE(onmove);
-			for (i = 0; i < movenum[0]; i++) {
-				Move m = movelist[i];
-				if (TO(m) != to) continue;
-				if (FROM(m) != from) continue;
-				if (PROM(m) && pieceChar[PROM(m)] != buf[4]-32) continue;
-				_m = m;
-			}
-			if (_m == 0) fprintf(stderr,"Illegal move: %s\n",buf);
-			else return execMove(_m);
-		}
+		else if (!strncmp(buf,"quit",4)) return -2;
+		else if (!strncmp(buf,"force",5)) engine = -1;
+		else if (!strncmp(buf,"go",2)) engine = onmove;
+		else if (!strncmp(buf,"new",2)) _readbook("olibook.pgn");
+		else if (!strncmp(buf,"setboard",8)) _parse_fen(buf+9);
+		else if (!strncmp(buf,"sd",2)) sscanf(buf+3,"%d",&sd);
+		else if (!strncmp(buf,"time",4)) sscanf(buf+5,"%d",&ttime);
+		else if (!strncmp(buf,"level",4)) sscanf(buf+6,"%d %d %d",&mps, &base, &inc);
+		else if (!strncmp(buf,"hard",4)) { ponder = 1; return 0; }
+		else if (!strncmp(buf,"easy",4)) ponder = 0;
+		else if (!strncmp(buf,"post",4)) post = 1;
+		else if (!strncmp(buf,"nopost",6)) post = 0;
+		else if (!strncmp(buf,"result",6));//result 0-1 {Black mates}
+		else if (!strncmp(buf,"undo",4));
+		else if (!strncmp(buf,"otim",4));//otim <optime>
+		else if (!strncmp(buf,"computer",8));
+		else if (!strncmp(buf,"protover",8));//protover 2
+		else if (!strncmp(buf,"accepted",8));//accepted <feature>
+		else if (!strncmp(buf,"random",6));
+		else if (!strncmp(buf,"rating",6));//ICS: rating <myrat> <oprat>
+		else if (!strncmp(buf,"name",4));//ICS: name <opname>
+		else return parseMove(buf, onmove, &m);
 		return -1;
 }
 
@@ -1378,13 +1494,6 @@ int main(int argc, char **argv)
 	setbuf(stdout, NULL);
 	setbuf(stdin, NULL);
 	signal(SIGINT, SIG_IGN);
-	if (argc > 1 && !strncmp(argv[1],"-sd",3)) {
-		neverabort = 1;
-		if (argc > 2) {
-			sscanf(argv[2], "%d", &sd);
-			if (argc > 3) sfen = argv[3];
-		}
-	}
 	for (i = 0; i < 0x10000; i++) LSB[i] = _slow_lsb(i);
 	for (i = 0; i < 0x10000; i++) BITC[i] = _bitcnt(i);
 	for (i = 0; i < 4096; i++) hashxor[i] = _rand_64();
@@ -1409,15 +1518,24 @@ int main(int argc, char **argv)
 	_init_shorts(kmoves, _king);
 	_init_pawns(pmoves, pcaps, 0);
 	_init_pawns(pmoves + 64, pcaps + 64, 1);
-	_parse_fen(sfen);
+	_readbook("olibook.pgn");
+
+	if (argc > 1 && !strncmp(argv[1],"-sd",3)) {
+		neverabort = 1;
+		if (argc > 2) {
+			sscanf(argv[2], "%d", &sd);
+			if (argc > 3) { _parse_fen(argv[3]); book = 0; }
+		}
+	}
+	
 	for (i = 0; i < 64; i++) nmobil[i] = bitcnt(nmoves[i])*8;
 	for (i = 0; i < 64; i++) kmobil[i] = (bitcnt(nmoves[i])/2)*2;
 
 	for (;;) {
 		if (engine == onmove) ex = calc(sd, ttime, 0);
-		else if (ex == 0 && ponder && engine != -1) ex = calc(sd, ttime, 1);
+		else if (ex == 0 && ponder && engine != -1 && !book) ex = calc(sd, ttime, 1);
 
-		if (!ponder ||engine == -1 || ex != 0) ex = input();
+		if (!ponder || book || engine == -1 || ex != 0) ex = input();
 		if (ex == -2) break;
 	}
 	return 0;
