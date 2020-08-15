@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 24.Jul.2020, ob112@web.de, http://brausch.org */
-#define VER "5.5.9"
+/* OliThink5 (c) Oliver Brausch 27.Jul.2020, ob112@web.de, http://brausch.org */
+#define VER "5.6.0"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -1142,7 +1142,7 @@ int kmobilf(int c) {
 		int bc = bishcorn[kingpos[c]] << 2;
 		if (pieceb[BISHOP] & whitesq) km += bc; else km -= bc; 
 	}
-	return km * (12- (sf[c^1] > 4 ? sf[c^1] : 4));
+	return km * sf[c^1];
 }
 
 int evallazy(int c, int matrl) {
@@ -1170,8 +1170,8 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 	if (ply == 127) return eval(c, mat);
 	if (!ch) do {
 		int cmat = evallazy(c, mat);
-		if (cmat - 150 >= beta) return beta;
-		if (cmat + 150 <= alpha) break;
+		if (cmat - 140 >= beta) return beta;
+		if (cmat + 140 <= alpha) break;
 		best = eval(c, mat);
 		if (best > alpha) {
 			alpha = best;
@@ -1271,7 +1271,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	//Null Move
 	if (!ch && null && d > 1 && (n = bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1)))) > 1) {
 		int flagstore = flags;
-		int R = (10 + d + nullvariance(w - beta))/4; if (n <= 2) R--;
+		int R = (10 + d + nullvariance(w - alpha))/4; if (n <= 2) R--;
 		if (R > d) R = d;
 		flags &= 960;
 		count += 0x401;

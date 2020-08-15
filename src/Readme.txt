@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 24.Jul.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 26.Jul.2020, ob112@web.de, http://brausch.org
 
-Version: 5.5.9
+Version: 5.6.0
 Protocol: Winboard 2
 HashSize: 96MB
 Ponder: Yes
@@ -12,6 +12,9 @@ Evaluation: Just mobility and a very simple pawnprogressing evaluation
 LinesOfCode: 1699
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
+
+v5.6.0: changes since 5.5.9:
+Minor changes that yield better results in tests.
 
 v5.5.9: changes since 5.5.8:
 Redo some former changes in order to gain strength.
