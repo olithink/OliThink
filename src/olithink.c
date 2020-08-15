@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 31.Dec.2009, ob112@web.de, http://home.arcor.de/dreamlike */
-#define VER "5.2.6"
+/* OliThink5 (c) Oliver Brausch 05.Jan.2010, ob112@web.de, http://home.arcor.de/dreamlike */
+#define VER "5.2.7"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -1090,7 +1090,7 @@ int evalc(int c, int* sf) {
 		} else {
 			ppos += _bitcnt(a & pieceb[PAWN] & colorb[c]) << 2;
 		}
-		if (m) ppos += 8;
+		if (m) ppos += 8; else ppos -= 8;
 		/* The only non-mobility eval is the detection of free pawns/hanging pawns */
 		if (!(pawnfile[t] & pieceb[PAWN] & ocb)) { //Free file?
 			if (!(pawnfree[t] & pieceb[PAWN] & ocb)) ppos *= 2; //Free run?
