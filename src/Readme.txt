@@ -1,20 +1,23 @@
-OliThink5 (c) Oliver Brausch 06.Nov.2008, ob112@web.de, http://home.arcor.de/dreamlike
+OliThink5 (c) Oliver Brausch 18.Sep.2009, ob112@web.de, http://home.arcor.de/dreamlike
 
-Version: 5.1.9
+Version: 5.2.0
 Protocol: Winboard 2
 HashSize: 128mb
 Ponder: Yes
 OpeningBook: Small
 EndgameTables: No
 AnalyzeMode: No
-SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, Singular Reply Extension
+SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, Singular Replay Extension
 Evaluation: Just mobility and a very simple pawnprogressing/pawnhanging evaluation
 LinesOfCode: 1562
 Stability: 100%
 Strength: slightly weaker than Glaurung/Crafty
 
+v5.2.0: changes since 5.1.9:
+Bug for search extensions corrected
+
 v5.1.9: changes since 5.1.8:
-Singular Reply Extension added
+Singular Replay Extension added
 
 v5.1.8: changes since 5.1.7:
 Minor change in the king mobility evaluation that has a notable effect.
