@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 02.Mar.2012, ob112@web.de, http://home.arcor.de/dreamlike
+OliThink5 (c) Oliver Brausch 04.Jan.2018, ob112@web.de, http://brausch.org
 
-Version: 5.3.2
+Version: 5.3.3
 Protocol: Winboard 2
 HashSize: 48mb
 Ponder: Yes
@@ -12,6 +12,9 @@ Evaluation: Just mobility and a very simple pawnprogressing/pawnhanging evaluati
 LinesOfCode: 1628
 Stability: 100%
 Strength: slightly weaker than Glaurung/Crafty
+
+v5.3.3: changes since 5.3.2:
+Eliminating bug in getDir thanks to Francisto Modesto
 
 v5.3.2: changes since 5.3.1:
 Splitting of move generation in non-captures and captures.

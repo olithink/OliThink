@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 04.Mar.2012, ob112@web.de, http://home.arcor.de/dreamlike */
-#define VER "5.3.2"
+/* OliThink5 (c) Oliver Brausch 04.Jan.2018, ob112@web.de, http://brausch.org */
+#define VER "5.3.3"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -564,7 +564,7 @@ u64 pinnedPieces(int f, int oc) {
 char getDir(int f, int t) {
 	if (!((f ^ t) & 56)) return 8;
 	if (!((f ^ t) & 7)) return 16;
-	return ((f - t) % 7) ? 32 : 64;
+	return (!((f - t) % 9)) ? 32 : 64;
 }
 
 #define XORHASH(f, p, c) hashb ^= hashxor[(f) | (p) << 6 | (c) << 9]
