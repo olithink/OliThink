@@ -1,8 +1,7 @@
-/* OliThink5 (c) Oliver Brausch 19.Mar.2008, ob112@web.de, http://home.arcor.de/dreamlike */
-#define VER "5.1.0"
+/* OliThink5 (c) Oliver Brausch 21.Mar.2008, ob112@web.de, http://home.arcor.de/dreamlike */
+#define VER "5.1.1"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <signal.h>
 #ifdef _WIN32
@@ -29,7 +28,7 @@ typedef int Move;
 
 #define CNODES 0xFFFF
 #define HEUR 9900000
-const int pval[] = {0, 100, 300, 0, 100, 300, 500, 950};
+const int pval[] = {0, 100, 290, 0, 100, 310, 500, 950};
 const int capval[] = {0, HEUR+1, HEUR+2, 0, HEUR+1, HEUR+2, HEUR+3, HEUR+4};
 
 #define FROM(x) ((x) & 63)
@@ -120,6 +119,7 @@ static char BITC[0x10000] ;
 static int crevoke[64];
 static int nmobil[64];
 static int kmobil[64];
+static int pawnprg[128];
 Move movelist[64*256];
 int movenum[64];
 Move pv[64][64];
@@ -340,6 +340,8 @@ void _init_pawns(u64* moves, u64* caps, int c) {
 	int i;
 	for (i = 0; i < 64; i++) {
 		int m = i + (c ? -8 : 8);
+		int pp = 1 << (c ? 8-i/8 : 1+i/8);
+		pawnprg[i + (c << 6)] = pp < 8 ? 0 : pp; 
 		if (m < 0 || m > 63) continue;
 		setBit(m, moves + i);
 		if ((i&7) > 0) {
@@ -889,6 +891,58 @@ void displayb() {
 		} printf("\n");
 	} printf("\n");
 }
+
+int swap(Move m) //SEE Stuff
+{
+  int s_list[32];
+  int f = FROM(m), t = TO(m), onmv = ONMV(m);
+  int a_piece = pval[CAP(m)], piece = PIECE(m), c = onmv^1, nc = 1;
+  u64 attacks, temp = 0, colstore0 = colorb[0], colstore1 = colorb[1];
+
+  attacks = attacked(t, 0) | attacked(t, 1);
+  s_list[0] = a_piece;
+  a_piece = pval[piece];
+  colorb[onmv] ^= BIT[f];
+  if (piece & 4 || piece == 1) {
+	int d = getDir(f, t);
+    if (d == 32 || d == 64) attacks |= BOCC(t) & BQU;
+	if (d == 8 || d == 16) attacks |= ROCC(t) & RQU;
+  }
+  attacks &= BOARD;
+
+  while (attacks) {
+      if ((temp = pieceb[PAWN] & colorb[c] & attacks)) piece = PAWN;
+      else if ((temp = pieceb[KNIGHT] & colorb[c] & attacks)) piece = KNIGHT;
+      else if ((temp = pieceb[BISHOP] & colorb[c] & attacks)) piece = BISHOP;
+      else if ((temp = pieceb[ROOK] & colorb[c] & attacks)) piece = ROOK;
+      else if ((temp = pieceb[QUEEN] & colorb[c] & attacks)) piece = QUEEN;
+      else if ((temp = pieceb[KING] & colorb[c] & attacks)) piece = KING;
+      else break;
+ 
+	temp &= -(long long)temp;
+    colorb[c] ^= temp;
+    if (piece & 4 || piece == 1) {
+      if (piece & 1) attacks |= BOCC(t) & BQU;
+      if (piece & 2) attacks |= ROCC(t) & RQU;
+    }
+	attacks &= BOARD;
+
+	s_list[nc] = -s_list[nc - 1] + a_piece;
+    a_piece = pval[piece];
+    nc++;
+    c ^= 1;
+  }
+
+  while (--nc)
+    if (s_list[nc] > -s_list[nc - 1])
+      s_list[nc - 1] = -s_list[nc];
+
+  colorb[0] = colstore0;
+  colorb[1] = colstore1;
+  return s_list[0];
+}
+
+
 /* In quiesce the moves are ordered just for the value of the captured piece */
 Move qpick(Move* ml, int mn, int s) {
 	Move m;
@@ -946,7 +1000,7 @@ int evalc(int c, int* sf) {
 	b = pieceb[PAWN] & colorb[c];
 	while (b) {
 		f = pullLsb(&b);
-		mn += (c ? 56 - (f & 56) : (f & 56)) - 8;
+		mn += pawnprg[f + (c << 6)];
 		m = PMOVE(f, c);
 		a = POCC(f, c);
 		if (a & kn) mn += _bitcnt(a & kn) << 4;
@@ -1052,7 +1106,6 @@ int eval(int c) {
 	return (c ? (ev1 - ev0) : (ev0 - ev1));
 }
 
-
 u64 nodes;
 u64 qnodes;
 int quiesce(int c, int ply, int alpha, int beta) {
@@ -1078,6 +1131,8 @@ int quiesce(int c, int ply, int alpha, int beta) {
 
 	for (i = 0; i < movenum[ply]; i++) {
 		Move m = qpick(movelist + poff, movenum[ply], i);
+		if (!ch && !PROM(m) && pval[PIECE(m)] > pval[CAP(m)] && swap(m) < 0) continue;
+
 		doMove(m, c);
 		qnodes++;
 
@@ -1096,7 +1151,7 @@ int quiesce(int c, int ply, int alpha, int beta) {
 	return alpha;
 }
 
-int search(int c, int d, int ply, int alpha, int beta, int null) {
+int search(int c, int d, int ply, int alpha, int beta, int om, int null) {
 	int i, j, n, w, poff, asave;
 	int flagstore = flags;
 	int countstore = count;
@@ -1133,12 +1188,13 @@ int search(int c, int d, int ply, int alpha, int beta, int null) {
 	if (!((he^hp) & HINV)) hsave = hmove = (Move)(he & HMASK);
 
 	ch = attacked(kingpos[c], c);
-	if (ch) d++; // Check Extension. The only extension at all.
+	if (ch) d++; // Check Extension
+	else if (PIECE(om) == PAWN && ((TO(om) & 48) == 48  || TO(om) & 48) == 0) d++; //Pawn short to promote
 
-	if (!ch && null && d > 1 && _bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1))) > 2) {
+	if (!ch && null && d > 1 && bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1))) > 2) {
 		flags &= 960;
 		count += 0x801;
-		w = -search(c^1, d/2-1, ply+1, -beta, -beta + 1, 0);
+		w = -search(c^1, d/2-1, ply+1, -beta, -beta + 1, 1, 0);
 		flags = flagstore;
 		count = countstore;
 		if (w >= beta) {
@@ -1148,7 +1204,7 @@ int search(int c, int d, int ply, int alpha, int beta, int null) {
 	}
 
 	if (d >= 4 && hmove == 0) { // Simple version of Internal Iterative Deepening
-		w = search(c, d-3, ply, alpha, beta, 0);
+		w = search(c, d-3, ply, alpha, beta, 0, 0);
 		he = hashDP[hp & HMASK];
 		if (!((he^hp) & HINV)) hsave = hmove = (Move)(he & HMASK);
 	}
@@ -1172,7 +1228,7 @@ int search(int c, int d, int ply, int alpha, int beta, int null) {
 			if (hsave && m == hsave) continue;
 		}
 		doMove(m, c);
-		w = -search(c^1, d-1, ply+1, -beta, -alpha, 1);
+		w = -search(c^1, d-1, ply+1, -beta, -alpha, m, 1);
 		doMove(m, c);
 		flags = flagstore;
 		count = countstore;
@@ -1246,10 +1302,10 @@ int calc(int sd, int tm, int pon) {
 		if (searchtime > tm*5ULL) searchtime = tm*5LL;
 		starttime = getTime();
 		for (i = 1; i <= sd; i++) {
-			w = search(onmove, i, 0, alpha, beta, 0);
+			w = search(onmove, i, 0, alpha, beta, 0, 0);
 			if (sabort) w = ws;
-			if (w >= beta) { w = search(onmove, i, 0, beta-1, 32000, 0); }
-			if (w <= alpha) { w = search(onmove, i, 0, -32000, alpha+1, 0); }
+			if (w >= beta) { w = search(onmove, i, 0, beta-1, 32000, 0, 0); }
+			if (w <= alpha) { w = search(onmove, i, 0, -32000, alpha+1, 0, 0); }
 			t1 = (int)(getTime() - starttime);
 			if (post) { 
 				printf("%2d %5d %6d %9llu  ", i, w, t1/10, nodes + qnodes);
@@ -1273,8 +1329,10 @@ int input() {
 		char buf[256];
 		fgets(buf,255,stdin);
 		if (!strncmp(buf,"xboard",6)) printf("feature setboard=1 myname=\"OliThink " VER "\" colors=0 done=1\n");
-		if (!strncmp(buf,"quit",4)) exit(0);
+		if (!strncmp(buf,"quit",4)) return -2;
 		if (!strncmp(buf,"force",5)) engine = -1;
+		if (!strncmp(buf,"white",5)) { engine = 1; onmove = 0; }
+		if (!strncmp(buf,"black",5)) { engine = 0; onmove = 1; }
 		if (!strncmp(buf,"go",2)) engine = onmove;
 		if (!strncmp(buf,"new",2)) { _parse_fen(sfen); engine = 1; }
 		if (!strncmp(buf,"setboard",8)) _parse_fen(buf+9);
@@ -1285,6 +1343,8 @@ int input() {
 		if (!strncmp(buf,"easy",4)) ponder = 0;
 		if (!strncmp(buf,"post",4)) post = 1;
 		if (!strncmp(buf,"nopost",6)) post = 0;
+		if (!strncmp(buf,"o\n",2)) strcpy(buf, onmove ? "e8g8" : "e1g1"); //icsDrone hack
+		else if (!strncmp(buf,"o-\n",3)) strcpy(buf, onmove ? "e8c8" : "e1c1");
 
 		if (buf[0] >= 'a' && buf[0] <= 'h' && buf[1] >= '1' && buf[1] <= '8') {
 			Move _m = 0;
@@ -1308,7 +1368,7 @@ int main(int argc, char **argv)
 {
 	int i, ex = -1;
 	setbuf(stdout, NULL);
-	setbuf(stderr, NULL);
+	setbuf(stdin, NULL);
 	signal(SIGINT, SIG_IGN);
 	if (argc > 1 && !strncmp(argv[1],"-sd",3)) {
 		if (argc > 2) {
@@ -1348,6 +1408,7 @@ int main(int argc, char **argv)
 		else if (ex == 0 && ponder && engine != -1) ex = calc(sd, ttime, 1);
 
 		if (!ponder ||engine == -1 || ex != 0) ex = input();
+		if (ex == -2) break;
 	}
 	return 0;
 }
