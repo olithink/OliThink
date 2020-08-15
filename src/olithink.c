@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 27.Jun.2020, ob112@web.de, http://brausch.org */
-#define VER "5.4.10"
+/* OliThink5 (c) Oliver Brausch 30.Jun.2020, ob112@web.de, http://brausch.org */
+#define VER "5.4.11"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,6 +37,7 @@ const int pawnrun[] = {0, 0, 1, 8, 16, 32, 64, 128};
 #define PIECE(x) (((x) >> 15) & 7)  
 #define ONMV(x) (((x) >> 18) & 1)
 #define CAP(x) (((x) >> 19) & 7)
+#define MAXSCORE 30000
 
 #define _TO(x) ((x) << 6)
 #define _PROM(x) ((x) << 12)
@@ -94,16 +95,16 @@ const int pawnrun[] = {0, 0, 1, 8, 16, 32, 64, 128};
 #define ENPASS (flags & 63)
 #define CASTLE (flags & 960)
 #define COUNT (count & 0x3FF)
-#define MEVAL(w) (w > 31000 ? (232001-w)/2 : (w < -31000 ? (-232000-w)/2 : w))
+#define MEVAL(w) (w > MAXSCORE-500 ? (200000+MAXSCORE+1-w)/2 : (w < 500-MAXSCORE ? (-200000-MAXSCORE-w)/2 : w))
 #define NOMATEMAT(s, t, c) ((s <= 4 || (s <= 6 && t > 2)) && (pieceb[PAWN] & colorb[c]) == 0)
 
 #define HSIZEB 0x200000
-#define HMASKB 0x1FFFFF
-#define HINVB 0xFFFFFFFFFFE00000LL
+#define HMASKB (HSIZEB-1)
+#define HINVB 0xFFFFFFFFFFFFFFFFLL & ~HMASKB
 
 #define HSIZEP 0x400000
-#define HMASKP 0x3FFFFF
-#define HINVP 0xFFFFFFFFFFC00000LL
+#define HMASKP (HSIZEP-1)
+#define HINVP 0xFFFFFFFFFFFFFFFFLL & ~HMASKP
 
 u64 hashDB[HSIZEB];
 u64 hashDP[HSIZEP];
@@ -137,8 +138,7 @@ int value[128];
 int iter;
 const char pieceChar[] = "*PNK.BRQ";
 u64 searchtime, maxtime, starttime;
-int sabort, noabort, ics = 0;
-int ponder = 0, pondering = 0, analyze = 0, reset = 0;
+int sabort, noabort, ics = 0, ponder = 0, pondering = 0, analyze = 0, resign = 0, lastw = 0;
 Move pon = 0;
 int count, flags, mat, onmove, engine =-1;
 int sd = 64;
@@ -211,7 +211,7 @@ void _parse_fen(char *fen) {
 
 int parseMoveNExec(char*, int, Move*);
 int parseMove(char*, int, Move);
-int protV2(char*);
+int protV2(char*,int);
 #define BKSIZE 8192
 Move bkmove[BKSIZE*32];
 int bkflag[BKSIZE];
@@ -966,7 +966,6 @@ int swap(Move m) //SEE Stuff
 
 	s_list[nc] = -s_list[nc - 1] + a_piece;
 	a_piece = pval[piece];
-	//if (a_piece < s_list[nc - 1]) break;
 	nc++;
 	c ^= 1;
   }
@@ -1167,7 +1166,7 @@ int eval(int c, int matrl) {
 u64 nodes;
 u64 qnodes;
 int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
-	int i, w, best = -32000, poff;
+	int i, w, best = -MAXSCORE, poff;
 	int cmat = c ? -mat: mat;
 
 	if (ply == 63) return eval(c, mat);
@@ -1182,7 +1181,7 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 	} while(0);
 
 	generate(ch, c, ply, 1, 0);
-	if (ch && movenum[ply] == 0) return -32000 + ply;
+	if (ch && movenum[ply] == 0) return -MAXSCORE + ply;
 	poff = ply << 8;
 
 	for (i = 0; i < movenum[ply]; i++) {
@@ -1204,7 +1203,7 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 			}
 		}
 	}
-	return best > -32000 ? best : eval(c, mat);
+	return best > -MAXSCORE ? best : eval(c, mat);
 }
 
 int retPVMove(int c, int ply) {
@@ -1219,15 +1218,16 @@ int retPVMove(int c, int ply) {
 
 int inputSearch() {
 	int ex;
-	if (!pondering) return 1;
 	fgets(irbuf,255,stdin);
-	if (analyze) {
+	if (0 && analyze) {
 		if (irbuf[0] == '.') { irbuf[0] = 0; return 0; }
 		return 1;
 	}
-	ex = protV2(irbuf);
-	if (!ponder || ex || engine != onmove) pondering = 0;
+	ex = protV2(irbuf, 0);
+	if (analyze) { if (ex <= -1) return ex; else ex = 0; }
+	if (!ponder || ex || engine != onmove) pondering = analyze;
 	if (!ex) irbuf[0] = 0;
+	if (ex < -1) return ex;
 	if (ex != -1) return !pondering;
 	ex = parseMove(irbuf, ONMV(pon), pon);
 	if (!ex || ex == -1) return 1;
@@ -1266,7 +1266,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	hb = HASHB;
 	he = hashDB[hb & HMASKB];
 	if (!((he^hb) & HINVB)) {
-		w = (u32)LOW16(he) - 32768;
+		w = (u32)LOW16(he) - MAXSCORE;
 		if (he & 0x10000) {
 			null = 0;
 			if (w <= alpha) return alpha;
@@ -1286,7 +1286,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		flags = flagstore;
 		count -= 0x401;
 		if (!sabort && w >= beta) {
-			hashDB[hb & HMASKB] = (hb & HINVB) | (w + 32768); 
+			hashDB[hb & HMASKB] = (hb & HINVB) | (w + MAXSCORE); 
 			return beta;
 		}
 	}
@@ -1306,7 +1306,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	}
 
 	poff = ply << 8;
-	best = pvnode ? alpha : -32001;
+	best = pvnode ? alpha : -MAXSCORE;;
 	asave = alpha;
 	first = 1;
 	for (n = 1; n <= (ch ? 2 : 3); n++) {
@@ -1365,7 +1365,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 					killer[ply] = m;
 					history[m & 0xFFF]+=d*d;
 				}
-				hashDB[hb & HMASKB] = (hb & HINVB) | (w + 32768); 
+				hashDB[hb & HMASKB] = (hb & HINVB) | (w + MAXSCORE); 
 				return beta;
 			}
 			if (pvnode && w >= alpha) {
@@ -1373,18 +1373,18 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 				for (j = ply +1; j < pvlength[ply +1]; j++) pv[ply][j] = pv[ply +1][j];
 				pvlength[ply] = pvlength[ply +1];
 				if (!ply && iter > 1 && w > value[iter-1] - 20) noabort = 0;
-				if (w == 31999 - ply) return w;
+				if (w == MAXSCORE-1  - ply) return w;
 			}
 			best = w;
 		}
 		first = 0;
 	    }
 	}
-	if (first) return ch ? -32000+ply : 0;
+	if (first) return ch ? -MAXSCORE+ply : 0;
 	if (pvnode) {
-		if (!sabort && asave == alpha) hashDB[hb & HMASKB] = (hb & HINVB) | 0x10000 | (asave + 32768);
+		if (!sabort && asave == alpha) hashDB[hb & HMASKB] = (hb & HINVB) | 0x10000 | (asave + MAXSCORE);
 	} else {
-		if (!sabort && best < beta) hashDB[hb & HMASKB] = (hb & HINVB) | 0x10000 | (best + 32768);
+		if (!sabort && best < beta) hashDB[hb & HMASKB] = (hb & HINVB) | 0x10000 | (best + MAXSCORE);
 	}
 	return alpha;
 }
@@ -1486,6 +1486,7 @@ int parseMoveNExec(char *s, int c, Move *m) {
 
 void undo() {
         int cnt = COUNT - 1;
+	if (cnt < 0) return;
         onmove ^= 1;
         Move m = mstack[cnt] >> 42L;
         undoMove(m, onmove);
@@ -1493,7 +1494,7 @@ void undo() {
         pv[0][0] = m;
 }
 
-int ttime = 30000, mps = 0, base = 5, inc = 0, post = 1, st = 0;
+int ttime = 30000, mps = 0, inc = 0, post = 1, st = 0; char base[16];
 
 int calc(int sd, int tm) {
 	int i, j, t1 = 0, m2go = 32;
@@ -1523,15 +1524,16 @@ int calc(int sd, int tm) {
 		value[iter] = search(ch, onmove, iter, 0, -32000, 32000, 1, 0);
 		if (pvlength[0] == 0 && iter > 1) { pvlength[0] = pvlengsave; value[iter] = value[iter -1]; }
 		t1 = (int)(getTime() - starttime);
-		if (post && pvlength[0] > 0 && (!sabort || !analyze)) { 
+		if (post && pvlength[0] > 0 && (!sabort || (!analyze && sabort>=1))) { 
 			printf("%2d %5d %6d %9lu  ", iter, MEVAL(value[iter]), t1/10, (u32)(nodes + qnodes));
 			displaypv(); printf("\n"); 
 		}
-		if (!pondering && (iter >= 32000-value[iter] || (u32)t1 > searchtime/2)) break;
+		if (!pondering && (iter >= MAXSCORE-value[iter] || (u32)t1 > searchtime/2)) break;
 		if (sabort) break;
 	}
 	if (analyze) return 1;
 	pondering = 0;
+	if (sabort < -1) { pon = 0; return sabort; }
 	if (pon) {
 	 	undo();	
 		pon = 0;
@@ -1540,6 +1542,15 @@ int calc(int sd, int tm) {
 	printf("move "); displaym(pv[0][0]); printf("\n");
 
 	if (post && ics) printf("kibitz W: %d Nodes: %lu QNodes: %lu Evals: %d cs: %d knps: %lu\n", MEVAL(value[iter > sd ? sd : iter]), (u32)nodes, (u32)qnodes, eval1, t1/10, (u32)(nodes+qnodes)/(t1+1));
+
+	if (resign > 0) {
+		int w = value[iter > sd ? sd : iter];
+		if (w < -resign && lastw < -resign) printf("resign\n");
+		int dt = COUNT > 40 ? (COUNT - 40)/2 : 0;
+		if (w < dt && w > -dt && lastw < dt && lastw > -dt) printf("offer draw\n");
+		lastw = w;
+	}
+
 	return execMove(pv[0][0]);
 }
 
@@ -1561,7 +1572,7 @@ u64 perft(int c, int d, int div) {
 	u64 n, cnt = 0LL;
 
 	generate(attacked(kingpos[c], c), c, ply, 1, 1);
-	if (d == 1) return (u64)movenum[ply];
+	if (d == 1 || bioskey()) return (u64)movenum[ply];
 	for (i = 0; i < movenum[ply]; i++) {
 		Move m = movelist[poff + i];
 		doMove(m, c);
@@ -1579,30 +1590,31 @@ void newGame(int level) {
 	sd = 64;
 }
 
-int protV2(char* buf) {
+int protV2(char* buf, int parse) {
 		if (!strncmp(buf,"protover",8)) printf("feature setboard=1 myname=\"OliThink " VER "\" colors=0 analyze=1 done=1\n");
 		else if (!strncmp(buf,"xboard",6));
 		else if (!strncmp(buf,"quit",4)) return -2;
 		else if (!strncmp(buf,"new",3)) return -3; 
 		else if (!strncmp(buf,"remove",6)) return -4;
-		else if (!strncmp(buf,"force",5)) engine = -1;
+		else if (!strncmp(buf,"force",5)) return -7;
 		else if (!strncmp(buf,"go",2)) engine = pondering ? onmove^1 : onmove;
-		else if (!strncmp(buf,"setboard",8)) _parse_fen(buf+9);
-		else if (!strncmp(buf,"undo",4)) undo();
+		else if (!strncmp(buf,"setboard",8)) if (parse) _parse_fen(buf+9); else return -9;
+		else if (!strncmp(buf,"undo",4)) return -8;
 		else if (!strncmp(buf,"easy",4)) ponder = 0;
 		else if (!strncmp(buf,"hard",4)) ponder = 1;
-		else if (!strncmp(buf,"analyze",7)) { analyze = pondering = 1; engine = -1; pon = 0; return -5;}
-		else if (!strncmp(buf,"exit",4)) analyze = pondering = 0;
+		else if (!strncmp(buf,"analyze",7)) return -5;
+		else if (!strncmp(buf,"exit",4)) return -6;
 		else if (!strncmp(buf,"sd",2)) sscanf(buf+3,"%d",&sd);
 		else if (!strncmp(buf,"time",4)) sscanf(buf+5,"%d",&ttime);
-		else if (!strncmp(buf,"level",4)) sscanf(buf+6,"%d %d %d",&mps, &base, &inc);
+		else if (!strncmp(buf,"level",4)) sscanf(buf+6,"%d %s %d",&mps, base, &inc);
 		else if (!strncmp(buf,"post",4)) post = 1;
 		else if (!strncmp(buf,"nopost",6)) post = 0;
-		else if (!strncmp(buf,"result",6));//result 0-1 {Black mates}
+		else if (!strncmp(buf,"result",6)) return -6; //result 0-1 {Black mates}
 		else if (!strncmp(buf,"otim",4));//otim <optime>
 		else if (!strncmp(buf,"draw",4));//draw offer 
 		else if (!strncmp(buf,"st",2)) sscanf(buf+3,"%d",&st);
-		else if (!strncmp(buf,"?",1));
+		else if (!strncmp(buf,"?",1)) return 1;
+		else if (!strncmp(buf,".",1));
 		else if (!strncmp(buf,"bk",2));
 		else if (!strncmp(buf,"hint",4));
 		else if (!strncmp(buf,"computer",8));
@@ -1610,9 +1622,9 @@ int protV2(char* buf) {
 		else if (!strncmp(buf,"random",6));
 		else if (!strncmp(buf,"rating",6)) ics = 1;//ICS: rating <myrat> <oprat>
 		else if (!strncmp(buf,"name",4));//ICS: name <opname>
-		else if (!strncmp(buf,"perft",5)) {int i; for (i = 1; i <= sd; i++) printf("Depth: %d Nodes: %llu\n", i, perft(onmove, i, 0));}
+		else if (!strncmp(buf,"perft",5)) {int i; for (i = 1; i <= sd && !bioskey(); i++) printf("Depth: %d Nodes: %lld%c\n", i, perft(onmove, i, 0), bioskey() ? '+' : ' ');}
 		else if (!strncmp(buf,"divide",5)) perft(onmove, sd, 1);
-		else if (strchr(buf, '/') != NULL && strlen(buf)>16) { engine = -1; _parse_fen(buf); analyze = pondering = 1; }
+		else if (strchr(buf, '/') != NULL && strlen(buf)>16) { engine = -1; analyze = pondering = 1; if (parse) _parse_fen(buf); else return -9; }
 		else if (strlen(buf) == 0);
 		else return -1;
 		return 0;
@@ -1624,7 +1636,7 @@ int input(int c) {
 		char buf[256];
 		if (irbuf[0]) strcpy(buf,irbuf); else fgets(buf,255,stdin);
 		irbuf[0] = 0;
-		ex = protV2(buf);	
+		ex = protV2(buf, 1);	
 		if (ex == -1) return parseMoveNExec(buf, c, &m);
 		return ex;
 }
@@ -1669,7 +1681,7 @@ int main(int argc, char **argv)
 			sscanf(argv[2], "%d", &sd);
 			if (argc > 3) { _parse_fen(argv[3]); calc(sd, ttime); return 0; }
 		}
-	} else if (argc > 1 && !strncmp(argv[1],"-reset",6)) reset = 1;
+	} else if (argc > 1 && !strncmp(argv[1],"-resign",7)) sscanf(argv[2], "%d", &resign); 
 	irbuf[0] = 0;
 
 	for (;;) {
@@ -1677,10 +1689,13 @@ int main(int argc, char **argv)
 		else if (ex == 0 && ponder && engine != -1 && !book) ex = doponder(onmove);
 
 		if (!ponder || book || engine == -1 || ex != 0) ex = input(onmove);
-		if (ex > 0) engine = -1;
 		if (ex == -2) break;
-		if (ex == -3) newGame(analyze || reset ? 3 : 2);
+		if (ex == -3) newGame(analyze || resign > 0 ? 3 : 2);
 		if (ex == -4) { undo(); undo(); }
+		if (ex == -5) { analyze = pondering = 1; engine = -1; }
+		if (ex == -6) analyze = pondering = 0;
+		if (ex == -7) { pondering = 0; engine = -1; }
+		if (ex == -8) undo();
 	}
 	return 0;
 }
