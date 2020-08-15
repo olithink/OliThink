@@ -1,4 +1,4 @@
-/* OliThink 5.0.2 - Bitboard Magic Move (c) Oliver Brausch 08.Jan.2008, ob112@web.de */
+/* OliThink 5.0.3 - Bitboard Magic Move (c) Oliver Brausch 08.Jan.2008, ob112@web.de */
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <string.h>
@@ -90,7 +90,7 @@ const int pval[] = {0, 100, 300, 0, 100, 300, 500, 950};
 #define CASTLE (flags & 960)
 
 #define HASHP (hashb ^ hashxor[flags | 1024 | c << 11])
-#define HASHB(d) ((hashb ^ hashxor[flags | 1024]) ^ hashxor[c | d << 1 | 2048])
+#define HASHB(d) ((hashb ^ hashxor[flags | 1024]) ^ hashxor[c | (d) << 1 | 2048])
 #define HSIZE 0x800000
 #define HMASK 0x7FFFFF
 #define HINV 0xFFFFFFFFFF800000LL
@@ -463,7 +463,7 @@ void displaypv() {
 int isDraw(u64 hp, int nrep) {
 	if (count > 0xFFF) { //fifty > 1
 		int i, c = 0, n = (count & 0x7FF) - (count >> 11);
-		if (count >= 0x800*50) return 2;
+		if (count >= 0x800*100) return 2;
 		for (i = (count & 0x7FF) - 2; i >= n; i--) if (hstack[i] == hp) if (++c == nrep) return 1;
 	}
 	return 0;
@@ -986,6 +986,14 @@ int quiesce(int c, int ply, int alpha, int beta) {
 	return alpha;
 }
 
+Move movestack[128];
+void displayms(int ply) {
+	int i;
+	for (i = 0; i < ply; i++) {
+		displaym(movestack[i]); printf(" ");
+	}
+}
+
 int search(int c, int d, int ply, int alpha, int beta) {
 	int i, j, n, w, poff, asave;
 	int flagstore = flags;
@@ -994,9 +1002,9 @@ int search(int c, int d, int ply, int alpha, int beta) {
 	u64 hb, hp, he, ch;
 	nodes++;
 	hp = HASHP;
-	if (ply && d && isDraw(hp, 1)) return 0;
-	hstack[(count & 0x7FF) + ply] = hp;
 	pvlength[ply] = ply;
+	if (ply && isDraw(hp, 1)) return 0;
+	hstack[(count & 0x7FF)] = hp;
 
 	if (d == 0) return quiesce(c, ply, alpha, beta);
 
@@ -1006,7 +1014,9 @@ int search(int c, int d, int ply, int alpha, int beta) {
 		w = (u32)(he & 0xFFFF) - 32768;
 		if (he & 0x10000) {
 			if (w <= alpha) return alpha;
-		} else if (w >= beta) return beta;
+		} else {
+			if (w >= beta) return beta;
+		}
 	}
 
 	hsave = hmove = 0;
@@ -1035,22 +1045,24 @@ int search(int c, int d, int ply, int alpha, int beta) {
 			m = spick(movelist + poff, n, i, ply);
 			if (hsave && m == hsave) continue;
 		}
+		movestack[ply] = m;
 		doMove(m, c);
 		w = -search(c^1, d-1, ply+1, -beta, -alpha);
 		doMove(m, c);
 		flags = flagstore;
 		count = countstore;
 
+
 		if (w > alpha) {
 			hashDP[hp & HMASK] = (hp & HINV) | m; 
 			if (w >= beta) {
 				if (CAP(m) == 0) {
 					killer[ply] = m;
-					history[m & 0xFFF]+=1;
+					history[m & 0xFFF]++;
 				}
 				hashDB[hb & HMASK] = (hb & HINV) | (w + 32768); 
 				return beta;
-			} else history[m & 0xFFF]+=0;
+			}
 
 			pv[ply][ply] = m;
 			for (j = ply +1; j < pvlength[ply +1]; j++) pv[ply][j] = pv[ply +1][j];
@@ -1100,7 +1112,7 @@ int calc(int sd) {
 			printf("%2d %5d %6llu %9llu  ", i, w, (getTime() - t1)/10, nodes);
 			displaypv(); printf("\n");
 
-			if (i >= 32000-w || (sd == 64 && nodes > 1000000)) break;
+			if (i >= 32000-w || (sd == 64 && nodes > 250000)) break;
 		}
 		t1 = getTime() - t1 + 1;
 		printf("%d. ... ", (count % 0x7FF)/2 + 1);
