@@ -1,17 +1,26 @@
-OliThink5 (c) Oliver Brausch 12.Jun.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 16.Jun.2020, ob112@web.de, http://brausch.org
 
-Version: 5.3.5
+Version: 5.4.0
 Protocol: Winboard 2
-HashSize: 512MB
+HashSize: 48MB
 Ponder: Yes
 OpeningBook: Small
 EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing/pawnhanging evaluation
-LinesOfCode: 1629
+LinesOfCode: 1647
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution!
+
+v5.4.0: changes since 5.3.5f:
+Refactoring of "No mating material" which yields big gains in strength
+
+v5.3.5f: changes since 5.3.5c:
+Option -forceponder. Pvlength = 128. Preparing code for corrected "No mating matieral"
+
+v5.3.5c: changes since 5.3.5:
+Reducing Hashsize again to 48MB. More flexibel reading of opening book. Selective openings for win and loss.
 
 v5.3.5: changes since 5.3.4:
 Analyze mode and Mate score.
