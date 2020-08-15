@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 10.Jul.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 11.Jul.2020, ob112@web.de, http://brausch.org
 
-Version: 5.5.2
+Version: 5.5.3
 Protocol: Winboard 2
 HashSize: 96MB
 Ponder: Yes
@@ -9,9 +9,12 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1721
+LinesOfCode: 1708
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
+
+v5.5.3: changes since 5.5.2:
+Simplify var declarations, NBK vs k eval and LMR. Null-move pruning for PVnodes.   
 
 v5.5.2: changes since 5.5.1:
 Extend Queen Promotions, don't reduce any promotion. Win NBK vs k.

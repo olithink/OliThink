@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 10.Jul.2020, ob112@web.de, http://brausch.org */
-#define VER "5.5.2"
+/* OliThink5 (c) Oliver Brausch 11.Jul.2020, ob112@web.de, http://brausch.org */
+#define VER "5.5.3"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -272,12 +272,11 @@ void _readbook(char *bk) {
 #define LOW32(x) ((x) & 0xFFFFFFFF)
 static u32 r_x = 30903, r_y = 30903, r_z = 30903, r_w = 30903, r_carry = 0;
 u32 _rand_32() {
-	u32 t;
 	r_x = LOW32(r_x * 69069 + 1);
 	r_y ^= LOW32(r_y << 13);
 	r_y ^= LOW32(r_y >> 17);
 	r_y ^= LOW32(r_y << 5);
-	t = LOW32((r_w << 1) + r_z + r_carry);
+	u32 t = LOW32((r_w << 1) + r_z + r_carry);
 	r_carry = (LOW32(r_z >> 2) + LOW32(r_w >> 3) + LOW32(r_carry >> 2)) >> 30;
 	r_z = r_w;
 	r_w = t;
@@ -441,8 +440,8 @@ void _init_shorts(u64* moves, int* m) {
 }
 
 u64 _occ_free_board(int bc, int del, u64 free) {
-	u64 low, perm = free;
 	int i;
+	u64 low, perm = free;
 	for (i = 0; i < bc; i++) {
 		low = getLowestBit(free);
 		free &= (~low);
@@ -746,7 +745,6 @@ int generateCheckEsc(u64 ch, u64 apin, int c, int k, int *ml, int *mn) {
 }
 
 int generateNonCaps(u64 ch, int c, int f, u64 pin, int *ml, int *mn) {
-	int t;
 	u64 m, b, cb = colorb[c] & (~pin);
 
 	regKings(PREMOVE(f, KING), KMOVE(f), ml, mn, c, 0);
@@ -768,7 +766,7 @@ int generateNonCaps(u64 ch, int c, int f, u64 pin, int *ml, int *mn) {
 	b = pin & pieceb[PAWN]; 
 	while (b) {
 		f = pullLsb(&b);
-		t = getDir(f, kingpos[c]);
+		int t = getDir(f, kingpos[c]);
 		if (t & 8) continue;
 		m = 0LL;
 		if (t & 16) {
@@ -823,10 +821,9 @@ int generateNonCaps(u64 ch, int c, int f, u64 pin, int *ml, int *mn) {
 
 	b = pin & (pieceb[ROOK] | pieceb[BISHOP] | pieceb[QUEEN]); 
 	while (b) {
-		int p;
-		f = pullLsb(&b);
-		p = identPiece(f);
-		t = p | getDir(f, kingpos[c]);
+		int f = pullLsb(&b);
+		int p = identPiece(f);
+		int t = p | getDir(f, kingpos[c]);
 		if ((t & 10) == 10) regMoves(PREMOVE(f, p), RMOVE1(f), ml, mn, 0);
 		if ((t & 18) == 18) regMoves(PREMOVE(f, p), RMOVE2(f), ml, mn, 0);
 		if ((t & 33) == 33) regMoves(PREMOVE(f, p), BMOVE3(f), ml, mn, 0);
@@ -836,7 +833,6 @@ int generateNonCaps(u64 ch, int c, int f, u64 pin, int *ml, int *mn) {
 }
 
 int generateCaps(u64 ch, int c, int f, u64 pin, int *ml, int *mn) {
-	int t;
 	u64 m, b, a, cb = colorb[c] & (~pin);
 
 	regKings(PREMOVE(f, KING), KCAP(f, c), ml, mn, c, 1);
@@ -865,7 +861,7 @@ int generateCaps(u64 ch, int c, int f, u64 pin, int *ml, int *mn) {
 	b = pin & pieceb[PAWN]; 
 	while (b) {
 		f = pullLsb(&b);
-		t = getDir(f, kingpos[c]);
+		int t = getDir(f, kingpos[c]);
 		if (t & 8) continue;
 		m = a = 0LL;
 		if (t & 16) {
@@ -908,10 +904,9 @@ int generateCaps(u64 ch, int c, int f, u64 pin, int *ml, int *mn) {
 
 	b = pin & (pieceb[ROOK] | pieceb[BISHOP] | pieceb[QUEEN]); 
 	while (b) {
-		int p;
 		f = pullLsb(&b);
-		p = identPiece(f);
-		t = p | getDir(f, kingpos[c]);
+		int p = identPiece(f);
+		int t = p | getDir(f, kingpos[c]);
 		if ((t & 10) == 10) regMoves(PREMOVE(f, p), RCAP1(f, c), ml, mn, 1);
 		if ((t & 18) == 18) regMoves(PREMOVE(f, p), RCAP2(f, c), ml, mn, 1);
 		if ((t & 33) == 33) regMoves(PREMOVE(f, p), BCAP3(f, c), ml, mn, 1);
@@ -1024,8 +1019,7 @@ Move spick(Move* ml, int mn, int s, int ply) {
 
 /* The evulation for Color c. It's almost only mobility stuff. Pinned pieces are still awarded for limiting opposite's king */
 int evalc(int c, int* sf) {
-	int t, f;
-	int mn = 0, katt = 0;
+	int t, f, mn = 0, katt = 0;
 	int oc = c^1;
 	u64 ocb = colorb[oc];
 	u64 m, b, a, cb;
@@ -1125,22 +1119,19 @@ int evalc(int c, int* sf) {
 	colorb[c] ^= RQU & cb; // Back
 	b = pin & (pieceb[ROOK] | pieceb[BISHOP] | pieceb[QUEEN]); 
 	while (b) {
-		int p;
 		f = pullLsb(&b);
-		p = identPiece(f);
+		int p = identPiece(f);
 		if (p == BISHOP) {
 			*sf += 3; 
 			a = BATT3(f) | BATT4(f);
-			if (a & kn) katt += _bitcnt(a & kn) << 3;
 		} else if (p == ROOK) {
 			*sf += 5; 
 			a = RATT1(f) | RATT2(f);
-			if (a & kn) katt += _bitcnt(a & kn) << 3;
 		} else {
 			*sf += 9;
 			a = RATT1(f) | RATT2(f) | BATT3(f) | BATT4(f);
-			if (a & kn) katt += _bitcnt(a & kn) << 3;
 		}
+		if (a & kn) katt += _bitcnt(a & kn) << 3;
 		t = p | getDir(f, kingpos[c]);
 		if ((t & 10) == 10) mn += _bitcnt(RATT1(f));
 		if ((t & 18) == 18) mn += _bitcnt(RATT2(f));
@@ -1157,10 +1148,9 @@ int evalc(int c, int* sf) {
 int kmobilf(int sf, int c, int sfi) {
 	if (sf >= 12) return 0;
 	int km = kmobil[kingpos[c]];
-	u64 b = pieceb[BISHOP] & colorb[c^1];
-	if (_bitcnt(b) == 1 && !pieceb[PAWN]) { // BNK_vs_k
-		int bc = sf == 5 && sfi == 0 ? bishcorn[kingpos[c]] << 2 : bishcorn[kingpos[c]] / 2;
-		if (b & whitesq) km += bc; else km -= bc; 
+	if (sf == 5 && !sfi && pieceb[BISHOP] && !pieceb[PAWN]) { // BNK_vs_k
+		int bc = bishcorn[kingpos[c]] << 2;
+		if (pieceb[BISHOP] & whitesq) km += bc; else km -= bc; 
 	}
 	return km * (12- (sf > 4 ? sf : 4));
 }
@@ -1184,7 +1174,7 @@ int eval(int c, int matrl) {
 u64 nodes;
 u64 qnodes;
 int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
-	int i, w, best = -MAXSCORE, poff;
+	int i, best = -MAXSCORE, poff;
 	int cmat = c ? -mat: mat;
 
 	if (ply == 63) return eval(c, mat);
@@ -1209,7 +1199,7 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 		doMove(m, c);
 		qnodes++;
 
-		w = -quiesce(attacked(kingpos[c^1], c^1), c^1, ply+1, -beta, -alpha);
+		int w = -quiesce(attacked(kingpos[c^1], c^1), c^1, ply+1, -beta, -alpha);
 
 		undoMove(m, c);
 
@@ -1259,8 +1249,7 @@ static int nullvariance(int delta) {
 #define HASHP (hashb ^ hashxor[flags | 1024 | c << 11])
 #define HASHB ((hashb ^ hashxor[flags | 1024]) ^ hashxor[c | d << 1 | 2048])
 int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int null) {
-	int i, j, n, w, poff, first;
-	Move hmove;
+	int i, j, n, w;
 	u64 hb, hp, he, hismax = 0LL;
 
 	pvlength[ply] = ply;
@@ -1289,13 +1278,13 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	} else w = c ? -mat : mat;
 
 	//Null Move
-	if (!pvnode && !ch && null && d > 1 && bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1))) > 2) {
+	if (!ch && null && d > 1 && bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1))) > 2) {
 		int flagstore = flags;
 		int R = (10 + d + nullvariance(w - beta))/4;
 		if (R > d) R = d;
 		flags &= 960;
 		count += 0x401;
-		w = -search(0LL, c^1, d-R, ply+1, -beta, -alpha, 0, 0);
+		w = -search(0LL, c^1, d-R, ply+1, -beta, 1-beta, 0, 0);
 		flags = flagstore;
 		count -= 0x401;
 		if (!sabort && w >= beta) {
@@ -1304,7 +1293,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		}
 	}
 
-	hmove = 0;
+	Move hmove = 0;
 	if (ply) {
 		he = hashDP[hp & HMASKP];
 		if (!((he^hp) & HINVP)) hmove = (Move)(he & HMASKP);
@@ -1318,8 +1307,8 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		hmove = retPVMove(c, ply);
 	}
 
-	poff = ply << 8;
-	first = 1;
+	int poff = ply << 8;
+	int first = 1;
 	for (n = 1; n <= (ch ? 2 : 3); n++) {
  	    if (n == 1) {
 		if (hmove == 0) continue;
@@ -1351,9 +1340,8 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 			else {
 				u32 his = history[m & 0xFFF];
 				if (his > hismax) { hismax = his;} 
-				else if (d <= 4 && his*his < hismax) { undoMove(m, c); continue; }
+				else if (d <= 5 && his*his < hismax) { undoMove(m, c); continue; }
 				else if (d >= 2) ext--;
-				else if (i > 14) { undoMove(m, c); continue; } // Move count pruning
 			}
 	        }
 		if (PROM(m) == QUEEN) ext++;
@@ -1410,10 +1398,9 @@ void reseth(int level) {
 }
 
 int execMove(Move m, int r) {
-	int i, c;
 	doMove(m, onmove);
 	onmove ^= 1; 
-	c = onmove;
+	int i, c = onmove;
 	if (book) for (i = 0; i < BKSIZE; i++) {
 		if (bkflag[i] < 2 && (bkmove[i*32 + COUNT - 1] != m || bkmove[i*32 + COUNT] == 0)) {
 			bkcount[bkflag[i]]--;
@@ -1507,10 +1494,10 @@ int ttime = 30000, mps = 0, inc = 0, post = 1, st = 0; char base[16];
 
 int calc(int sd, int tm) {
 	int i, j, t1 = 0, m2go = mps == 0 ? 32 : 1 + mps - ((COUNT/2) % mps);
-	u64 ch = attacked(kingpos[onmove], onmove);
+	u64 ch = attacked(kingpos[onmove], onmove), tmsh = tm*10L-100-mps*10;
 	long searchtime = tm*5L/m2go + inc*500L;
-	long extendtime = tm*24L/m2go + inc*1000L; if (extendtime > tm*10L-200) extendtime = tm*10L-200;
-	if (searchtime > tm*10L-200) searchtime = tm*10L-200;
+	long extendtime = tm*24L/m2go + inc*1000L; if (extendtime > tmsh) extendtime = tmsh;
+	if (searchtime > tmsh) searchtime = tmsh;
 	if (st > 0) maxtime = searchtime = st*1000LL;
 
 	maxtime = extendtime;
@@ -1543,7 +1530,7 @@ int calc(int sd, int tm) {
 		if (t1 < searchtime || iter == 1) continue;
 
 		if (value[iter] - value[iter-1] < -40 && maxtime == extendtime) {
-			maxtime = extendtime*3L; if (maxtime < tm*10L-199) maxtime = tm*10L-199;
+			maxtime = extendtime*3L; if (maxtime < tmsh-1) maxtime = tmsh-1;
 			continue;
 		}
 		break;
@@ -1563,7 +1550,7 @@ int calc(int sd, int tm) {
 	if (resign > 0) {
 		int w = value[iter > sd ? sd : iter];
 		if (w < -resign && lastw < -resign) printf("resign\n");
-		int dt = COUNT > 40 ? (COUNT - 40)/4 : 0;
+		int dt = COUNT > 88 ? (COUNT - 80)/8 : 0;
 		if (w < dt && w > -dt && lastw < dt && lastw > -dt) printf("offer draw\n");
 		lastw = w;
 	}
