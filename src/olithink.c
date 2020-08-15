@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 22.Dec.2009, ob112@web.de, http://home.arcor.de/dreamlike */
-#define VER "5.2.4"
+/* OliThink5 (c) Oliver Brausch 25.Dec.2009, ob112@web.de, http://home.arcor.de/dreamlike */
+#define VER "5.2.5"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -95,7 +95,7 @@ const int pawnrun[] = {0, 0, 1, 8, 16, 32, 64, 128};
 #define TEST(f, b) (BIT[f] & (b))
 #define ENPASS (flags & 63)
 #define CASTLE (flags & 960)
-#define COUNT (count & 0x7FF)
+#define COUNT (count & 0x3FF)
 
 #define HSIZEB 0x200000
 #define HMASKB 0x1FFFFF
@@ -109,7 +109,7 @@ u64 hashDB[HSIZEB];
 u64 hashDP[HSIZEP];
 u64 hashb;
 u64 hstack[0x800];
-int mstack[4][0x800];
+u64 mstack[0x800];
 
 static u64 hashxor[4096];
 static u64 rays[0x10000];
@@ -202,7 +202,7 @@ void _parse_fen(char *fen) {
 		if (s == 'q') flags |= BIT[9];
 	}
 	if (enps[0] >= 'a' && enps[0] <= 'h' && enps[1] >= '1' && enps[1] <= '8') flags |= 8*(enps[1] - '1') + enps[0] - 'a'; 
-	count = (fullm - 1)*2 + onmove + (halfm << 11);
+	count = (fullm - 1)*2 + onmove + (halfm << 10);
 	for (i = 0; i < COUNT; i++) hstack[i] = 0LL;
 }
 
@@ -554,9 +554,9 @@ void displaypv() {
 }
 
 int isDraw(u64 hp, int nrep) {
-	if (count > 0x1FFF) { //fifty > 3
-		int i, c = 0, n = COUNT - (count >> 11);
-		if (count >= 0x800*100) return 2; //100 plies
+	if (count > 0xFFF) { //fifty > 3
+		int i, c = 0, n = COUNT - (count >> 10);
+		if (count >= 0x400*100) return 2; //100 plies
 		for (i = COUNT - 2; i >= n; i--) 
 			if (hstack[i] == hp && ++c == nrep) return 1; 
 	} else if (!(pieceb[PAWN] | RQU)) { //Check for mating material
@@ -587,8 +587,8 @@ char getDir(int f, int t) {
 }
 
 #define XORHASH(f, p, c) hashb ^= hashxor[(f) | (p) << 6 | (c) << 9]
-/* doMove is both makeMove and unmakeMove, only for unmakeMove the globalflags have to be restored (counter, castle, enpass...) */
-void doMove(Move m, int c) {
+/* move is for both doMove and undoMove, only for unmakeMove the globalflags have to be restored (counter, castle, enpass...) */
+void move(Move m, int c) {
 	int f = FROM(m);
 	int t = TO(m);
 	int p = PIECE(m);
@@ -603,7 +603,7 @@ void doMove(Move m, int c) {
 	XORHASH(t, p, c);
 
 	flags &= 960;
-	count += 0x801;
+	count += 0x401;
 	if (a) {
 		if (a == ENP) { // Enpassant Capture
 			t = (t&7) | (f&56);
@@ -614,7 +614,7 @@ void doMove(Move m, int c) {
 		xorBit(t, pieceb+a);
 		xorBit(t, colorb+(c^1));
 		XORHASH(t, a, c^1);
-		count &= 0x7FF; //Reset Fifty Counter
+		count &= 0x3FF; //Reset Fifty Counter
 		mat += c ? -pval[a] : +pval[a];
 	}
 	if (p == PAWN) {
@@ -626,7 +626,7 @@ void doMove(Move m, int c) {
 			XORHASH(t, PROM(m), c);
 			mat += c ? pval[PAWN] - pval[PROM(m)] : -pval[PAWN] + pval[PROM(m)];
 		}
-		count &= 0x7FF; //Reset Fifty Counter
+		count &= 0x3FF; //Reset Fifty Counter
 	} else if (p == KING) {
 		if (kingpos[c] == f) kingpos[c] = t; else kingpos[c] = f;
 		flags &= ~(320 << c); // Lose castling rights
@@ -645,6 +645,19 @@ void doMove(Move m, int c) {
 	} else if (p == ROOK && CASTLE) {
 		flags &= crevoke[f];
 	}
+}
+
+void doMove(Move m, int c) {
+	mstack[COUNT] = count | (flags << 17) | (((u64)(mat + 0x4000)) << 27) | (((u64)m) << 42);
+	move(m, c);
+}
+
+void undoMove(Move m, int c) {
+	u64 u = mstack[COUNT - 1];
+	move(m, c);
+	count = u & 0x1FFFF;
+	flags = (u >> 17L) & 0x3FF;
+	mat = ((u >> 27L) & 0x7FFF) - 0x4000;
 }
 
 void registerCaps(Move m, u64 bc, int* mlist, int* mn) {
@@ -1185,9 +1198,6 @@ u64 nodes;
 u64 qnodes;
 int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 	int i, w, best = -32000, poff;
-	int flagstore = flags;
-	int countstore = count;
-	int matstore = mat;
 	int cmat = c ? -mat: mat;
 
 //	printf("%d,%d,%d\n", cmat, alpha, beta);
@@ -1215,10 +1225,7 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 
 		w = -quiesce(attacked(kingpos[c^1], c^1), c^1, ply+1, -beta, -alpha);
 
-		doMove(m, c);
-		flags = flagstore;
-		count = countstore;
-		mat = matstore;
+		undoMove(m, c);
 
 		if (w > best) {
 			best = w;
@@ -1259,9 +1266,6 @@ int inputPondering() {
 #define HASHB ((hashb ^ hashxor[flags | 1024]) ^ hashxor[c | d << 1 | 2048])
 int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int null) {
 	int i, j, n, w, poff, asave, first, best;
-	int flagstore = flags;
-	int countstore = count;
-	int matstore = mat;
 	Move hsave, hmove;
 	u64 hb, hp, he;
 
@@ -1295,11 +1299,12 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 
 	//Null Move
 	if (!pvnode && !ch && null && d > 1 && bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1))) > 2) {
+		int flagstore = flags;
 		flags &= 960;
-		count += 0x801;
+		count += 0x401;
 		w = -search(0LL, c^1, d/2-1, ply+1, -beta, -alpha, 0, 0);
 		flags = flagstore;
-		count = countstore;
+		count -= 0x401;
 		if (!sabort && w >= beta) {
 			hashDB[hb & HMASKB] = (hb & HINVB) | (w + 32768); 
 			return beta;
@@ -1312,7 +1317,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		if (!((he^hp) & HINVP)) hsave = hmove = (Move)(he & HMASKP);
 
 		if (d >= 4 && hmove == 0) { // Simple version of Internal Iterative Deepening
-			w = search(ch, c, d-3, ply, alpha, beta, 0, pvnode);
+			w = search(ch, c, d-3, ply, alpha, beta, pvnode, 0);
 			he = hashDP[hp & HMASKP];
 			if (!((he^hp) & HINVP)) hsave = hmove = (Move)(he & HMASKP);
 		}
@@ -1355,10 +1360,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 			w = -search(nch, c^1, d-1+ext, ply+1, -alpha-1, -alpha, 0, 1);
 			if (w > alpha && w < beta && pvnode) w = -search(nch, c^1, d-1+ext, ply+1, -beta, -alpha, 1, 1);
 		}
-		doMove(m, c);
-		flags = flagstore;
-		count = countstore;
-		mat = matstore;
+		undoMove(m, c);
 
 		if (!sabort && w > best) {
 			if (w > alpha) {
@@ -1394,10 +1396,6 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 
 int execMove(Move m) {
 	int i, c;
-	mstack[0][COUNT] = m;
-	mstack[1][COUNT] = count;
-	mstack[2][COUNT] = flags;
-	mstack[3][COUNT] = mat;
 	doMove(m, onmove);
 	onmove ^= 1; 
 	c = onmove;
@@ -1410,19 +1408,19 @@ int execMove(Move m) {
 	hstack[COUNT] = HASHP;
 	for (i = 0; i < 127; i++) killer[i] = killer[i+1];
 	for (i = 0; i < 0x1000; i++) history[i] = 0;
+	i = GENERATE(c);
+	if (pondering) return (movenum[0] == 0);
+	if (movenum[0] == 0) {
+		if (!i) {
+			printf("1/2-1/2 {Stalemate}\n"); return 4;
+		} else {
+			printf(c ? "1-0 {White mates}\n" : "0-1 {Black mates}\n"); return 5 + c;
+		}
+	}
 	switch (isDraw(HASHP, 2)) {
 		case 1: printf("1/2-1/2 {Draw by Repetition}\n"); return 1;
 		case 2: printf("1/2-1/2 {Draw by Fifty Move Rule}\n"); return 2;
 		case 3: printf("1/2-1/2 {Insufficient material}\n"); return 3;
-		default:
-			i = GENERATE(c);
-			if (movenum[0] == 0) {
-				if (!i) {
-					printf("1/2-1/2 {Stalemate}\n"); return 4;
-				} else {
-					printf(c ? "1-0 {White mates}\n" : "0-1 {Black mates}\n"); return 5 + c;
-				}
-			}
 	}
 	return 0;
 }
@@ -1484,10 +1482,7 @@ int parseMoveNExec(char *s, int c, Move *m) {
 void undo() {
 	int cnt = COUNT - 1;
 	onmove ^= 1; 
-	doMove(mstack[0][cnt], onmove);
-	count = mstack[1][cnt];
-	flags = mstack[2][cnt];
-	mat = mstack[3][cnt];
+	undoMove((mstack[cnt] >> 42L), onmove);
 }
 
 int ttime = 30000;
@@ -1546,9 +1541,13 @@ int doponder(int c) {
 	pon = retPVMove(c, 1);
 	if (pon) {
 		pondering = 1;
-		return execMove(pon);
+		if (execMove(pon)) {
+			pondering = 0;
+			undo();
+			pon = 0;
+		}
 	}
-	return -1;
+	return pondering ? 0 : -1;
 }
 
 int protV2(char* buf) {
@@ -1645,6 +1644,7 @@ int main(int argc, char **argv)
 		else if (ex == 0 && ponder && engine != -1 && !book) ex = doponder(onmove);
 
 		if (!ponder || book || engine == -1 || ex != 0) ex = input(onmove);
+		if (ex > 0) engine = -1;
 		if (ex == -2) break;
 		if (ex == -3) _readbook("olibook.pgn");
 		if (ex == -4) { undo(); undo(); }
