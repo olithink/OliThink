@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 25.Jan.2008, ob112@web.de, http://home.arcor.de/dreamlike */
-#define VER "5.0.8"
+/* OliThink5 (c) Oliver Brausch 06.Feb.2008, ob112@web.de, http://home.arcor.de/dreamlike */
+#define VER "5.0.9"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <string.h>
@@ -793,12 +793,6 @@ int generateCaps(u64 ch, int c, int ply) {
 
 	cb = colorb[c] & (~pin);
 
-	b = pieceb[QUEEN] & cb;
-	while (b) {
-		f = pullLsb(&b);
-		registerCaps(PREMOVE(f, QUEEN), RCAP(f, c) | BCAP(f,c), ml, mn);
-	}
-
 	b = pieceb[PAWN] & cb;
 	while (b) {
 		f = pullLsb(&b);
@@ -840,10 +834,10 @@ int generateCaps(u64 ch, int c, int ply) {
 		}
 	}
 
-	b = pieceb[ROOK] & cb;
+	b = pieceb[KNIGHT] & cb;
 	while (b) {
 		f = pullLsb(&b);
-		registerCaps(PREMOVE(f, ROOK), RCAP(f, c), ml, mn);
+		registerCaps(PREMOVE(f, KNIGHT), NCAP(f, c), ml, mn);
 	}
 
 	b = pieceb[BISHOP] & cb;
@@ -852,10 +846,16 @@ int generateCaps(u64 ch, int c, int ply) {
 		registerCaps(PREMOVE(f, BISHOP), BCAP(f, c), ml, mn);
 	}
 
-	b = pieceb[KNIGHT] & cb;
+	b = pieceb[ROOK] & cb;
 	while (b) {
 		f = pullLsb(&b);
-		registerCaps(PREMOVE(f, KNIGHT), NCAP(f, c), ml, mn);
+		registerCaps(PREMOVE(f, ROOK), RCAP(f, c), ml, mn);
+	}
+
+	b = pieceb[QUEEN] & cb;
+	while (b) {
+		f = pullLsb(&b);
+		registerCaps(PREMOVE(f, QUEEN), RCAP(f, c) | BCAP(f,c), ml, mn);
 	}
 
 	b = pin & (pieceb[ROOK] | pieceb[BISHOP] | pieceb[QUEEN]); 
@@ -995,8 +995,8 @@ int evalc(int c, int* sf) {
 		mn += bitcnt(a) << 3;
 	}
 
-	colorb[oc] ^= pieceb[ROOK] & ocb; //Opposite Queen  doesn't block mobility for rook.
-	colorb[c] ^= pieceb[ROOK] & cb; //Own non-pinned Rooks doesn't block mobility for rook.
+	colorb[oc] ^= pieceb[ROOK] & ocb; //Opposite Queen doesn't block mobility for rook.
+	colorb[c] ^= pieceb[ROOK] & cb; //Own non-pinned Rook doesn't block mobility for rook.
 
 	b = pieceb[ROOK] & cb;
 	while (b) {
@@ -1131,9 +1131,7 @@ int search(int c, int d, int ply, int alpha, int beta, int null) {
 
 	hsave = hmove = 0;
 	he = hashDP[hp & HMASK];
-	if (!((he^hp) & HINV)) {
-		hsave = hmove = (Move)(he & HMASK);
-	}
+	if (!((he^hp) & HINV)) hsave = hmove = (Move)(he & HMASK);
 
 	ch = attacked(kingpos[c], c);
 	if (ch) d++; // Check Extension. The only extension at all.
@@ -1148,6 +1146,12 @@ int search(int c, int d, int ply, int alpha, int beta, int null) {
 			hashDB[hb & HMASK] = (hb & HINV) | (w + 32768); 
 			return beta;
 		}
+	}
+
+	if (d >= 4 && hmove == 0) { // Simple version of Internal Iterative Deepening
+		w = search(c, d-3, ply, alpha, beta, 0);
+		he = hashDP[hp & HMASK];
+		if (!((he^hp) & HINV)) hsave = hmove = (Move)(he & HMASK);
 	}
 
 	poff = ply << 8;
@@ -1176,7 +1180,7 @@ int search(int c, int d, int ply, int alpha, int beta, int null) {
 		mat = matstore;
 
 		if (w > alpha) {
-			hashDP[hp & HMASK] = (hp & HINV) | m; 
+			hashDP[hp & HMASK] = (hp & HINV) | m;
 			if (w >= beta) {
 				if (sabort) return beta;
 				if (CAP(m) == 0) {
