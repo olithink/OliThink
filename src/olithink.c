@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 17.Oct.2008, ob112@web.de, http://home.arcor.de/dreamlike */
-#define VER "5.1.5"
+/* OliThink5 (c) Oliver Brausch 19.Oct.2008, ob112@web.de, http://home.arcor.de/dreamlike */
+#define VER "5.1.6"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,7 +31,7 @@ typedef int Move;
 #define HEUR 9900000
 const int pval[] = {0, 100, 290, 0, 100, 310, 500, 950};
 const int capval[] = {0, HEUR+1, HEUR+2, 0, HEUR+1, HEUR+2, HEUR+3, HEUR+4};
-const int pawnrun[] = {0, 0, 8, 16, 32, 64, 128, 256};
+const int pawnrun[] = {0, 0, 1, 8, 16, 32, 64, 128};
 
 #define FROM(x) ((x) & 63)
 #define TO(x) (((x) >> 6) & 63)
