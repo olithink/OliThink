@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 02.Jul.2020, ob112@web.de, http://brausch.org */
-#define VER "5.4.12"
+/* OliThink5 (c) Oliver Brausch 03.Jul.2020, ob112@web.de, http://brausch.org */
+#define VER "5.4.13"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -98,7 +98,7 @@ const int pawnrun[] = {0, 0, 1, 8, 16, 32, 64, 128};
 #define MEVAL(w) (w > MAXSCORE-500 ? (200000+MAXSCORE+1-w)/2 : (w < 500-MAXSCORE ? (-200000-MAXSCORE-w)/2 : w))
 #define NOMATEMAT(s, t, c) ((s <= 4 || (s <= 6 && t > 2)) && (pieceb[PAWN] & colorb[c]) == 0)
 
-#define HSIZEB 0x200000
+#define HSIZEB 0x800000
 #define HMASKB (HSIZEB-1)
 #define HINVB 0xFFFFFFFFFFFFFFFFLL & ~HMASKB
 
@@ -206,10 +206,10 @@ void _parse_fen(char *fen) {
 	if (enps[0] >= 'a' && enps[0] <= 'h' && enps[1] >= '1' && enps[1] <= '8') flags |= 8*(enps[1] - '1') + enps[0] - 'a'; 
 	count = (fullm - 1)*2 + onmove + (halfm << 10);
 	for (i = 0; i < COUNT; i++) hstack[i] = 0LL;
-	reseth(fen == sfen ? 2 : 3);
+	if (fen != sfen) reseth(3);
 }
 
-int parseMoveNExec(char*, int, Move*);
+int parseMoveNExec(char*, int, Move*, int);
 int parseMove(char*, int, Move);
 int protV2(char*,int);
 #define BKSIZE 8192
@@ -248,9 +248,9 @@ void _readbook(char *bk) {
 						i += (int)(strlen(s2) + 1);
 					} else 
 					sscanf(s0,"%*[^.].%[^.]", s1);
-					parseMoveNExec(s1, 0, bkmove + n*32+ (j++));
+					parseMoveNExec(s1, 0, bkmove + n*32+ (j++), 0);
 					if (s2[0] == 0 || s2[0] == '*') break;
-					parseMoveNExec(s2, 1, bkmove + n*32+ (j++));
+					parseMoveNExec(s2, 1, bkmove + n*32+ (j++), 0);
 					if (j > 30 || i >= strlen(buf)) break;
 				}
 				bkmove[n*32 + j] = 0;
@@ -1392,12 +1392,13 @@ void reseth(int level) {
         for (i = istart; i < 127; i++) killer[i] = level <= 1 ? killer[i+level] : 0;
         for (i = istart; i < 127; i++) pv[0][i] = level <= 1 ? pv[0][i+level] : 0;
         pvlength[0] = level <= 1 && pvlength[0] - level > 0 ? pvlength[0] - level : 0;
-        if (level != 1) for (i = 0; i < HSIZEB; i++) hashDB[i] = 0LL; // Until depth decrementing tables
+
+	memset(hashDB, 0, sizeof(hashDB)); // Until depth decrementing tables
         if (level >= 2) pvlength[0] = pv[0][0] = 0;
-        if (level == 3) for (i = 0; i < HSIZEP; i++) hashDP[i] = 0LL;
+	if (level == 3) memset(hashDP, 0, sizeof(hashDP));
 }
 
-int execMove(Move m) {
+int execMove(Move m, int r) {
 	int i, c;
 	doMove(m, onmove);
 	onmove ^= 1; 
@@ -1409,7 +1410,7 @@ int execMove(Move m) {
 		}
 	}
 	hstack[COUNT] = HASHP;
-	reseth(1);
+	if (r) reseth(1);
 	i = GENERATE(c);
 	if (pondering) return (movenum[0] == 0);
 	if (movenum[0] == 0) {
@@ -1473,11 +1474,11 @@ int parseMove(char *s, int c, Move p) {
 	return 0;
 }
 
-int parseMoveNExec(char *s, int c, Move *m) {
+int parseMoveNExec(char *s, int c, Move *m, int r) {
 	*m = parseMove(s, c, 0);
 	if (*m == -1) printf("UNKNOWN COMMAND: %s\n", s);
 	else if (*m == 0) fprintf(stderr,"Illegal move: %s\n",s);
-	else return execMove(*m);
+	else return execMove(*m, r);
 	return -1;
 }
 
@@ -1548,14 +1549,14 @@ int calc(int sd, int tm) {
 		lastw = w;
 	}
 
-	return execMove(pv[0][0]);
+	return execMove(pv[0][0], 1);
 }
 
 int doponder(int c) {
 	pon = retPVMove(c, 0);
 	if (pon) {
 		pondering = 1;
-		if (execMove(pon)) {
+		if (execMove(pon, 1)) {
 			pondering = 0;
 			undo();
 			pon = 0;
@@ -1634,7 +1635,7 @@ int input(int c) {
 		if (irbuf[0]) strcpy(buf,irbuf); else fgets(buf,255,stdin);
 		irbuf[0] = 0;
 		ex = protV2(buf, 1);	
-		if (ex == -1) return parseMoveNExec(buf, c, &m);
+		if (ex == -1) return parseMoveNExec(buf, c, &m, 1);
 		return ex;
 }
 
