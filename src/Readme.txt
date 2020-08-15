@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 26.Jul.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 01.Aug.2020, ob112@web.de, http://brausch.org
 
-Version: 5.6.0
+Version: 5.6.1
 Protocol: Winboard 2
 HashSize: 96MB
 Ponder: Yes
@@ -9,9 +9,12 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1699
+LinesOfCode: 1705
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
+
+v5.6.1: changes since 5.6.0:
+Matekillers. Progress to 7th rank is not quiet.
 
 v5.6.0: changes since 5.5.9:
 Minor changes that yield better results in tests.

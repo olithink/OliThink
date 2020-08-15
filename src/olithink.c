@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 27.Jul.2020, ob112@web.de, http://brausch.org */
-#define VER "5.6.0"
+/* OliThink5 (c) Oliver Brausch 01.Aug.2020, ob112@web.de, http://brausch.org */
+#define VER "5.6.1"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -767,7 +767,7 @@ int generateNonCaps(u64 ch, int c, int f, u64 pin, int *ml, int *mn) {
 			u64 a = PCAP(f, c);
 			regPromotions(f, c, m, ml, mn, 0, 0);
 			if (a) regPromotions(f, c, a, ml, mn, 1, 0);
-		} else {
+		} else if (!RANK(f, c ? 0x10 : 0x28)) {
 			regMoves(PREMOVE(f, PAWN), m, ml, mn, 0);
 		}
 	}
@@ -786,7 +786,7 @@ int generateNonCaps(u64 ch, int c, int f, u64 pin, int *ml, int *mn) {
 			u64 a = (t & 32) ? PCA3(f, c) : ((t & 64) ? PCA4(f, c) : 0LL);
 			regPromotions(f, c, m, ml, mn, 0, 0);
 			if (a) regPromotions(f, c, a, ml, mn, 1, 0);
-		} else {
+		} else if (!RANK(f, c ? 0x10 : 0x28)) {
 			regMoves(PREMOVE(f, PAWN), m, ml, mn, 0);
 		}
 	}
@@ -852,6 +852,8 @@ int generateCaps(u64 ch, int c, int f, u64 pin, int *ml, int *mn) {
 		a = PCAP(f, c);
 		if (RANK(f, c ? 0x08 : 0x30)) {
 			regMovesCaps(PREMOVE(f, PAWN) | _PROM(QUEEN), a, PMOVE(f, c), ml, mn);
+		} else if (RANK(f, c ? 0x10 : 0x28)) {
+			regMovesCaps(PREMOVE(f, PAWN), a, PMOVE(f, c), ml, mn);
 		} else {
 			if (ENPASS && (BIT[ENPASS] & pcaps[(f) | ((c)<<6)])) {
 				xorBit(ENPASS^8, colorb+(c^1));
@@ -879,6 +881,8 @@ int generateCaps(u64 ch, int c, int f, u64 pin, int *ml, int *mn) {
 		}
 		if (RANK(f, c ? 0x08 : 0x30)) {
 			regMovesCaps(PREMOVE(f, PAWN) | _PROM(QUEEN), a, m, ml, mn);
+		} else if (RANK(f, c ? 0x10 : 0x28)) {
+			regMovesCaps(PREMOVE(f, PAWN), a, m, ml, mn);
 		} else {
 			regMoves(PREMOVE(f, PAWN), a, ml, mn, 1);
 		}
@@ -1001,6 +1005,7 @@ Move qpick(Move* ml, int mn, int s) {
 	return m;
 }
 
+Move matekiller[128];
 Move killer[128];
 long long history[0x1000];
 /* In normal search some basic move ordering heuristics are used */
@@ -1009,7 +1014,7 @@ Move spick(Move* ml, int mn, int s, int ply) {
 	int i, pi = 0; long long vmax = -9999L;
 	for (i = s; i < mn; i++) {
 		m = ml[i];
-		if (m == killer[ply]) {
+		if (m == killer[ply] || m == matekiller[ply]) {
 			pi = i;
 			break;
 		}
@@ -1323,10 +1328,10 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		doMove(m, c);
 		nch = attacked(kingpos[c^1], c^1);
 		if (nch) ext++; // Check Extension
-		else if (n == 2 && !pvnode && d >= 2 && !ch && !PROM(m) && swap(m) < 0) ext--; //Reduce bad exchanges
+		else if (PIECE(m) == PAWN && !(pawnfree[TO(m) + (c << 6)] & pieceb[PAWN] & colorb[c^1])); //Don't reduce free pawns
+		else if (n == 2 && !pvnode && d >= 2 && !ch && !PROM(m) && CAP(m) && swap(m) < 0) ext--; //Reduce bad exchanges
 		else if (n == 3 && !pvnode) { //LMR
-			if (m == killer[ply] || PROM(m)); //Don't reduce killers or promotions
-			else if (PIECE(m) == PAWN && !(pawnfree[TO(m) + (c << 6)] & pieceb[PAWN] & colorb[c^1])); //Don't reduce free pawns
+			if (m == killer[ply] || m == matekiller[ply] || PROM(m)); //Don't reduce killers or promotions
 			else {
 				u32 his = history[m & 0xFFF];
 				if (his > hismax) { hismax = his;} 
@@ -1363,8 +1368,8 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 				pv[ply][ply] = m;
 				for (j = ply +1; j < pvlength[ply +1]; j++) pv[ply][j] = pv[ply +1][j];
 				pvlength[ply] = pvlength[ply +1];
-				if (w == MAXSCORE-1  - ply) return w;
 			}
+			if (w == MAXSCORE-1 - ply) { matekiller[ply] = m; return w; }
 		}
 		if (first == 1) first = 0;
 	    }
@@ -1379,6 +1384,7 @@ void reseth(int level) {
 	int i, istart = level < 0 ? 1 : 0;
 	for (i = 0; i < 0x1000; i++) history[i] = 0LL;
 	for (i = istart; i < 127; i++) killer[i] = level <= 1 ? killer[i+level] : 0;
+	for (i = istart; i < 127; i++) matekiller[i] = level <= 1 ? matekiller[i+level] : 0;
 	for (i = istart; i < 127; i++) pv[0][i] = level <= 1 ? pv[0][i+level] : 0;
 	pvlength[0] = level <= 1 && pvlength[0] - level > 0 ? pvlength[0] - level : 0;
 	if (level <= 1) return;
