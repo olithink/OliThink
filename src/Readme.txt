@@ -13,6 +13,9 @@ LinesOfCode: 1675
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution!
 
+v5.4.7: changes since 5.4.6:
+Option "-reset" instead of "-forceponder". Reinstate hanging pawn eval.
+
 v5.4.6: changes since 5.4.5:
 Adaption in printouts, protocols and engine reuse. Remove asymetrical eval.
 

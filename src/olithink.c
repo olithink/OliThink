@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 23.Jun.2020, ob112@web.de, http://brausch.org */
-#define VER "5.4.6"
+#define VER "5.4.7"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -138,7 +138,7 @@ int iter;
 const char pieceChar[] = "*PNK.BRQ";
 u64 searchtime, maxtime, starttime;
 int sabort, noabort, ics = 0;
-int ponder = 0, pondering = 0, analyze = 0, forceponder = 0;
+int ponder = 0, pondering = 0, analyze = 0, reset = 0;
 Move pon = 0;
 int count, flags, mat, onmove, engine =-1;
 int sd = 64;
@@ -1047,6 +1047,7 @@ int evalc(int c, int* sf) {
 		/* The only non-mobility eval is the detection of free pawns/hanging pawns */
 		if (!(pawnfile[t] & pieceb[PAWN] & ocb)) { //Free file?
 			if (!(pawnfree[t] & pieceb[PAWN] & ocb)) ppos *= 2; //Free run?
+			if (!(pawnhelp[t] & pieceb[PAWN] & colorb[c])) ppos -= 33; //Hanging backpawn?
 		}
 
 		mn += ppos;
@@ -1577,7 +1578,7 @@ int protV2(char* buf) {
 		else if (!strncmp(buf,"go",2)) engine = pondering ? onmove^1 : onmove;
 		else if (!strncmp(buf,"setboard",8)) _parse_fen(buf+9);
 		else if (!strncmp(buf,"undo",4)) undo();
-		else if (!strncmp(buf,"easy",4)) ponder = forceponder;
+		else if (!strncmp(buf,"easy",4)) ponder = 0;
 		else if (!strncmp(buf,"hard",4)) ponder = 1;
 		else if (!strncmp(buf,"analyze",7)) { analyze = pondering = 1; engine = -1; pon = 0; return -5;}
 		else if (!strncmp(buf,"exit",4)) analyze = pondering = 0;
@@ -1657,7 +1658,7 @@ int main(int argc, char **argv)
 			sscanf(argv[2], "%d", &sd);
 			if (argc > 3) { _parse_fen(argv[3]); engine = -1; }
 		}
-	} else if (argc > 1 && !strncmp(argv[1],"-forceponder",11)) ponder = forceponder = 1;
+	} else if (argc > 1 && !strncmp(argv[1],"-reset",6)) reset = 1;
 	irbuf[0] = 0;
 
 	for (;;) {
@@ -1667,7 +1668,7 @@ int main(int argc, char **argv)
 		if (!ponder || book || engine == -1 || ex != 0) ex = input(onmove);
 		if (ex > 0) engine = -1;
 		if (ex == -2) break;
-		if (ex == -3) newGame(analyze ? 3 : 2);
+		if (ex == -3) newGame(analyze || reset ? 3 : 2);
 		if (ex == -4) { undo(); undo(); }
 	}
 	return 0;
