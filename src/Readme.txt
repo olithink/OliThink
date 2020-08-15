@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 19.Jun.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 21.Jun.2020, ob112@web.de, http://brausch.org
 
-Version: 5.4.2
+Version: 5.4.3
 Protocol: Winboard 2
 HashSize: 48MB
 Ponder: Yes
@@ -9,9 +9,12 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing/pawnhanging evaluation
-LinesOfCode: 1651
+LinesOfCode: 1655
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution!
+
+v5.4.3: changes since 5.4.2:
+Aggressive pruning with history heuristic. Bugfix when claiming draw for insufficient material. Reads fen-string without command.
 
 v5.4.2: changes since 5.4.1:
 History heuristics increase with depth

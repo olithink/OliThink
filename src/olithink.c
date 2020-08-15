@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 19.Jun.2020, ob112@web.de, http://brausch.org */
-#define VER "5.4.2s"
+/* OliThink5 (c) Oliver Brausch 21.Jun.2020, ob112@web.de, http://brausch.org */
+#define VER "5.4.3s"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -554,7 +554,7 @@ int isDraw(u64 hp, int nrep) {
 		for (i = COUNT - 2; i >= n; i--) 
 			if (hstack[i] == hp && ++c == nrep) return 1; 
 	} else if (!(pieceb[PAWN] | RQU)) { //Check for mating material
-		if (_bitcnt(colorb[0]) <= 2 && _bitcnt(colorb[1]) <= 2) return 3;
+		if (_bitcnt(BOARD) <= 3) return 3;
 	}
 	return 0;
 }
@@ -1235,7 +1235,7 @@ static int nullvariance(int delta) {
 int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int null) {
 	int i, j, n, w, poff, asave, first, best;
 	Move hmove;
-	u64 hb, hp, he;
+	u64 hb, hp, he, hismax = 0LL;
 
 	pvlength[ply] = ply;
 	if (ply == 127) return eval(c, mat);
@@ -1326,7 +1326,10 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 			if (m == killer[ply]); //Don't reduce killers
 			else if (PIECE(m) == PAWN && !(pawnfree[TO(m) + (c << 6)] & pieceb[PAWN] & colorb[c^1])); //Don't reduce free pawns
 			else {
-				if (d >= 2) ext--;
+				u32 his = history[m & 0xFFF];
+				if (his > hismax) { hismax = his;} 
+				else if (d <= 4 && his*his < hismax) { undoMove(m, c); continue; }
+				else if (d >= 2) ext--;
 				else if (i > 14) { undoMove(m, c); continue; } // Move count pruning
 			}
 	        }
@@ -1388,7 +1391,7 @@ int execMove(Move m) {
 	}
 	hstack[COUNT] = HASHP;
 	for (i = 0; i < 127; i++) killer[i] = killer[i+1];
-	for (i = 0; i < 0x1000; i++) history[i] = 0;
+	for (i = 0; i < 0x1000; i++) history[i] = 0LL;
 	i = GENERATE(c);
 	if (pondering) return (movenum[0] == 0);
 	if (movenum[0] == 0) {
@@ -1577,6 +1580,7 @@ int protV2(char* buf) {
 		else if (!strncmp(buf,"name",4));//ICS: name <opname>
 		else if (!strncmp(buf,"perft",5)) {int i; for (i = 1; i <= sd; i++) printf("Depth: %d Nodes: %llu\n", i, perft(onmove, i, 0));}
 		else if (!strncmp(buf,"divide",5)) perft(onmove, sd, 1);
+		else if (strchr(buf, '/') != NULL) { engine = -1; _parse_fen(buf); analyze = pondering = 1; }
 		else return -1;
 		return 0;
 }
