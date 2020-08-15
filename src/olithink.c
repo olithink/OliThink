@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 18.Jun.2020, ob112@web.de, http://brausch.org */
-#define VER "5.4.1s"
+/* OliThink5 (c) Oliver Brausch 19.Jun.2020, ob112@web.de, http://brausch.org */
+#define VER "5.4.2s"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -998,11 +998,11 @@ Move qpick(Move* ml, int mn, int s) {
 }
 
 Move killer[128];
-int history[0x1000];
+long long history[0x1000];
 /* In normal search some basic move ordering heuristics are used */
 Move spick(Move* ml, int mn, int s, int ply) {
 	Move m;
-	int i, pi = 0, vmax = -9999;
+	int i, pi = 0; long long vmax = -9999L;
 	for (i = s; i < mn; i++) {
 		m = ml[i];
 		if (m == killer[ply]) {
@@ -1349,7 +1349,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 			if (w >= beta) {
 				if (CAP(m) == 0) {
 					killer[ply] = m;
-					history[m & 0xFFF]++;
+					history[m & 0xFFF]+=d*d;
 				}
 				hashDB[hb & HMASKB] = (hb & HINVB) | (w + 32768); 
 				return beta;
