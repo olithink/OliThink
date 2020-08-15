@@ -1,9 +1,11 @@
 /* OliThink5 (c) Oliver Brausch 18.Jan.2008, ob112@web.de, http://home.arcor.de/dreamlike */
-#define VER "5.0.6"
+#define VER "5.0.7"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN32
+#include <windows.h>
+#include <conio.h>
 #include <sys/timeb.h>
 struct _timeb tv;
 #else
@@ -439,11 +441,48 @@ void displaym(Move m) {
 	if (PROM(m)) printf("%c", pieceChar[PROM(m)]+32);
 }
 
-static oldpvl = 0;
+/* This one is the same as in OliThink4. It's quite annoying code */
+int bioskey() {
+#ifndef _WIN32
+  fd_set readfds;
+
+  FD_ZERO (&readfds);
+  FD_SET (fileno(stdin), &readfds);
+  tv.tv_sec=0; tv.tv_usec=0;
+  select(16, &readfds, 0, 0, &tv);
+
+  return (FD_ISSET(fileno(stdin), &readfds));
+#else
+   static int init = 0, pipe;
+   static HANDLE inh;
+   DWORD dw;
+
+   if (!init) {
+     init = 1;
+     inh = GetStdHandle(STD_INPUT_HANDLE);
+     pipe = !GetConsoleMode(inh, &dw);
+     if (!pipe) {
+        SetConsoleMode(inh, dw & ~(ENABLE_MOUSE_INPUT|ENABLE_WINDOW_INPUT));
+        FlushConsoleInputBuffer(inh);
+      }
+    }
+    if (pipe) {
+      if (!PeekNamedPipe(inh, NULL, 0, NULL, &dw, NULL)) {
+        return 1;
+      }
+      return dw;
+    } else {
+      GetNumberOfConsoleInputEvents(inh, &dw);
+      return dw <= 1 ? 0 : dw;
+	}
+#endif
+}
+
+
+
 void displaypv() {
-	int i, pl = pvlength[0];
-	if (pl) oldpvl = pl; else pl = oldpvl;
-	for (i = 0; i < pl; i++) {
+	int i;
+	for (i = 0; i < pvlength[0]; i++) {
 		displaym(pv[0][i]); printf(" ");
 	}
 }
@@ -994,7 +1033,7 @@ int eval(int c) {
 	if (sf0 < 5) ev1 += kmobil[kingpos[1]];
 	else if (sf0 > 5) ev1 -= kmobil[kingpos[1]];
 
-	return c ? (ev1 - ev0) : (ev0 - ev1);
+	return (c ? (ev1 - ev0) : (ev0 - ev1));
 }
 
 
@@ -1051,7 +1090,7 @@ int search(int c, int d, int ply, int alpha, int beta) {
 	u64 hb, hp, he, ch;
 	if ((++nodes & CNODES) == 0) {
 		u64 consumed = getTime() - starttime;
-		if (consumed > searchtime || consumed > maxtime) sabort = 1;
+		if (consumed > searchtime || consumed > maxtime || bioskey()) sabort = 1;
 	}
 	if (sabort) return alpha;
 
@@ -1109,6 +1148,7 @@ int search(int c, int d, int ply, int alpha, int beta) {
 		if (w > alpha) {
 			hashDP[hp & HMASK] = (hp & HINV) | m; 
 			if (w >= beta) {
+				if (sabort) return beta;
 				if (CAP(m) == 0) {
 					killer[ply] = m;
 					history[m & 0xFFF]++;
@@ -1124,7 +1164,7 @@ int search(int c, int d, int ply, int alpha, int beta) {
 			if (w == 31999 - ply) return w; 
 		}
 	}
-	if (asave == alpha) hashDB[hb & HMASK] = (hb & HINV) | 0x10000 | (asave + 32768);
+	if (asave == alpha && !sabort) hashDB[hb & HMASK] = (hb & HINV) | 0x10000 | (asave + 32768);
 	return alpha;
 }
 
@@ -1152,43 +1192,88 @@ int execMove(Move m) {
 	return 0;
 }
 
-int calc(int sd, int time) {
+int engine = -1;
+int sd = 32;
+int ttime = 30000;
+int ponder = 0;
+int post = 1;
+char *sfen = "rnbqkbnr/pppppppp/////PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+int calc(int sd, int tm, int pon) {
 		int i, t1, ws = 0, alpha = -32000, beta = 32000, w = 100;
 		Move ms = pv[0][0];
 		eval1 = sabort = 0;
 		qnodes = nodes = 0LL;
-		maxtime = (time * 10LL) / 5;
-		searchtime = (time * 10LL) / 40;
+		if (pon) tm = 999999999;
+		maxtime = (tm * 10LL) / 5;
+		searchtime = (tm * 10LL) / 40;
 		starttime = getTime();
 		for (i = 1; i <= sd; i++) {
 			w = search(onmove, i, 0, alpha, beta);
 			if (sabort) w = ws;
-			if (w >= beta) { searchtime *= 2; w = search(onmove, i, 0, beta-1, 32000); }
-			if (w <= alpha) { searchtime *= 2; w = search(onmove, i, 0, -32000, alpha+1); }
-			printf("%2d %5d %6llu %9llu  ", i, w, (getTime() - starttime)/10, nodes);
-			displaypv(); printf("\n");
+			if (w >= beta) { w = search(onmove, i, 0, beta-1, 32000); }
+			if (w <= alpha) { w = search(onmove, i, 0, -32000, alpha+1); }
+			if (post) { 
+				printf("%2d %5d %6llu %9llu  ", i, w, (getTime() - starttime)/10, nodes);
+				displaypv(); printf("\n"); 
+			}
 			ws = w; ms = pv[0][0];
 			if (i >= 32000-w || sabort) break;
 			alpha = w - 60;
-			beta = w + 60;			
+			beta = w + 60;
 		}
+		if (pon) return -1;
 		t1 = (int)(getTime() - starttime + 1);
 		printf("%d. ... ", COUNT/2 + 1);
 		displaym(ms); printf("\n");
 
-		printf("\nkib Nodes: %llu QNodes: %llu Evals: %d cs: %d knps: %llu\n", nodes, qnodes, eval1, t1/10, (nodes+qnodes)/t1);
+		if (post) printf("\nkib Nodes: %llu QNodes: %llu Evals: %d cs: %d knps: %llu\n", nodes, qnodes, eval1, t1/10, (nodes+qnodes)/t1);
 		return execMove(ms);
+}
+
+int input() {
+		int i;
+		char buf[256];
+		fgets(buf,255,stdin);
+		if (!strncmp(buf,"xboard",6)) printf("feature setboard=1 myname=\"OliThink " VER "\" colors=0 done=1\n");
+		if (!strncmp(buf,"quit",4)) exit(0);
+		if (!strncmp(buf,"force",5)) engine = -1;
+		if (!strncmp(buf,"go",2)) engine = onmove;
+		if (!strncmp(buf,"new",2)) { _parse_fen(sfen); engine = 1; }
+		if (!strncmp(buf,"setboard",8)) _parse_fen(buf+9);
+		if (!strncmp(buf,"sd",2)) sscanf(buf+3,"%d",&sd);
+		if (!strncmp(buf,"time",4)) sscanf(buf+5,"%d",&ttime);
+		if (!strncmp(buf,"otim",4)) ;
+		if (!strncmp(buf,"hard",4)) { ponder = 1; return 0; }
+		if (!strncmp(buf,"easy",4)) ponder = 0;
+		if (!strncmp(buf,"post",4)) post = 1;
+		if (!strncmp(buf,"nopost",6)) post = 0;
+
+		if (buf[0] >= 'a' && buf[0] <= 'h' && buf[1] >= '1' && buf[1] <= '8') {
+			Move _m = 0;
+			int from = 8*(buf[1] - '1') + buf[0] - 'a';
+			int to = 8*(buf[3] - '1') + buf[2] - 'a';
+			GENERATE(onmove);
+			for (i = 0; i < movenum[0]; i++) {
+				Move m = movelist[i];
+				if (TO(m) != to) continue;
+				if (FROM(m) != from) continue;
+				if (PROM(m) && pieceChar[PROM(m)] != buf[4]-32) continue;
+				_m = m;
+			}
+			if (_m == 0) fprintf(stderr,"Illegal move: %s\n",buf);
+			else return execMove(_m);
+		}
+		return -1;
 }
 
 int main(int argc, char **argv)
 {
-	char buf[256];
-	int i, engine = -1, sd = 32, time = 99999;
-	char *sfen = "rnbqkbnr/pppppppp/////PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+	int i, ex = -1;
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
-	if (argc > 1) sscanf(argv[1], "%d", &sd);
-	if (argc > 2) sfen = argv[2];
+//	if (argc > 1) sscanf(argv[1], "%d", &sd);
+//	if (argc > 2) sfen = argv[2];
 	for (i = 0; i < 0x10000; i++) LSB[i] = _slow_lsb(i);
 	for (i = 0; i < 0x10000; i++) BITC[i] = _bitcnt(i);
 	for (i = 0; i < 4096; i++) hashxor[i] = _rand_64();
@@ -1217,36 +1302,10 @@ int main(int argc, char **argv)
 	for (i = 0; i < 64; i++) nmobil[i] = bitcnt(NOCC(i) | NMOVE(i))*6;
 	for (i = 0; i < 64; i++) kmobil[i] = (bitcnt(NOCC(i) | NMOVE(i))/2)*4;
 	for (;;) {
-		if (engine == onmove) {
-			if (calc(sd, time)) engine = -1;
-			continue;
-		}
+		if (engine == onmove) ex = calc(sd, ttime, 0);
+		else if (ex == 0 && ponder && engine != -1) ex = calc(sd, ttime, 1);
 
-		fgets(buf,255,stdin);
-		if (!strncmp(buf,"xboard",6)) printf("feature setboard=1 myname=\"OliThink " VER "\" done=1\n");
-		if (!strncmp(buf,"quit",4)) return 0;
-		if (!strncmp(buf,"force",5)) engine = -1;
-		if (!strncmp(buf,"go",2)) engine = onmove;
-		if (!strncmp(buf,"new",2)) { _parse_fen(sfen); engine = 1; }
-		if (!strncmp(buf,"setboard",8)) _parse_fen(buf+9);
-		if (!strncmp(buf,"sd",2)) sscanf(buf+3,"%d",&sd);
-		if (!strncmp(buf,"time",4)) sscanf(buf+5,"%d",&time);
-
-		if (buf[0] >= 'a' && buf[0] <= 'h' && buf[1] >= '1' && buf[1] <= '8') {
-			Move _m = 0;
-			int from = 8*(buf[1] - '1') + buf[0] - 'a';
-			int to = 8*(buf[3] - '1') + buf[2] - 'a';
-			GENERATE(onmove);
-			for (i = 0; i < movenum[0]; i++) {
-				Move m = movelist[i];
-				if (TO(m) != to) continue;
-				if (FROM(m) != from) continue;
-				if (PROM(m) && pieceChar[PROM(m)] != buf[4]-32) continue;
-				_m = m;
-			}
-			if (_m == 0) fprintf(stderr,"Illegal move: %s\n",buf);
-			else if (execMove(_m)) engine = -1;
-		}
+		if (!ponder ||engine == -1 || ex != 0) ex = input();
 	}
 	return 0;
 }
