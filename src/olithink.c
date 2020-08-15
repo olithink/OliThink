@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 03.Jul.2020, ob112@web.de, http://brausch.org */
-#define VER "5.4.13"
+/* OliThink5 (c) Oliver Brausch 05.Jul.2020, ob112@web.de, http://brausch.org */
+#define VER "5.5.0"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,7 +28,7 @@ typedef int Move;
 #define QUEEN 7
 
 #define CNODES 0xFFFF
-const int pval[] = {0, 100, 290, 0, 100, 310, 500, 950};
+const int pval[] = {0, 100, 290, 0, 100, 310, 500, 980};
 const int pawnrun[] = {0, 0, 1, 8, 16, 32, 64, 128};
 
 #define FROM(x) ((x) & 63)
@@ -137,8 +137,8 @@ int pvlength[128];
 int value[128];
 int iter;
 const char pieceChar[] = "*PNK.BRQ";
-u64 searchtime, maxtime, starttime;
-int sabort, noabort, ics = 0, ponder = 0, pondering = 0, analyze = 0, resign = 0, lastw = 0;
+u64 maxtime, starttime;
+int sabort, ics = 0, ponder = 0, pondering = 0, analyze = 0, resign = 0, lastw = 0;
 Move pon = 0;
 int count, flags, mat, onmove, engine =-1;
 int sd = 64;
@@ -1241,15 +1241,14 @@ static int nullvariance(int delta) {
 #define HASHP (hashb ^ hashxor[flags | 1024 | c << 11])
 #define HASHB ((hashb ^ hashxor[flags | 1024]) ^ hashxor[c | d << 1 | 2048])
 int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int null) {
-	int i, j, n, w, poff, asave, first, best;
+	int i, j, n, w, poff, first;
 	Move hmove;
 	u64 hb, hp, he, hismax = 0LL;
 
 	pvlength[ply] = ply;
 	if ((++nodes & CNODES) == 0) {
-		u64 consumed = getTime() - starttime;
-		if (!pondering && (consumed > maxtime || (consumed > searchtime && !noabort))) sabort = 1;
 		if (bioskey()) sabort = inputSearch();
+		if (!pondering && getTime() - starttime > maxtime) sabort = 1;
 	}
 	if (sabort) return 0;
 
@@ -1302,8 +1301,6 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	}
 
 	poff = ply << 8;
-	best = pvnode ? alpha : -MAXSCORE;;
-	asave = alpha;
 	first = 1;
 	for (n = 1; n <= (ch ? 2 : 3); n++) {
  	    if (n == 1) {
@@ -1342,21 +1339,21 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 			}
 	        }
 
-		if (first && pvnode) {
+		if (first == 1 && pvnode) {
 			w = -search(nch, c^1, d-1+ext, ply+1, -beta, -alpha, 1, 1);
-			if (!ply) noabort = (iter > 1 && w < value[iter-1] - 40) ? 1 : 0;
 		} else {
 			w = -search(nch, c^1, d-1+ext, ply+1, -alpha-1, -alpha, 0, 1);
 			if (w > alpha && ext < 0) w = -search(nch, c^1, d-1, ply+1, -alpha-1, -alpha, 0, 1);
 			if (w > alpha && w < beta && pvnode) w = -search(nch, c^1, d-1+ext, ply+1, -beta, -alpha, 1, 1);
 		}
 		undoMove(m, c);
+		if (sabort) return 0;
 
-		if (!sabort && w > best) {
-			if (w > alpha) {
-				hashDP[hp & HMASKP] = (hp & HINVP) | m;
-				alpha = w;
-			}
+		if (w > alpha) {
+			hashDP[hp & HMASKP] = (hp & HINVP) | m;
+			alpha = w;
+			first = -1;
+
 			if (w >= beta) {
 				if (CAP(m) == 0) {
 					killer[ply] = m;
@@ -1369,20 +1366,15 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 				pv[ply][ply] = m;
 				for (j = ply +1; j < pvlength[ply +1]; j++) pv[ply][j] = pv[ply +1][j];
 				pvlength[ply] = pvlength[ply +1];
-				if (!ply && iter > 1 && w > value[iter-1] - 20) noabort = 0;
 				if (w == MAXSCORE-1  - ply) return w;
 			}
-			best = w;
 		}
-		first = 0;
+		if (first == 1) first = 0;
 	    }
 	}
-	if (first) return ch ? -MAXSCORE+ply : 0;
-	if (pvnode) {
-		if (!sabort && asave == alpha) hashDB[hb & HMASKB] = (hb & HINVB) | 0x10000 | (asave + MAXSCORE);
-	} else {
-		if (!sabort && best < beta) hashDB[hb & HMASKB] = (hb & HINVB) | 0x10000 | (best + MAXSCORE);
-	}
+	if (sabort) return 0;
+	if (first == 1) return ch ? -MAXSCORE+ply : 0;
+	else if (!first) hashDB[hb & HMASKB] = (hb & HINVB) | 0x10000 | (alpha + MAXSCORE);
 	return alpha;
 }
 
@@ -1495,17 +1487,18 @@ void undo() {
 int ttime = 30000, mps = 0, inc = 0, post = 1, st = 0; char base[16];
 
 int calc(int sd, int tm) {
-	int i, j, t1 = 0, m2go = 32;
+	int i, j, t1 = 0, m2go = mps == 0 ? 32 : 1 + mps - ((COUNT/2) % mps);
 	u64 ch = attacked(kingpos[onmove], onmove);
-	eval1 = sabort = iter = value[0] = 0;
-	qnodes = nodes = 0LL;
-	if (mps > 0) m2go = 1 + mps - ((COUNT/2) % mps);
-
-	searchtime = (tm*10LL)/m2go + inc*1000LL;
-	maxtime = inc ? tm*3LL : tm*2LL;
+	long searchtime = tm*5L/m2go + inc*500L;
+	long extendtime = tm*24L/m2go + inc*1000L; if (extendtime > tm*10L-200) extendtime = tm*10L-200;
+	if (searchtime > tm*10L-200) searchtime = tm*10L-200;
 	if (st > 0) maxtime = searchtime = st*1000LL;
 
+	maxtime = extendtime;
 	starttime = getTime();
+
+	eval1 = sabort = iter = value[0] = 0;
+	qnodes = nodes = 0LL;
 	if (book) {
 		if (!bkcount[onmove]) book = 0;
 		else {
@@ -1518,7 +1511,6 @@ int calc(int sd, int tm) {
 	}
 	if (!book || analyze) for (iter = 1; iter <= sd; iter++) {
 		int pvlengsave = pvlength[0];
-		noabort = 0;
 		value[iter] = search(ch, onmove, iter, 0, -MAXSCORE, MAXSCORE, 1, 0);
 		if (pvlength[0] == 0 && iter > 1) { pvlength[0] = pvlengsave; value[iter] = value[iter -1]; }
 		t1 = (int)(getTime() - starttime);
@@ -1526,8 +1518,16 @@ int calc(int sd, int tm) {
 			printf("%2d %5d %6d %9lu  ", iter, MEVAL(value[iter]), t1/10, (u32)(nodes + qnodes));
 			displaypv(); printf("\n"); 
 		}
-		if (!pondering && (iter >= MAXSCORE-value[iter] || (u32)t1 > searchtime/2)) break;
 		if (sabort) break;
+		if (pondering) continue;
+		if (iter >= MAXSCORE-value[iter]) break;
+		if (t1 < searchtime || iter == 1) continue;
+
+		if (value[iter] - value[iter-1] < -40 && maxtime == extendtime) {
+			maxtime = extendtime*3L; if (maxtime < tm*10L-199) maxtime = tm*10L-199;
+			continue;
+		}
+		break;
 	}
 	if (analyze) return 1;
 	pondering = 0;
