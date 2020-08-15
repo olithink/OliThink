@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 21.Jun.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 22.Jun.2020, ob112@web.de, http://brausch.org
 
-Version: 5.4.4
+Version: 5.4.5
 Protocol: Winboard 2
 HashSize: 48MB
 Ponder: Yes
@@ -12,6 +12,9 @@ Evaluation: Just mobility and a very simple pawnprogressing/pawnhanging evaluati
 LinesOfCode: 1655
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution!
+
+v5.4.5: changes since 5.4.4:
+Some issues about the printout of moves and evaluations have been fixed. It could fix a bug, where a strange move has been made.
 
 v5.4.4: changes since 5.4.3:
 Fixed "Bus Error 10" for plies greater than 63. Max depth increased to 64.

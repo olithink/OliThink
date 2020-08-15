@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 21.Jun.2020, ob112@web.de, http://brausch.org */
-#define VER "5.4.4"
+/* OliThink5 (c) Oliver Brausch 22.Jun.2020, ob112@web.de, http://brausch.org */
+#define VER "5.4.5"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -137,7 +137,7 @@ int value[128];
 int iter;
 const char pieceChar[] = "*PNK.BRQ";
 u64 searchtime, maxtime, starttime;
-int sabort, noabort;
+int sabort, noabort, ics = 0;
 int ponder = 0, pondering = 0, analyze = 0, forceponder = 0;
 Move pon = 0;
 int count, flags, mat, onmove, engine =-1;
@@ -541,7 +541,7 @@ int bioskey() {
 
 void displaypv() {
 	int i;
-	if (pon) { printf("("); displaym(pon); printf(") "); }
+	if (pon && pondering) { printf("("); displaym(pon); printf(") "); }
 	for (i = 0; i < pvlength[0]; i++) {
 		displaym(pv[0][i]); printf(" ");
 	}
@@ -1493,10 +1493,11 @@ int calc(int sd, int tm) {
 		}
 	}
 	if (!book || analyze) for (iter = 1; iter <= sd; iter++) {
+		int pvlengsave = pvlength[0];
 		noabort = 0;
 		value[iter] = search(ch, onmove, iter, 0, -32000, 32000, 1, 0);
+		if (pvlength[0] == 0 && iter > 1) { pvlength[0] = pvlengsave; value[iter] = value[iter -1]; }
 		t1 = (int)(getTime() - starttime);
-		if (sabort && !pvlength[0] && iter--) break;
 		if (post && pvlength[0] > 0) { 
 			printf("%2d %5d %6d %9lu  ", iter, MEVAL(value[iter]), t1/10, (u32)(nodes + qnodes));
 			displaypv(); printf("\n"); 
@@ -1513,7 +1514,7 @@ int calc(int sd, int tm) {
 	}
 	printf("move "); displaym(pv[0][0]); printf("\n");
 
-	if (post) printf("kibitz W: %d Nodes: %lu QNodes: %lu Evals: %d cs: %d knps: %lu\n", MEVAL(value[iter > sd ? sd : iter]), (u32)nodes, (u32)qnodes, eval1, t1/10, (u32)(nodes+qnodes)/(t1+1));
+	if (post && ics) printf("kibitz W: %d Nodes: %lu QNodes: %lu Evals: %d cs: %d knps: %lu\n", MEVAL(value[iter > sd ? sd : iter]), (u32)nodes, (u32)qnodes, eval1, t1/10, (u32)(nodes+qnodes)/(t1+1));
 	return execMove(pv[0][0]);
 }
 
@@ -1575,7 +1576,7 @@ int protV2(char* buf) {
 		else if (!strncmp(buf,"computer",8));
 		else if (!strncmp(buf,"accepted",8));//accepted <feature>
 		else if (!strncmp(buf,"random",6));
-		else if (!strncmp(buf,"rating",6));//ICS: rating <myrat> <oprat>
+		else if (!strncmp(buf,"rating",6)) ics = 1;//ICS: rating <myrat> <oprat>
 		else if (!strncmp(buf,"name",4));//ICS: name <opname>
 		else if (!strncmp(buf,"perft",5)) {int i; for (i = 1; i <= sd; i++) printf("Depth: %d Nodes: %llu\n", i, perft(onmove, i, 0));}
 		else if (!strncmp(buf,"divide",5)) perft(onmove, sd, 1);
