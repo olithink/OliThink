@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 07.Jan.2010, ob112@web.de, http://home.arcor.de/dreamlike */
-#define VER "5.2.8"
+/* OliThink5 (c) Oliver Brausch 09.Jan.2010, ob112@web.de, http://home.arcor.de/dreamlike */
+#define VER "5.2.9"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -1264,6 +1264,13 @@ int inputPondering() {
 	return (pon = 0);
 }
 
+const int nullvar[] = {13, 43, 149, 519, 1809, 6311, 22027};
+static int nullvariance(int delta) {
+      int r = 0;
+      if (delta >= 4) for (r = 1; r <= 7; r++) if (delta < nullvar[r - 1]) break;
+      return r;
+}
+
 #define HASHP (hashb ^ hashxor[flags | 1024 | c << 11])
 #define HASHB ((hashb ^ hashxor[flags | 1024]) ^ hashxor[c | d << 1 | 2048])
 int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int null) {
@@ -1297,14 +1304,16 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		} else {
 			if (w >= beta) return beta;
 		}
-	}
+	} else w = c ? -mat : mat;
 
 	//Null Move
 	if (!pvnode && !ch && null && d > 1 && bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1))) > 2) {
 		int flagstore = flags;
+		int R = (10 + d + nullvariance(w - beta))/4;
+		if (R > d) R = d;
 		flags &= 960;
 		count += 0x401;
-		w = -search(0LL, c^1, d/2-1, ply+1, -beta, -alpha, 0, 0);
+		w = -search(0LL, c^1, d-R, ply+1, -beta, -alpha, 0, 0);
 		flags = flagstore;
 		count -= 0x401;
 		if (!sabort && w >= beta) {
