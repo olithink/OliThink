@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 05.Dec.2009, ob112@web.de, http://home.arcor.de/dreamlike
+OliThink5 (c) Oliver Brausch 09.Dec.2009, ob112@web.de, http://home.arcor.de/dreamlike
 
-Version: 5.2.2
+Version: 5.2.3
 Protocol: Winboard 2
 HashSize: 48mb
 Ponder: Yes
@@ -9,9 +9,12 @@ EndgameTables: No
 AnalyzeMode: No
 SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, Singular Replay Extension
 Evaluation: Just mobility and a very simple pawnprogressing/pawnhanging evaluation
-LinesOfCode: 1572
+LinesOfCode: 1583
 Stability: 100%
 Strength: slightly weaker than Glaurung/Crafty
+
+v5.2.3: changes since 5.2.2:
+At root the first move searched is from the pv and not a hash move.
 
 v5.2.2: changes since 5.2.1:
 HashSize reduced from 128MB to 48MB

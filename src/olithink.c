@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 05.Dec.2009, ob112@web.de, http://home.arcor.de/dreamlike */
-#define VER "5.2.2"
+/* OliThink5 (c) Oliver Brausch 09.Dec.2009, ob112@web.de, http://home.arcor.de/dreamlike */
+#define VER "5.2.3"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,6 +9,7 @@
 #include <windows.h>
 #include <conio.h>
 #include <sys/timeb.h>
+#define LLU I64u
 struct _timeb tv;
 #else
 #include <sys/time.h>
@@ -328,7 +329,6 @@ int key000(u64 b, int f) {
 
 #if defined(_WIN64) || defined(_LIIIP64)
 int key090(u64 b, int f) {
-iii
 	u64 _b = (b >> (f&7)) & 0x0101010101010101LL;
 	_b = _b * 0x0080402010080400LL;
 	return (int)(_b >> 57);
@@ -1274,13 +1274,24 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	}
 
 	hsave = hmove = 0;
-	he = hashDP[hp & HMASKP];
-	if (!((he^hp) & HINVP)) hsave = hmove = (Move)(he & HMASKP);
-
-	if (d >= 4 && hmove == 0) { // Simple version of Internal Iterative Deepening
-		w = search(ch, c, d-3, ply, alpha, beta, 0, pvnode);
+	if (ply) {
 		he = hashDP[hp & HMASKP];
 		if (!((he^hp) & HINVP)) hsave = hmove = (Move)(he & HMASKP);
+
+		if (d >= 4 && hmove == 0) { // Simple version of Internal Iterative Deepening
+			w = search(ch, c, d-3, ply, alpha, beta, 0, pvnode);
+			he = hashDP[hp & HMASKP];
+			if (!((he^hp) & HINVP)) hsave = hmove = (Move)(he & HMASKP);
+		}
+	} else {
+		GENERATE(c);
+		for (i = 0; i < movenum[0]; i++) {
+			Move m = movelist[i];
+			if (m == pv[0][0]) {
+				hmove = m;
+				break;
+			}
+		}
 	}
 
 	poff = ply << 8;
@@ -1473,7 +1484,7 @@ int calc(int sd, int tm, int pon) {
 			t1 = (int)(getTime() - starttime);
 			if (sabort && !pvlength[0] && iter--) break;
 			if (post && pvlength[0] > 0) { 
-				printf("%2d %5d %6d %9llu  ", iter, value[iter], t1/10, nodes + qnodes);
+				printf("%2d %5d %6d %9lu  ", iter, value[iter], t1/10, (u32)(nodes + qnodes));
 				displaypv(); printf("\n"); 
 			}
 			if (iter >= 32000-value[iter] || sabort || (u32)t1 > searchtime/2) break;
@@ -1482,7 +1493,7 @@ int calc(int sd, int tm, int pon) {
 		printf("%d. ... ", COUNT/2 + 1);
 		displaym(pv[0][0]); printf("\n");
 
-		if (post) printf("\nkibitz W: %d Nodes: %llu QNodes: %llu Evals: %d cs: %d knps: %llu\n", value[iter > sd ? sd : iter], nodes, qnodes, eval1, t1/10, (nodes+qnodes)/(t1+1));
+		if (post) printf("\nkibitz W: %d Nodes: %lu QNodes: %lu Evals: %d cs: %d knps: %lu\n", value[iter > sd ? sd : iter], (u32)nodes, (u32)qnodes, eval1, t1/10, (u32)(nodes+qnodes)/(t1+1));
 		return execMove(pv[0][0]);
 }
 
