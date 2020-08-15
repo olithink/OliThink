@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 09.Jan.2010, ob112@web.de, http://home.arcor.de/dreamlike */
-#define VER "5.2.9"
+/* OliThink5 (c) Oliver Brausch 25.Jan.2010, ob112@web.de, http://home.arcor.de/dreamlike */
+#define VER "5.3.0"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -1364,7 +1364,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		if (nch) ext++; // Check Extension
 		else if (d >= 3 && i >= 4 && !pvnode) { //LMR
 			if (CAP(m) || PROM(m)); //Don't reduce Captures and Promotions
-			else if (PIECE(m) == PAWN && ((TO(m) + 16) & 48) < 32); //Don't reduce pawns moving to 7th rank
+			else if (PIECE(m) == PAWN && !(pawnfree[TO(m) + (c << 6)] & pieceb[PAWN] & colorb[c^1])); //Don't reduce free pawns
 			else ext--;
 	        }
 
