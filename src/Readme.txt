@@ -7,14 +7,14 @@ Ponder: Yes
 OpeningBook: Small
 EndgameTables: No
 AnalyzeMode: No
-SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, Singular Replay Extension
+SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, Singular Reply Extension
 Evaluation: Just mobility and a very simple pawnprogressing/pawnhanging evaluation
 LinesOfCode: 1562
 Stability: 100%
 Strength: slightly weaker than Glaurung/Crafty
 
 v5.1.9: changes since 5.1.8:
-Singular Replay Extension added
+Singular Reply Extension added
 
 v5.1.8: changes since 5.1.7:
 Minor change in the king mobility evaluation that has a notable effect.
