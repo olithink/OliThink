@@ -1,25 +1,25 @@
-OliThink5 (c) Oliver Brausch 19.Oct.2008, ob112@web.de, http://home.arcor.de/dreamlike
+OliThink5 (c) Oliver Brausch 27.Oct.2008, ob112@web.de, http://home.arcor.de/dreamlike
 
-Version: 5.1.6
+Version: 5.1.7
 Protocol: Winboard 2
 HashSize: 128mb
 Ponder: Yes
-NullMove: Yes
 OpeningBook: Small
 EndgameTables: No
 AnalyzeMode: No
+SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension
 Evaluation: Just mobility and a very simple pawnprogressing/pawnhanging evaluation
-LinesOfCode: 1560
+LinesOfCode: 1562
 Stability: 100%
 Strength: slightly weaker than Glaurung/Crafty
 
-Create/Change book: 
-- The file must be named "olibook.pgn".
-- The Substring "[Black: OliThink" indicates that the engine can play this opening if black.
-- Only the first line of the opening will be read and the line must end with "*"
+v5.1.7: changes since 5.1.6:
+Knight mobility evaluation reduced
+Constant for "draw for insufficiant matierial" reduced 
+Minor infrastructual changes and little bugs removed (setboard, moveparser)
 
 v5.1.6: changes since 5.1.5:
-Rewrite of the pawn-progress evalution. It was a factor 2 too high. This made the engine much stronger
+Rewrite of the pawn-progress evalution. It was a factor 2 too high. This made the engine stronger
 
 v5.1.5: changes since 5.1.4:
 Evaluation consideres the fact that with just one minor piece it can't win
@@ -40,3 +40,8 @@ Minor changes in time control
 Draw Check for insufficient Material
 Pruning Window in Quiescence reduced
 Search extension moved into the move-loop
+
+Create/Change book: 
+- The file must be named "olibook.pgn".
+- The Substring "[Black: OliThink" indicates that the engine can play this opening if black.
+- Only the first line of the opening will be read and the line must end with "*"
