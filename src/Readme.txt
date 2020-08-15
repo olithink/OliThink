@@ -1,17 +1,19 @@
-OliThink5 (c) Oliver Brausch 04.Jan.2018, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 11.Jun.2020, ob112@web.de, http://brausch.org
 
-Version: 5.3.3
+Version: 5.3.5
 Protocol: Winboard 2
-HashSize: 48mb
+HashSize: 512MB
 Ponder: Yes
-OpeningBook: Small
+OpeningBook: No
 EndgameTables: No
 AnalyzeMode: No
 SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing/pawnhanging evaluation
 LinesOfCode: 1628
 Stability: 100%
-Strength: slightly weaker than Glaurung/Crafty
+
+v5.3.4: changes since 5.3.3:
+Expanding HashSize to 512MB 
 
 v5.3.3: changes since 5.3.2:
 Eliminating bug in getDir thanks to Francisto Modesto

@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 04.Jan.2018, ob112@web.de, http://brausch.org */
-#define VER "5.3.3"
+/* OliThink5 (c) Oliver Brausch 11.Jun.2020, ob112@web.de, http://brausch.org */
+#define VER "5.3.4"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -95,13 +95,13 @@ const int pawnrun[] = {0, 0, 1, 8, 16, 32, 64, 128};
 #define CASTLE (flags & 960)
 #define COUNT (count & 0x3FF)
 
-#define HSIZEB 0x200000
-#define HMASKB 0x1FFFFF
-#define HINVB 0xFFFFFFFFFFE00000LL
+#define HSIZEB 0x2000000
+#define HMASKB 0x1FFFFFF
+#define HINVB 0xFFFFFFFFFE000000LL
 
-#define HSIZEP 0x400000
-#define HMASKP 0x3FFFFF
-#define HINVP 0xFFFFFFFFFFC00000LL
+#define HSIZEP 0x2000000
+#define HMASKP 0x1FFFFFF
+#define HINVP 0xFFFFFFFFFE000000LL
 
 u64 hashDB[HSIZEB];
 u64 hashDP[HSIZEP];
@@ -953,6 +953,7 @@ int swap(Move m) //SEE Stuff
 
 	s_list[nc] = -s_list[nc - 1] + a_piece;
 	a_piece = pval[piece];
+	//if (a_piece < s_list[nc]) return -1;
 	nc++;
 	c ^= 1;
   }
@@ -1116,7 +1117,7 @@ int evalc(int c, int* sf) {
 
 	colorb[oc] ^= pieceb[QUEEN] & ocb; //Back
 	xorBit(kingpos[oc], colorb+oc); //Back
-	if (*sf == 1 && !(pieceb[PAWN] & colorb[c])) mn =- 200; //No mating material
+	if (*sf == 1 && !(pieceb[PAWN] & colorb[c])) mn = -200; //No mating material
 	if (*sf < 7) katt = katt * (*sf) / 7; //Reduce the bonus for attacking king squares
 	if (*sf < 2) *sf = 2;
 	return mn + katt;
