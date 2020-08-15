@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 16.Jul.2020, ob112@web.de, http://brausch.org */
-#define VER "5.5.5"
+/* OliThink5 (c) Oliver Brausch 17.Jul.2020, ob112@web.de, http://brausch.org */
+#define VER "5.5.6"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -193,7 +193,7 @@ void _parse_fen(char *fen) {
 	for (i = 0; i < 8; i++) pieceb[i] = 0LL;
 	colorb[0] = colorb[1] = hashb = 0LL;
 	mat = book = i = c = cas[0] = enps[0] = sf[0] = sf[1] = 0;
-	sscanf(fen, "%s %c %s %s %d %d", pos, &mv, cas, enps, &halfm, &fullm);
+	sscanf(fen, "%s %c %s %s %d %d", pos, &mv, cas, enps, &halfm, &fullm); if (fullm < 1) fullm = 1;
 	while ((s = pos[i++])) {
 		if (s == '/') {
 			row--;
@@ -413,7 +413,7 @@ void _init_pawns(u64* moves, u64* caps, u64* freep, u64* filep, u64* helpp, int 
 			int jfile = j&7;
 			int dfile = (jfile - file)*(jfile - file);
 			if (dfile > 1) continue;
-			if ((c && jrank < rank) || (!c && jrank > rank)) {//The not touched half of the pawn
+			if ((c && jrank < rank) || (!c && jrank > rank)) {//The not touched part of the board
 				if (dfile == 0) setBit(j, filep + i);
 				setBit(j, freep + i);
 			} else if (dfile != 0 && (jrank - rank)*(jrank - rank) <= 1) {
@@ -655,7 +655,7 @@ void move(Move m, int c, int d) {
 }
 
 void doMove(Move m, int c) {
-	mstack[COUNT] = count | (flags << 17) | (((u64)m) << 42); // | (((u64)(mat + 0x4000)) << 27)
+	mstack[COUNT] = count | (flags << 17) | (((u64)m) << 27);
 	move(m, c, 1);
 }
 
@@ -664,7 +664,6 @@ void undoMove(Move m, int c) {
 	move(m, c, -1);
 	count = u & 0x1FFFF;
 	flags = (u >> 17L) & 0x3FF;
-	// mat = ((u >> 27L) & 0x7FFF) - 0x4000;
 }
 
 void regMoves(Move m, u64 bt, int* mlist, int* mn, int cap) {
@@ -1054,14 +1053,14 @@ int evalc(int c) {
 		int openfile = !(pawnfile[t] & pieceb[PAWN] & ocb);
 		if (openfile && !(pawnfree[t] & pieceb[PAWN] & ocb)) ppos <<= 1; //Free run?
 
-		if (!(pawnhelp[t] & pieceb[PAWN] & colorb[c])) {
+		if (!(pawnhelp[t] & pieceb[PAWN] & colorb[c])) { // No support
 			ppos -= (openfile ? 2 : 1) << 4; // Open file
 		}
 
 		if (!(pawnhelp[t] & pieceb[PAWN] & colorb[c])) { // No support
 			a = ((BATT3(f) | BATT4(f)) & BQU) | ((RATT1(f) | RATT2(f)) & RQU);
 			a |= (nmoves[f] & pieceb[KNIGHT]) | (kmoves[f] & pieceb[KING]);
-			ppos -= (_bitcnt(a & ocb)) << 4; // Open file
+			ppos -= (_bitcnt(a & ocb)) << 4;
 		}	
 
 		mn += ppos;
@@ -1116,13 +1115,10 @@ int evalc(int c) {
 	while (b) {
 		f = pullLsb(&b);
 		int p = identPiece(f);
-		if (p == BISHOP) {
-			a = BATT3(f) | BATT4(f);
-		} else if (p == ROOK) {
-			a = RATT1(f) | RATT2(f);
-		} else {
-			a = RATT1(f) | RATT2(f) | BATT3(f) | BATT4(f);
-		}
+		if (p == BISHOP) a = BATT3(f) | BATT4(f);
+		else if (p == ROOK) a = RATT1(f) | RATT2(f);
+		else a = RATT1(f) | RATT2(f) | BATT3(f) | BATT4(f);
+
 		if (a & kn) katt += _bitcnt(a & kn) << 3;
 		t = p | getDir(f, kingpos[c]);
 		if ((t & 10) == 10) mn += _bitcnt(RATT1(f));
@@ -1262,17 +1258,17 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	if (!((he^hb) & HINVB)) {
 		w = (u32)LOW16(he) - MAXSCORE;
 		if (he & 0x10000) {
-			null = 0;
 			if (w <= alpha) return alpha;
+			null = 0;
 		} else {
 			if (w >= beta) return beta;
 		}
 	} else w = c ? -mat : mat;
 
 	//Null Move
-	if (!ch && null && d > 1 && bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1))) > 2) {
+	if (!ch && null && d > 1 && (n = bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1)))) > 1) {
 		int flagstore = flags;
-		int R = (10 + d + nullvariance(w - beta))/4;
+		int R = (10 + d + nullvariance(w - beta))/4; if (n <= 2) R--;
 		if (R > d) R = d;
 		flags &= 960;
 		count += 0x401;
@@ -1280,13 +1276,14 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		flags = flagstore;
 		count -= 0x401;
 		if (!sabort && w >= beta) {
+			if (n <= 2) return search(ch, c, d-R, ply, alpha, beta, pvnode, 0);
 			hashDB[hb & HMASKB] = (hb & HINVB) | (w + MAXSCORE); 
 			return beta;
 		}
 	}
 
-	Move hmove = 0;
-	if (ply) {
+	Move hmove = ply ? 0 : retPVMove(c, 0);
+	if (!hmove) {
 		he = hashDP[hp & HMASKP];
 		if (!((he^hp) & HINVP)) hmove = (Move)(he & HMASKP);
 
@@ -1295,8 +1292,6 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 			he = hashDP[hp & HMASKP];
 			if (!((he^hp) & HINVP)) hmove = (Move)(he & HMASKP);
 		}
-	} else {
-		hmove = retPVMove(c, ply);
 	}
 
 	int poff = ply << 8;
@@ -1476,7 +1471,7 @@ void undo() {
         int cnt = COUNT - 1;
 	if (cnt < 0) return;
         onmove ^= 1;
-        Move m = mstack[cnt] >> 42L;
+        Move m = mstack[cnt] >> 27L;
         undoMove(m, onmove);
         reseth(-1);
         pv[0][0] = m;

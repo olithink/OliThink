@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 16.Jul.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 17.Jul.2020, ob112@web.de, http://brausch.org
 
-Version: 5.5.5
+Version: 5.5.6
 Protocol: Winboard 2
 HashSize: 96MB
 Ponder: Yes
@@ -9,9 +9,12 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1700
+LinesOfCode: 1695
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
+
+v5.5.6: changes since 5.5.5:
+More aggressive null move pruning. Fix fen reading bug.
 
 v5.5.5: changes since 5.5.4:
 L RN and RB vs R is draw. Lazy evaluation after implementing incremential none-pawn counting. RN and RB vs R is draw.
