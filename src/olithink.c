@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 13.Aug.2020, ob112@web.de, http://brausch.org */
-#define VER "5.6.3"
+/* OliThink5 (c) Oliver Brausch 14.Aug.2020, ob112@web.de, http://brausch.org */
+#define VER "5.6.4"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,7 +38,7 @@ const int pawnrun[] = {0, 0, 1, 8, 16, 32, 64, 128};
 #define PIECE(x) (((x) >> 15) & 7)  
 #define ONMV(x) (((x) >> 18) & 1)
 #define CAP(x) (((x) >> 19) & 7)
-#define MAXSCORE 30000
+#define MAXSCORE 16384
 
 #define _TO(x) ((x) << 6)
 #define _PROM(x) ((x) << 12)
@@ -99,16 +99,17 @@ const int pawnrun[] = {0, 0, 1, 8, 16, 32, 64, 128};
 #define MEVAL(w) (w > MAXSCORE-500 ? (200000+MAXSCORE+1-w)/2 : (w < 500-MAXSCORE ? (-200000-MAXSCORE-w)/2 : w))
 #define NOMATEMAT(c) ((sf[c] <= 4 || (sf[c] <= 8 && sf[c] <= sf[c^1] + 3)) && (pieceb[PAWN] & colorb[c]) == 0)
 
-#define HSIZEB 0x800000
-#define HMASKB (HSIZEB-1)
-#define HINVB 0xFFFFFFFFFFFFFFFFLL & ~HMASKB
+#define HSIZE 0x800000LL
+#define HMASK (HSIZE-1)
 
-#define HSIZEP 0x400000
-#define HMASKP (HSIZEP-1)
-#define HINVP 0xFFFFFFFFFFFFFFFFLL & ~HMASKP
+struct entry {
+	u64 key;
+	Move move;
+	char depth;
+	short value;
+};
 
-u64 hashDB[HSIZEB];
-u64 hashDP[HSIZEP];
+struct entry hashDB[HSIZE];
 u64 hashb;
 u64 hstack[0x800];
 u64 mstack[0x800];
@@ -1224,10 +1225,9 @@ static int nullvariance(int delta) {
 }
 
 #define HASHP (hashb ^ hashxor[flags | 1024 | c << 11])
-#define HASHB ((hashb ^ hashxor[flags | 1024]) ^ hashxor[c | d << 1 | 2048])
 int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int null) {
 	int i, j, n, w;
-	u64 hb, hp, he, hismax = 0LL;
+	u64 hp, hismax = 0LL;
 	
 	if (ply) pv[ply][ply] = 0;
 	if ((++nodes & CNODES) == 0) {
@@ -1242,16 +1242,13 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	if (d == 0 || ply > 100) return quiesce(ch, c, ply, alpha, beta);
 	hstack[COUNT] = hp;
 
-	hb = HASHB;
-	he = hashDB[hb & HMASKB];
-	if (!((he^hb) & HINVB)) {
-		w = (u32)LOW16(he) - MAXSCORE;
-		if (he & 0x10000) {
-			if (w <= alpha) return alpha;
-			null = 0;
-		} else {
-			if (w >= beta) return beta;
-		}
+	Move hmove = ply ? 0 : retPVMove(c, 0);
+
+	struct entry he = hashDB[hp & HMASK];
+	if (he.key == hp) {
+		w = he.value;
+		if (he.depth >= d && w >= beta) return beta;
+		if (!hmove) hmove = he.move;
 	} 
 
 	//Null Move
@@ -1268,16 +1265,10 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		if (!sabort && w >= beta) return beta;
 	}
 
-	Move hmove = ply ? 0 : retPVMove(c, 0);
-	if (!hmove) {
-		he = hashDP[hp & HMASKP];
-		if (!((he^hp) & HINVP)) hmove = (Move)(he & HMASKP);
-
-		if (d >= 4 && hmove == 0) { // Simple version of Internal Iterative Deepening
-			w = search(ch, c, d-3, ply, alpha, beta, pvnode, 0);
-			he = hashDP[hp & HMASKP];
-			if (!((he^hp) & HINVP)) hmove = (Move)(he & HMASKP);
-		}
+	if (d >= 4 && !hmove) { // Simple version of Internal Iterative Deepening
+		w = search(ch, c, d-3, ply, alpha, beta, pvnode, 0);
+		he = hashDB[hp & HMASK];
+		if (he.key == hp) hmove = he.move;
 	}
 
 	int poff = ply << 8;
@@ -1330,7 +1321,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		if (sabort) return alpha;
 
 		if (w > alpha) {
-			hashDP[hp & HMASKP] = (hp & HINVP) | m;
+			hashDB[hp & HMASK] = (struct entry) {.key = hp, .move = m, .depth = d, .value = w};
 			alpha = w;
 			first = -1;
 			pv[ply][ply] = m;
@@ -1342,7 +1333,6 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 					killer[ply] = m;
 					history[m & 0xFFF]+=d*d;
 				}
-				hashDB[hb & HMASKB] = (hb & HINVB) | (w + MAXSCORE); 
 				return beta;
 			}
 			if (w == MAXSCORE-1 - ply) { matekiller[ply] = m; return w; }
@@ -1352,7 +1342,6 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	}
 	if (sabort) return alpha;
 	if (first == 1) return ch ? -MAXSCORE+ply : 0;
-	else if (!first) hashDB[hb & HMASKB] = (hb & HINVB) | 0x10000 | (alpha + MAXSCORE);
 	return alpha;
 }
 
@@ -1362,11 +1351,8 @@ void reseth(int level) {
 	for (i = istart; i < 127; i++) killer[i] = level <= 1 ? killer[i+level] : 0;
 	for (i = istart; i < 127; i++) matekiller[i] = level <= 1 ? matekiller[i+level] : 0;
 	for (i = istart; i < 127; i++) pv[0][i] = level <= 1 ? pv[0][i+level] : 0;
-	if (level <= 1) return;
-	pv[0][0] = 0;
-	if (level < 3) return;
-	memset(hashDB, 0, sizeof(hashDB));
-	memset(hashDP, 0, sizeof(hashDP));
+	if (level <= 1) return; else pv[0][0] = 0;
+	if (level >= 3) memset(hashDB, 0, sizeof(hashDB));
 }
 
 int execMove(Move m) {
