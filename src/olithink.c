@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 14.Oct.2008, ob112@web.de, http://home.arcor.de/dreamlike */
-#define VER "5.1.4"
+/* OliThink5 (c) Oliver Brausch 17.Oct.2008, ob112@web.de, http://home.arcor.de/dreamlike */
+#define VER "5.1.5"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,6 +31,7 @@ typedef int Move;
 #define HEUR 9900000
 const int pval[] = {0, 100, 290, 0, 100, 310, 500, 950};
 const int capval[] = {0, HEUR+1, HEUR+2, 0, HEUR+1, HEUR+2, HEUR+3, HEUR+4};
+const int pawnrun[] = {0, 0, 8, 16, 32, 64, 128, 256};
 
 #define FROM(x) ((x) & 63)
 #define TO(x) (((x) >> 6) & 63)
@@ -157,15 +158,6 @@ int _getpiece(char s, int *c) {
 		if (pieceChar[i] == s) { *c = 0; return i; } 
 		else if (pieceChar[i] == s-32) { *c = 1; return i; }
 	return 0;
-}
-
-void display64(u64 bb) {
-	int i, j;
-	for (i = 0; i < 8; i++) {
-		for (j = 0; j < 8; j++) {
-			printf(" %d", TEST(j + (7-i)*8, bb) ? 1 : 0);
-		} printf("\n");
-	} printf("\n");
 }
 
 int book;
@@ -395,8 +387,7 @@ void _init_pawns(u64* moves, u64* caps, u64* freep, u64* filep, u64* helpp, int 
 		int rank = i/8;
 		int file = i&7;
 		int m = i + (c ? -8 : 8);
-		int pp = 1 << (c ? 8-i/8 : 1+i/8);
-		pawnprg[i + (c << 6)] = pp < 8 ? 0 : pp; 
+		pawnprg[i + (c << 6)] = pawnrun[c ? 7-rank : rank];
 		for (j = 0; j < 64; j++) {
 			int jrank = j/8;
 			int jfile = j&7;
@@ -405,7 +396,7 @@ void _init_pawns(u64* moves, u64* caps, u64* freep, u64* filep, u64* helpp, int 
 			if ((c && jrank < rank) || (!c && jrank > rank)) {//The not touched half of the pawn
 				if (dfile == 0) setBit(j, filep + i);
 				setBit(j, freep + i);
-			} else if (dfile != 0) {
+			} else if (dfile != 0 && (jrank - rank)*(jrank - rank) <= 1) {
 				setBit(j, helpp + i);
 			}
 		}
@@ -554,7 +545,7 @@ int isDraw(u64 hp, int nrep) {
 		if (count >= 0x800*100) return 2; //100 plies
 		for (i = COUNT - 2; i >= n; i--) 
 			if (hstack[i] == hp && ++c == nrep) return 1; 
-	} else if (!pieceb[PAWN] && !RQU) { //Check for mating material
+	} else if (!(pieceb[PAWN] | RQU)) { //Check for mating material
 		if (_bitcnt(colorb[0]) <= 2 && _bitcnt(colorb[1]) <= 2) return 3;
 	}
 	return 0;
@@ -1048,23 +1039,13 @@ Move spick(Move* ml, int mn, int s, int ply) {
 	return m;
 }
 
-void displayb() {
-	int i, j;
-	for (i = 0; i < 8; i++) {
-		for (j = 0; j < 8; j++) {
-			int f = j + (7-i)*8;
-			printf(" %c", pieceChar[identPiece(f)] + identColor(f)*32);
-		} printf("\n");
-	} printf("\n");
-}
-
 /* The evulation for Color c. It's almost only mobility stuff. Pinned pieces are still awarded for limiting opposite's king */
 int evalc(int c, int* sf) {
 	int t, f;
 	int mn = 0;
 	int oc = c^1;
 	u64 ocb = colorb[oc];
-	u64 m, b, a, cb = colorb[c];
+	u64 m, b, a, cb;
 	u64 kn = kmoves[kingpos[oc]];
 	u64 pin = pinnedPieces(kingpos[c], oc);
 
@@ -1084,15 +1065,15 @@ int evalc(int c, int* sf) {
 		}
 		if (m) ppos += 8;
 		/* The only non-mobility eval is the detection of free pawns/hanging pawns */
-		if (!(pawnfile[t] & pieceb[PAWN] & colorb[c^1])) { //Free file?
-			if (!(pawnfree[t] & pieceb[PAWN] & colorb[c^1])) ppos *= 2; //Free run?
+		if (!(pawnfile[t] & pieceb[PAWN] & ocb)) { //Free file?
+			if (!(pawnfree[t] & pieceb[PAWN] & ocb)) ppos *= 2; //Free run?
 			if (!(pawnhelp[t] & pieceb[PAWN] & colorb[c])) ppos -= 33; //Hanging backpawn?
 		}
 
 		mn += ppos;
 	}
 
-	cb =  colorb[c] & (~pin);
+	cb = colorb[c] & (~pin);
 	b = pieceb[KNIGHT] & cb;
 	while (b) {
 		*sf += 1;
@@ -1169,6 +1150,7 @@ int evalc(int c, int* sf) {
 
 	colorb[oc] ^= pieceb[QUEEN] & ocb; //Back
 	xorBit(kingpos[oc], colorb+oc); //Back
+	if (*sf == 1 && !(pieceb[PAWN] & colorb[c])) mn =- 300; //No mating material
 	return mn;
 }
 
