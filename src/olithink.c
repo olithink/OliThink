@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 21.Jun.2020, ob112@web.de, http://brausch.org */
-#define VER "5.4.3"
+#define VER "5.4.4"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -129,11 +129,11 @@ static int pawnprg[128];
 static u64 pawnfree[128];
 static u64 pawnfile[128];
 static u64 pawnhelp[128];
-Move movelist[64*256];
-int movenum[64];
-Move pv[64][128];
+Move movelist[128*256];
+int movenum[128];
+Move pv[128][128];
 int pvlength[128];
-int value[64];
+int value[128];
 int iter;
 const char pieceChar[] = "*PNK.BRQ";
 u64 searchtime, maxtime, starttime;
@@ -141,7 +141,7 @@ int sabort, noabort;
 int ponder = 0, pondering = 0, analyze = 0, forceponder = 0;
 Move pon = 0;
 int count, flags, mat, onmove, engine =-1;
-int sd = 48;
+int sd = 64;
 int kingpos[2];
 u64 pieceb[8];
 u64 colorb[2];
@@ -261,7 +261,7 @@ void _readbook(char *bk) {
 	_parse_fen(sfen);
 	if (bkcount[0] > 0 || bkcount[1] > 0) book = 1;
 	engine = 1;
-	sd = 48;
+	sd = 64;
 }
 
 #define LOW16(x) ((x) & 0xFFFF)
@@ -1238,7 +1238,6 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	u64 hb, hp, he, hismax = 0LL;
 
 	pvlength[ply] = ply;
-	if (ply == 127) return eval(c, mat);
 	if ((++nodes & CNODES) == 0) {
 		u64 consumed = getTime() - starttime;
 		if (!pondering && (consumed > maxtime || (consumed > searchtime && !noabort))) sabort = 1;
@@ -1249,7 +1248,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	hp = HASHP;
 	if (ply && isDraw(hp, 1)) return 0;
 
-	if (d == 0) return quiesce(ch, c, ply, alpha, beta);
+	if (d == 0 || ply > 100) return quiesce(ch, c, ply, alpha, beta);
 	hstack[COUNT] = hp;
 
 	hb = HASHB;
@@ -1580,7 +1579,7 @@ int protV2(char* buf) {
 		else if (!strncmp(buf,"name",4));//ICS: name <opname>
 		else if (!strncmp(buf,"perft",5)) {int i; for (i = 1; i <= sd; i++) printf("Depth: %d Nodes: %llu\n", i, perft(onmove, i, 0));}
 		else if (!strncmp(buf,"divide",5)) perft(onmove, sd, 1);
-		else if (strchr(buf, '/') != NULL) { engine = -1; _parse_fen(buf); analyze = pondering = 1; }
+		else if (strchr(buf, '/') != NULL && strlen(buf)>16) { engine = -1; _parse_fen(buf); analyze = pondering = 1; }
 		else return -1;
 		return 0;
 }
