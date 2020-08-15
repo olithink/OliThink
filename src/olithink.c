@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 26.Jun.2020, ob112@web.de, http://brausch.org */
-#define VER "5.4.9"
+/* OliThink5 (c) Oliver Brausch 27.Jun.2020, ob112@web.de, http://brausch.org */
+#define VER "5.4.10"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -1390,16 +1390,14 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 }
 
 void reseth(int level) {
-	int i;
-	for (i = 0; i < 0x1000; i++) history[i] = 0LL;
-	for (i = 0; i < 127; i++) killer[i] = level == 1 ? killer[i+1] : 0;
-	for (i = 0; i < 127; i++) pv[0][i] = level == 1 ? pv[0][i+1] : 0;
-	pvlength[0] = pvlength[0] > 0 ? pvlength[0] - 1 : 0;
-	if (level == 1) return;
-	pvlength[0] = pv[0][0] = 0;
-	if (level < 3) return;
-	for (i = 0; i < HSIZEB; i++) hashDB[i] = 0LL;
-	for (i = 0; i < HSIZEP; i++) hashDP[i] = 0LL;
+        int i, istart = level < 0 ? 1 : 0;
+        for (i = 0; i < 0x1000; i++) history[i] = 0LL;
+        for (i = istart; i < 127; i++) killer[i] = level <= 1 ? killer[i+level] : 0;
+        for (i = istart; i < 127; i++) pv[0][i] = level <= 1 ? pv[0][i+level] : 0;
+        pvlength[0] = level <= 1 && pvlength[0] - level > 0 ? pvlength[0] - level : 0;
+        if (level != 1) for (i = 0; i < HSIZEB; i++) hashDB[i] = 0LL; // Until depth decrementing tables
+        if (level >= 2) pvlength[0] = pv[0][0] = 0;
+        if (level == 3) for (i = 0; i < HSIZEP; i++) hashDP[i] = 0LL;
 }
 
 int execMove(Move m) {
@@ -1487,10 +1485,12 @@ int parseMoveNExec(char *s, int c, Move *m) {
 }
 
 void undo() {
-	int cnt = COUNT - 1;
-	onmove ^= 1; 
-	undoMove((mstack[cnt] >> 42L), onmove);
-	reseth(3);
+        int cnt = COUNT - 1;
+        onmove ^= 1;
+        Move m = mstack[cnt] >> 42L;
+        undoMove(m, onmove);
+        reseth(-1);
+        pv[0][0] = m;
 }
 
 int ttime = 30000, mps = 0, base = 5, inc = 0, post = 1, st = 0;
