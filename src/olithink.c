@@ -1297,7 +1297,7 @@ int execMove(Move m) {
 
 int engine = -1;
 int sd = 32;
-int time = 30000;
+int ttime = 30000;
 int mps = 0;
 int base = 5;
 int inc = 0;
@@ -1347,7 +1347,7 @@ int input() {
 		if (!strncmp(buf,"new",2)) { _parse_fen(sfen); engine = 1; }
 		if (!strncmp(buf,"setboard",8)) _parse_fen(buf+9);
 		if (!strncmp(buf,"sd",2)) sscanf(buf+3,"%d",&sd);
-		if (!strncmp(buf,"time",4)) sscanf(buf+5,"%d",&time);
+		if (!strncmp(buf,"time",4)) sscanf(buf+5,"%d",&ttime);
 		if (!strncmp(buf,"level",4)) sscanf(buf+6,"%d %d %d",&mps, &base, &inc);
 		if (!strncmp(buf,"hard",4)) { ponder = 1; return 0; }
 		if (!strncmp(buf,"easy",4)) ponder = 0;
@@ -1414,8 +1414,8 @@ int main(int argc, char **argv)
 	for (i = 0; i < 64; i++) kmobil[i] = (bitcnt(nmoves[i])/2)*2;
 
 	for (;;) {
-		if (engine == onmove) ex = calc(sd, time, 0);
-		else if (ex == 0 && ponder && engine != -1) ex = calc(sd, time, 1);
+		if (engine == onmove) ex = calc(sd, ttime, 0);
+		else if (ex == 0 && ponder && engine != -1) ex = calc(sd, ttime, 1);
 
 		if (!ponder ||engine == -1 || ex != 0) ex = input();
 		if (ex == -2) break;
