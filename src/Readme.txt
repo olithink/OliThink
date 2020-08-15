@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 18.Sep.2009, ob112@web.de, http://home.arcor.de/dreamlike
+OliThink5 (c) Oliver Brausch 19.Sep.2009, ob112@web.de, http://home.arcor.de/dreamlike
 
-Version: 5.2.0
+Version: 5.2.1
 Protocol: Winboard 2
 HashSize: 128mb
 Ponder: Yes
@@ -12,6 +12,9 @@ Evaluation: Just mobility and a very simple pawnprogressing/pawnhanging evaluati
 LinesOfCode: 1562
 Stability: 100%
 Strength: slightly weaker than Glaurung/Crafty
+
+v5.2.1: changes since 5.2.0:
+some search extensions removed (following the bug correction)
 
 v5.2.0: changes since 5.1.9:
 Bug for search extensions corrected
