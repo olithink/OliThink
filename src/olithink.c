@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 19.Jul.2020, ob112@web.de, http://brausch.org */
-#define VER "5.5.7"
+/* OliThink5 (c) Oliver Brausch 20.Jul.2020, ob112@web.de, http://brausch.org */
+#define VER "5.5.8"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -1481,7 +1481,7 @@ int ttime = 30000, mps = 0, inc = 0, post = 1, st = 0; char base[16];
 
 int calc(int sd, int tm) {
 	int i, j, t1 = 0, m2go = mps == 0 ? 32 : 1 + mps - ((COUNT/2) % mps);
-	u64 ch = attacked(kingpos[onmove], onmove), tmsh = tm*10L-100-mps*10;
+	u64 ch = attacked(kingpos[onmove], onmove); long tmsh = tm*8L-50-m2go*5; if (tmsh < 10) tmsh = 10;
 	long searchtime = tm*5L/m2go + inc*500L;
 	long extendtime = tm*24L/m2go + inc*1000L; if (extendtime > tmsh) extendtime = tmsh;
 	if (searchtime > tmsh) searchtime = tmsh;
@@ -1516,8 +1516,8 @@ int calc(int sd, int tm) {
 		if (iter >= MAXSCORE-value[iter]) break;
 		if (t1 < searchtime || iter == 1) continue;
 
-		if (value[iter] - value[iter-1] < -40 && maxtime == extendtime) {
-			maxtime = extendtime*3L; if (maxtime < tmsh-1) maxtime = tmsh-1;
+		if (value[iter] - value[iter-1] < -40 && maxtime == extendtime && extendtime < tmsh) {
+			maxtime = extendtime*3L; if (maxtime > tmsh-1) maxtime = tmsh-1;
 			continue;
 		}
 		break;
