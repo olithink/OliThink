@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 25.Jun.2020, ob112@web.de, http://brausch.org */
-#define VER "5.4.8"
+/* OliThink5 (c) Oliver Brausch 26.Jun.2020, ob112@web.de, http://brausch.org */
+#define VER "5.4.9"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -95,7 +95,7 @@ const int pawnrun[] = {0, 0, 1, 8, 16, 32, 64, 128};
 #define CASTLE (flags & 960)
 #define COUNT (count & 0x3FF)
 #define MEVAL(w) (w > 31000 ? (232001-w)/2 : (w < -31000 ? (-232000-w)/2 : w))
-#define NOMATEMAT(s, t, c) ((s <= 4 || (s == 5 && t > 2)) && (pieceb[PAWN] & colorb[c]) == 0)
+#define NOMATEMAT(s, t, c) ((s <= 4 || (s <= 6 && t > 2)) && (pieceb[PAWN] & colorb[c]) == 0)
 
 #define HSIZEB 0x200000
 #define HMASKB 0x1FFFFF
@@ -1037,7 +1037,7 @@ int evalc(int c, int* sf) {
 		ppos = pawnprg[t];
 		m = PMOVE(f, c);
 		a = POCC(f, c);
-		if (a & kn) katt += _bitcnt(a & kn) << 4;
+		if (a & kn) katt += _bitcnt(a & kn) << 3;
 		if (BIT[f] & pin) {
 			if (!(getDir(f, kingpos[c]) & 16)) m = 0;
 		} else {
@@ -1060,7 +1060,7 @@ int evalc(int c, int* sf) {
 		*sf += 2;
 		f = pullLsb(&b);
 		a = nmoves[f];
-		if (a & kn) katt += _bitcnt(a & kn) << 4;
+		if (a & kn) katt += _bitcnt(a & kn) << 3;
 		mn += nmobil[f];
 	}
 
@@ -1069,27 +1069,39 @@ int evalc(int c, int* sf) {
 		*sf += 2;
 		f = pullLsb(&b);
 		a = nmoves[f];
-		if (a & kn) katt += _bitcnt(a & kn) << 4;
+		if (a & kn) katt += _bitcnt(a & kn) << 3;
 	}
 
 	xorBit(kingpos[oc], colorb+oc); //Opposite King doesn't block mobility at all
+	colorb[c] ^= pieceb[QUEEN] & cb; //Own non-pinned Queen doesn't block mobility for anybody.
 	b = pieceb[QUEEN] & cb;
 	while (b) {
 		*sf += 9;
 		f = pullLsb(&b);
-		a = RATT1(f) | RATT2(f) | BATT3(f) | BATT4(f);
-		if (a & kn) katt += _bitcnt(a & kn) << 4;
+
+		colorb[c] ^= pieceb[BISHOP] & cb;	
+
+		a = BATT3(f) | BATT4(f);
+		if (a & kn) katt += _bitcnt(a & kn) << 3;
 		mn += bitcnt(a);
+
+		colorb[c] ^= pieceb[BISHOP] & cb;	
+		colorb[c] ^= pieceb[ROOK] & cb;	
+
+		a = RATT1(f) | RATT2(f);
+		if (a & kn) katt += _bitcnt(a & kn) << 3;
+		mn += bitcnt(a);
+
+		colorb[c] ^= pieceb[ROOK] & cb;	
 	}
 
 	colorb[oc] ^= RQU & ocb; //Opposite Queen & Rook doesn't block mobility for bishop
-	colorb[c] ^= pieceb[QUEEN] & cb; //Own non-pinned Queen doesn't block mobility for bishop.
 	b = pieceb[BISHOP] & cb;
 	while (b) {
 		*sf += 3;
 		f = pullLsb(&b);
 		a = BATT3(f) | BATT4(f);
-		if (a & kn) katt += _bitcnt(a & kn) << 4;
+		if (a & kn) katt += _bitcnt(a & kn) << 3;
 		mn += bitcnt(a) << 3;
 	}
 
@@ -1100,7 +1112,7 @@ int evalc(int c, int* sf) {
 		*sf += 5;
 		f = pullLsb(&b);
 		a = RATT1(f) | RATT2(f);
-		if (a & kn) katt += _bitcnt(a & kn) << 4;
+		if (a & kn) katt += _bitcnt(a & kn) << 3;
 		mn += bitcnt(a) << 2;
 	}
 
@@ -1113,15 +1125,15 @@ int evalc(int c, int* sf) {
 		if (p == BISHOP) {
 			*sf += 3; 
 			a = BATT3(f) | BATT4(f);
-			if (a & kn) katt += _bitcnt(a & kn) << 4;
+			if (a & kn) katt += _bitcnt(a & kn) << 3;
 		} else if (p == ROOK) {
 			*sf += 5; 
 			a = RATT1(f) | RATT2(f);
-			if (a & kn) katt += _bitcnt(a & kn) << 4;
+			if (a & kn) katt += _bitcnt(a & kn) << 3;
 		} else {
 			*sf += 9;
 			a = RATT1(f) | RATT2(f) | BATT3(f) | BATT4(f);
-			if (a & kn) katt += _bitcnt(a & kn) << 4;
+			if (a & kn) katt += _bitcnt(a & kn) << 3;
 		}
 		t = p | getDir(f, kingpos[c]);
 		if ((t & 10) == 10) mn += _bitcnt(RATT1(f));
@@ -1655,7 +1667,7 @@ int main(int argc, char **argv)
 		ttime = 99999999;
 		if (argc > 2) {
 			sscanf(argv[2], "%d", &sd);
-			if (argc > 3) { _parse_fen(argv[3]); engine = -1; }
+			if (argc > 3) { _parse_fen(argv[3]); calc(sd, ttime); return 0; }
 		}
 	} else if (argc > 1 && !strncmp(argv[1],"-reset",6)) reset = 1;
 	irbuf[0] = 0;

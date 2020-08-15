@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 25.Jun.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 26.Jun.2020, ob112@web.de, http://brausch.org
 
-Version: 5.4.8
+Version: 5.4.9
 Protocol: Winboard 2
 HashSize: 48MB
 Ponder: Yes
@@ -9,9 +9,12 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1674
+LinesOfCode: 1686
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution!
+
+v5.4.9: changes since 5.4.8:
+Mobilitiy change: No blocking of queen in the same direction. Less score for attacking squares near king.
 
 v5.4.8: changes since 5.4.7:
 Queen doesn't block Rook or Bishop mobility. Change eval for no mating material.  
