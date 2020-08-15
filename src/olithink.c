@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 05.Jan.2010, ob112@web.de, http://home.arcor.de/dreamlike */
-#define VER "5.2.7"
+/* OliThink5 (c) Oliver Brausch 07.Jan.2010, ob112@web.de, http://home.arcor.de/dreamlike */
+#define VER "5.2.8"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -1069,7 +1069,7 @@ Move spick(Move* ml, int mn, int s, int ply) {
 /* The evulation for Color c. It's almost only mobility stuff. Pinned pieces are still awarded for limiting opposite's king */
 int evalc(int c, int* sf) {
 	int t, f;
-	int mn = 0;
+	int mn = 0, katt = 0;
 	int oc = c^1;
 	u64 ocb = colorb[oc];
 	u64 m, b, a, cb;
@@ -1084,7 +1084,7 @@ int evalc(int c, int* sf) {
 		ppos = pawnprg[t];
 		m = PMOVE(f, c);
 		a = POCC(f, c);
-		if (a & kn) ppos += _bitcnt(a & kn) << 4;
+		if (a & kn) katt += _bitcnt(a & kn) << 4;
 		if (BIT[f] & pin) {
 			if (!(getDir(f, kingpos[c]) & 16)) m = 0;
 		} else {
@@ -1106,7 +1106,7 @@ int evalc(int c, int* sf) {
 		*sf += 1;
 		f = pullLsb(&b);
 		a = nmoves[f];
-		if (a & kn) mn += _bitcnt(a & kn) << 4;
+		if (a & kn) katt += _bitcnt(a & kn) << 4;
 		mn += nmobil[f];
 	}
 
@@ -1115,7 +1115,7 @@ int evalc(int c, int* sf) {
 		*sf += 1;
 		f = pullLsb(&b);
 		a = nmoves[f];
-		if (a & kn) mn += _bitcnt(a & kn) << 4;
+		if (a & kn) katt += _bitcnt(a & kn) << 4;
 	}
 
 	xorBit(kingpos[oc], colorb+oc); //Opposite King doesn't block mobility at all
@@ -1124,7 +1124,7 @@ int evalc(int c, int* sf) {
 		*sf += 4;
 		f = pullLsb(&b);
 		a = RATT1(f) | RATT2(f) | BATT3(f) | BATT4(f);
-		if (a & kn) mn += _bitcnt(a & kn) << 4;
+		if (a & kn) katt += _bitcnt(a & kn) << 4;
 		mn += bitcnt(a);
 	}
 
@@ -1134,7 +1134,7 @@ int evalc(int c, int* sf) {
 		*sf += 1;
 		f = pullLsb(&b);
 		a = BATT3(f) | BATT4(f);
-		if (a & kn) mn += _bitcnt(a & kn) << 4;
+		if (a & kn) katt += _bitcnt(a & kn) << 4;
 		mn += bitcnt(a) << 3;
 	}
 
@@ -1145,7 +1145,7 @@ int evalc(int c, int* sf) {
 		*sf += 2;
 		f = pullLsb(&b);
 		a = RATT1(f) | RATT2(f);
-		if (a & kn) mn += _bitcnt(a & kn) << 4;
+		if (a & kn) katt += _bitcnt(a & kn) << 4;
 		mn += bitcnt(a) << 2;
 	}
 
@@ -1158,15 +1158,15 @@ int evalc(int c, int* sf) {
 		if (p == BISHOP) {
 			*sf += 1; 
 			a = BATT3(f) | BATT4(f);
-			if (a & kn) mn += _bitcnt(a & kn) << 4;
+			if (a & kn) katt += _bitcnt(a & kn) << 4;
 		} else if (p == ROOK) {
 			*sf += 2; 
 			a = RATT1(f) | RATT2(f);
-			if (a & kn) mn += _bitcnt(a & kn) << 4;
+			if (a & kn) katt += _bitcnt(a & kn) << 4;
 		} else {
 			*sf += 4;
 			a = RATT1(f) | RATT2(f) | BATT3(f) | BATT4(f);
-			if (a & kn) mn += _bitcnt(a & kn) << 4;
+			if (a & kn) katt += _bitcnt(a & kn) << 4;
 		}
 		t = p | getDir(f, kingpos[c]);
 		if ((t & 10) == 10) mn += _bitcnt(RATT1(f));
@@ -1178,7 +1178,9 @@ int evalc(int c, int* sf) {
 	colorb[oc] ^= pieceb[QUEEN] & ocb; //Back
 	xorBit(kingpos[oc], colorb+oc); //Back
 	if (*sf == 1 && !(pieceb[PAWN] & colorb[c])) mn =- 200; //No mating material
-	return mn;
+	if (*sf < 7) katt = katt * (*sf) / 7; //Reduce the bonus for attacking king squares
+	if (*sf < 2) *sf = 2;
+	return mn + katt;
 }
 
 int eval1 = 0;
@@ -1188,8 +1190,8 @@ int eval(int c) {
 	int ev1 = evalc(1, &sf1);
 	eval1++;
 
-	if (sf1 < 6 && sf1 > 1) ev0 += kmobil[kingpos[0]]*(6-sf1);
-	if (sf0 < 6 && sf0 > 1) ev1 += kmobil[kingpos[1]]*(6-sf0);
+	if (sf1 < 6) ev0 += kmobil[kingpos[0]]*(6-sf1);
+	if (sf0 < 6) ev1 += kmobil[kingpos[1]]*(6-sf0);
 
 	return (c ? (ev1 - ev0) : (ev0 - ev1));
 }
@@ -1351,7 +1353,6 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 
 		nch = attacked(kingpos[c^1], c^1);
 		if (nch) ext++; // Check Extension
-		else if (n == 1) ext++; //Singular reply extension
 		else if (d >= 3 && i >= 4 && !pvnode) { //LMR
 			if (CAP(m) || PROM(m)); //Don't reduce Captures and Promotions
 			else if (PIECE(m) == PAWN && ((TO(m) + 16) & 48) < 32); //Don't reduce pawns moving to 7th rank
@@ -1644,6 +1645,7 @@ int main(int argc, char **argv)
 	for (i = 0; i < 64; i++) nmobil[i] = (bitcnt(nmoves[i])-1)*6;
 	for (i = 0; i < 64; i++) kmobil[i] = (bitcnt(nmoves[i])/2)*2;
 	irbuf[0] = 0;
+
 
 	for (;;) {
 		if (engine == onmove) ex = calc(sd, ttime);

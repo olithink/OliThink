@@ -1,20 +1,24 @@
-OliThink5 (c) Oliver Brausch 05.Jan.2010, ob112@web.de, http://home.arcor.de/dreamlike
+OliThink5 (c) Oliver Brausch 07.Jan.2010, ob112@web.de, http://home.arcor.de/dreamlike
 
-Version: 5.2.7
+Version: 5.2.8
 Protocol: Winboard 2
 HashSize: 48mb
 Ponder: Yes
 OpeningBook: Small
 EndgameTables: No
 AnalyzeMode: No
-SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, Singular Reply Extension, LMR
+SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing/pawnhanging evaluation
-LinesOfCode: 1659
+LinesOfCode: 1661
 Stability: 100%
 Strength: slightly weaker than Glaurung/Crafty
 
+v5.2.8: changes since 5.2.7:
+Removal of Singular Reply Extension
+Changes in the endgame mobility evaluation
+
 v5.2.7: changes since 5.2.6:
-Added a discount for blocked pawn in the evaluation.
+Added a discount for blocked pawn in the evaluation
 
 v5.2.6: changes since 5.2.5:
 Successful implementation of Late Move Reduction (LMR)
@@ -29,7 +33,7 @@ Pondering changed to save more time during search
 Additional commands of Xboard protocol
 
 v5.2.3: changes since 5.2.2:
-At root the first move searched is from the pv and not a hash move.
+At root the first move searched is from the pv and not a hash move
 
 v5.2.2: changes since 5.2.1:
 HashSize reduced from 128MB to 48MB
@@ -42,11 +46,11 @@ v5.2.0: changes since 5.1.9:
 Bug for search extensions corrected
 
 v5.1.9: changes since 5.1.8:
-Singular Replay Extension added
+Singular Reply Extension added
 
 v5.1.8: changes since 5.1.7:
-Minor change in the king mobility evaluation that has a notable effect.
-Opening book removed from the standard package.
+Minor change in the king mobility evaluation that has a notable effect
+Opening book removed from the standard package
 
 v5.1.7: changes since 5.1.6:
 Knight mobility evaluation reduced
