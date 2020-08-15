@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 23.Jun.2020, ob112@web.de, http://brausch.org */
-#define VER "5.4.7"
+/* OliThink5 (c) Oliver Brausch 25.Jun.2020, ob112@web.de, http://brausch.org */
+#define VER "5.4.8"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -95,7 +95,7 @@ const int pawnrun[] = {0, 0, 1, 8, 16, 32, 64, 128};
 #define CASTLE (flags & 960)
 #define COUNT (count & 0x3FF)
 #define MEVAL(w) (w > 31000 ? (232001-w)/2 : (w < -31000 ? (-232000-w)/2 : w))
-#define NOMATEMAT(s, t, c) ((s <= 4 || (s == 5 && t > 0)) && (pieceb[PAWN] & colorb[c]) == 0)
+#define NOMATEMAT(s, t, c) ((s <= 4 || (s == 5 && t > 2)) && (pieceb[PAWN] & colorb[c]) == 0)
 
 #define HSIZEB 0x200000
 #define HMASKB 0x1FFFFF
@@ -1083,6 +1083,7 @@ int evalc(int c, int* sf) {
 	}
 
 	colorb[oc] ^= RQU & ocb; //Opposite Queen & Rook doesn't block mobility for bishop
+	colorb[c] ^= pieceb[QUEEN] & cb; //Own non-pinned Queen doesn't block mobility for bishop.
 	b = pieceb[BISHOP] & cb;
 	while (b) {
 		*sf += 3;
@@ -1103,7 +1104,7 @@ int evalc(int c, int* sf) {
 		mn += bitcnt(a) << 2;
 	}
 
-	colorb[c] ^= pieceb[ROOK] & cb; // Back
+	colorb[c] ^= RQU & cb; // Back
 	b = pin & (pieceb[ROOK] | pieceb[BISHOP] | pieceb[QUEEN]); 
 	while (b) {
 		int p;
@@ -1137,7 +1138,7 @@ int evalc(int c, int* sf) {
 
 int eval1 = 0;
 int eval(int c, int matrl) {
-	int sf0 = 0, sf1 = 0, w = 0;
+	int sf0 = 0, sf1 = 0;
 	int ev0 = evalc(0, &sf0);
 	int ev1 = evalc(1, &sf1);
 	eval1++;
@@ -1145,12 +1146,10 @@ int eval(int c, int matrl) {
 	if (sf1 < 12) ev0 += kmobil[kingpos[0]]*(12-(sf1 > 4 ? sf1 : 4));
 	if (sf0 < 12) ev1 += kmobil[kingpos[1]]*(12-(sf0 > 4 ? sf0 : 4));
 
-	w = ev1 - ev0 - matrl;
+	if ((matrl < 0 && NOMATEMAT(sf1, sf0, 1)) || (matrl > 0 && NOMATEMAT(sf0, sf1, 0)))
+		matrl = 0;
 		
-	if ((w > 0 && NOMATEMAT(sf1, sf0, 1)) || (w < 0 && NOMATEMAT(sf0, sf1, 0)))
-		w = kmobil[kingpos[1]] - kmobil[kingpos[0]];
-		
-	return c  ? w : -w;
+	return c ? ev1 - ev0 - matrl : ev0 - ev1 + matrl;
 }
 
 u64 nodes;

@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 23.Jun.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 25.Jun.2020, ob112@web.de, http://brausch.org
 
-Version: 5.4.6
+Version: 5.4.8
 Protocol: Winboard 2
 HashSize: 48MB
 Ponder: Yes
@@ -9,9 +9,12 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1675
+LinesOfCode: 1674
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution!
+
+v5.4.8: changes since 5.4.7:
+Queen doesn't block Rook or Bishop mobility. Change eval for no mating material.  
 
 v5.4.7: changes since 5.4.6:
 Option "-reset" instead of "-forceponder". Reinstate hanging pawn eval.
