@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 11.Apr.2008, ob112@web.de, http://home.arcor.de/dreamlike */
-#define VER "5.1.3"
+/* OliThink5 (c) Oliver Brausch 14.Oct.2008, ob112@web.de, http://home.arcor.de/dreamlike */
+#define VER "5.1.4"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -119,6 +119,9 @@ static int crevoke[64];
 static int nmobil[64];
 static int kmobil[64];
 static int pawnprg[128];
+static u64 pawnfree[128];
+static u64 pawnfile[128];
+static u64 pawnhelp[128];
 Move movelist[64*256];
 int movenum[64];
 Move pv[64][64];
@@ -156,12 +159,22 @@ int _getpiece(char s, int *c) {
 	return 0;
 }
 
+void display64(u64 bb) {
+	int i, j;
+	for (i = 0; i < 8; i++) {
+		for (j = 0; j < 8; j++) {
+			printf(" %d", TEST(j + (7-i)*8, bb) ? 1 : 0);
+		} printf("\n");
+	} printf("\n");
+}
+
+int book;
 void _parse_fen(char *fen) {
 	char s, mv, pos[128], cas[5], enps[3];
 	int c, i, halfm = 0, fullm = 1, col = 0, row = 7;
 	for (i = 0; i < 8; i++) pieceb[i] = 0LL;
 	colorb[0] = colorb[1] = hashb = 0LL;
-	mat = i = c = 0;
+	mat = book = i = c = 0;
 	sscanf(fen, "%s %c %s %s %d %d", pos, &mv, cas, enps, &halfm, &fullm);
 	while ((s = pos[i++])) {
 		if (s == '/') {
@@ -197,13 +210,12 @@ char *sfen = "rnbqkbnr/pppppppp/////PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 Move bkmove[BKSIZE*32];
 int bkflag[BKSIZE];
 int bkcount[3];
-int book;
 
 void _readbook(char *bk) {
 	char buf[256], s0[64], s1[64], s2[64];
 	int k, n = 0;
 	FILE *in = fopen(bk, "r");
-	book = bkcount[0] = bkcount[1] = 0;
+	bkcount[0] = bkcount[1] = 0;
 	for (k = 0; k < BKSIZE; k++) bkflag[k] = 2;
 	if (in != NULL) {
 		while (!feof(in)) {
@@ -230,9 +242,9 @@ void _readbook(char *bk) {
 			} 
 		}
 		fclose(in);
-		book = 1;
 	}
 	_parse_fen(sfen);
+	if (bkcount[0] > 0 || bkcount[1] > 0) book = 1;
 	engine = 1;
 }
 
@@ -377,21 +389,35 @@ u64 attacked(int f, int c) {
 	return (PCAP(f, c) & pieceb[PAWN]) | reach(f, c);
 }
 
-void _init_pawns(u64* moves, u64* caps, int c) {
-	int i;
+void _init_pawns(u64* moves, u64* caps, u64* freep, u64* filep, u64* helpp, int c) {
+	int i, j;
 	for (i = 0; i < 64; i++) {
+		int rank = i/8;
+		int file = i&7;
 		int m = i + (c ? -8 : 8);
 		int pp = 1 << (c ? 8-i/8 : 1+i/8);
 		pawnprg[i + (c << 6)] = pp < 8 ? 0 : pp; 
+		for (j = 0; j < 64; j++) {
+			int jrank = j/8;
+			int jfile = j&7;
+			int dfile = (jfile - file)*(jfile - file);
+			if (dfile > 1) continue;
+			if ((c && jrank < rank) || (!c && jrank > rank)) {//The not touched half of the pawn
+				if (dfile == 0) setBit(j, filep + i);
+				setBit(j, freep + i);
+			} else if (dfile != 0) {
+				setBit(j, helpp + i);
+			}
+		}
 		if (m < 0 || m > 63) continue;
 		setBit(m, moves + i);
-		if ((i&7) > 0) {
+		if (file > 0) {
 			m = i + (c ? -9 : 7);
 			if (m < 0 || m > 63) continue;
 			setBit(m, caps + i);
 			setBit(m, caps + i + 128*(2 - c));
 		}
-		if ((i&7) < 7) {
+		if (file < 7) {
 			m = i + (c ? -7 : 9);
 			if (m < 0 || m > 63) continue;
 			setBit(m, caps + i);
@@ -1022,7 +1048,17 @@ Move spick(Move* ml, int mn, int s, int ply) {
 	return m;
 }
 
-/* The evulation for Color c. It's just mobility stuff. Pinned pieces are still awarded for limiting opposite's king */
+void displayb() {
+	int i, j;
+	for (i = 0; i < 8; i++) {
+		for (j = 0; j < 8; j++) {
+			int f = j + (7-i)*8;
+			printf(" %c", pieceChar[identPiece(f)] + identColor(f)*32);
+		} printf("\n");
+	} printf("\n");
+}
+
+/* The evulation for Color c. It's almost only mobility stuff. Pinned pieces are still awarded for limiting opposite's king */
 int evalc(int c, int* sf) {
 	int t, f;
 	int mn = 0;
@@ -1034,17 +1070,26 @@ int evalc(int c, int* sf) {
 
 	b = pieceb[PAWN] & colorb[c];
 	while (b) {
+		int ppos = 0;
 		f = pullLsb(&b);
-		mn += pawnprg[f + (c << 6)];
+		t = f + (c << 6);
+		ppos = pawnprg[t];
 		m = PMOVE(f, c);
 		a = POCC(f, c);
-		if (a & kn) mn += _bitcnt(a & kn) << 4;
+		if (a & kn) ppos += _bitcnt(a & kn) << 4;
 		if (BIT[f] & pin) {
 			if (!(getDir(f, kingpos[c]) & 16)) m = 0;
 		} else {
-			mn += _bitcnt(a & pieceb[PAWN] & colorb[c]) << 2;
+			ppos += _bitcnt(a & pieceb[PAWN] & colorb[c]) << 2;
 		}
-		if (m) mn += 8;
+		if (m) ppos += 8;
+		/* The only non-mobility eval is the detection of free pawns/hanging pawns */
+		if (!(pawnfile[t] & pieceb[PAWN] & colorb[c^1])) { //Free file?
+			if (!(pawnfree[t] & pieceb[PAWN] & colorb[c^1])) ppos *= 2; //Free run?
+			if (!(pawnhelp[t] & pieceb[PAWN] & colorb[c])) ppos -= 33; //Hanging backpawn?
+		}
+
+		mn += ppos;
 	}
 
 	cb =  colorb[c] & (~pin);
@@ -1142,16 +1187,6 @@ int eval(int c) {
 	return (c ? (ev1 - ev0) : (ev0 - ev1));
 }
 
-void displayb() {
-	int i, j;
-	for (i = 0; i < 8; i++) {
-		for (j = 0; j < 8; j++) {
-			int f = j + (7-i)*8;
-			printf(" %c", pieceChar[identPiece(f)] + identColor(f)*32);
-		} printf("\n");
-	} printf("\n");
-}
-
 u64 nodes;
 u64 qnodes;
 int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
@@ -1234,6 +1269,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		}
 	}
 
+	//Null Move
 	if (!pvnode && !ch && null && d > 1 && bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1))) > 2) {
 		flags &= 960;
 		count += 0x801;
@@ -1387,7 +1423,7 @@ int _parseMove(char *s, int c, Move* mp) {
 		}
 	}
 	to = c1 - 'a' + 8*(c2 - '1');
-   GENERATE(c);
+	GENERATE(c);
 	for (i = 0; i < movenum[0]; i++) {
 		Move m = movelist[i];
 		if (TO(m) != to) continue;
@@ -1406,7 +1442,7 @@ int _parseMove(char *s, int c, Move* mp) {
 int parseMove(char *s, int c, Move* mp) {
 	int r = _parseMove(s, c, mp);
 	if (r < 0) printf("UNKNOWN COMMAND: %s\n", s);
-		return r;
+	return r;
 }
 
 int sd = 32;
@@ -1499,7 +1535,7 @@ int main(int argc, char **argv)
 	for (i = 0; i < 4096; i++) hashxor[i] = _rand_64();
 	for (i = 0; i < HSIZE; i++) hashDB[i] = hashDP[i] = 0LL;
 	for (i = 0; i < 64; i++) BIT[i] = 1LL << i;
-	for (i = 0; i < 128; i++) pmoves[i] = 0LL;
+	for (i = 0; i < 128; i++) pmoves[i] = pawnfree[i] = pawnfile[i] = pawnhelp[i] = 0LL;
 	for (i = 0; i < 384; i++) pcaps[i] = 0LL;
 	for (i = 0; i < 64; i++) bmask45[i] = _bishop45(i, 0LL, 0) | BIT[i];
 	for (i = 0; i < 64; i++) bmask135[i] = _bishop135(i, 0LL, 0) | BIT[i];
@@ -1516,15 +1552,15 @@ int main(int argc, char **argv)
 	_init_rays(rays + 0x6000, _bishop135, key135);
 	_init_shorts(nmoves, _knight);
 	_init_shorts(kmoves, _king);
-	_init_pawns(pmoves, pcaps, 0);
-	_init_pawns(pmoves + 64, pcaps + 64, 1);
+	_init_pawns(pmoves, pcaps, pawnfree, pawnfile, pawnhelp, 0);
+	_init_pawns(pmoves + 64, pcaps + 64, pawnfree + 64, pawnfile + 64, pawnhelp + 64, 1);
 	_readbook("olibook.pgn");
 
 	if (argc > 1 && !strncmp(argv[1],"-sd",3)) {
 		neverabort = 1;
 		if (argc > 2) {
 			sscanf(argv[2], "%d", &sd);
-			if (argc > 3) { _parse_fen(argv[3]); book = 0; }
+			if (argc > 3) _parse_fen(argv[3]);
 		}
 	}
 	

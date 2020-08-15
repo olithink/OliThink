@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 11.Apr.2008, ob112@web.de, http://home.arcor.de/dreamlike
+OliThink5 (c) Oliver Brausch 14.Oct.2008, ob112@web.de, http://home.arcor.de/dreamlike
 
-Version: 5.1.3
+Version: 5.1.4
 Protocol: Winboard 2
 HashSize: 128mb
 Ponder: Yes
@@ -9,7 +9,7 @@ OpeningBook: Small
 EndgameTables: No
 AnalyzeMode: No
 Evaluation: Mobility Only
-LinesOfCode: 1542
+LinesOfCode: 1578
 Stability: 100%
 Strength: 200 ELO less than Glaurung/Crafty
 
@@ -18,7 +18,11 @@ Create/Change book:
 - The String "[Black: OliThink" indicates that the engine can play this opening if black.
 - Only the first line of the opening will be read and the line must end with "*"
 
-Changes since 5.1.2:
+Changes since 5.1.3:
+Fixed minor bug that position setup by GUI interfered with opening book
+Added strategical evaluation: Free pawns are rewarded, hanging pawns punished
+
+V5.1.3: changes since 5.1.2:
 Support for opening books, including a small one
 Parsing of PGN Moves
 Minor restructure in quiesce, thus increasing strength
