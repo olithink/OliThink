@@ -583,8 +583,8 @@ void doMove(Move m, int c) {
 Move killer[128];
 int history[0x1000];
 void execMove(Move m) {
-	int i;
-	doMove(m, onmove);
+	int i, c = onmove;
+	doMove(m, c);
 	onmove ^= 1;
 	for (i = 0; i < 127; i++) killer[i] = killer[i+1];
 	for (i = 0; i < 0x1000; i++) history[i] = 0;
