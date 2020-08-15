@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 27.Oct.2008, ob112@web.de, http://home.arcor.de/dreamlike */
-#define VER "5.1.8alpha"
+/* OliThink5 (c) Oliver Brausch 06.Nov.2008, ob112@web.de, http://home.arcor.de/dreamlike */
+#define VER "5.1.9"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -1301,6 +1301,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 
 		nch = attacked(kingpos[c^1], c^1);
 		if (nch) ext++; // Check Extension
+		else if (n == 1) ext++; //Singular reply extension
 		else if (PIECE(m) == PAWN && ((TO(m) & 48) == 48  || TO(m) & 48) == 0) ext++; //Pawn short to promote
 
 		if (first && pvnode) {
