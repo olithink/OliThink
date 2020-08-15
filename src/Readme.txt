@@ -187,6 +187,132 @@ go
 kib Nodes: 173275538 QNodes1: 29991285 QNodes2: 6061353 cs: 14581 knps: 1188
 
 
+[Event "Computer chess game"]
+[Site "TARN"]
+[Date "2008.01.19"]
+[Round "-"]
+[White "GNU Chess 5.07"]
+[Black "OliThink 5.0.6"]
+[Result "0-1"]
+[TimeControl "40/60"]
+
+1. e4 e5 2. Nf3 Nf6 3. Nc3 Nc6 4. d4 exd4 5. Nxd4 Bb4 6. Nxc6 bxc6 7. Qd4
+Qe7 8. Be3 c5 9. Qd3 Nxe4 10. Be2 Nxc3 11. bxc3 Ba6 12. Qd2 Qe5 13. Bf4
+Qxc3 14. O-O Qxd2 15. Bxd2 Bxe2 16. Rfe1 Kd8 17. Bxb4 cxb4 18. Rxe2 Re8 19.
+Kf1 Rxe2 20. Kxe2 a5 21. Ke3 Ra6 22. a3 Re6+ 23. Kf3 Rc6 24. axb4 axb4 25.
+Ra2 h5 26. Ke4 Rc3 27. h4 Rc4+ 28. Kd3 Rxh4 29. g3 Rg4 30. Ra5 g5 31. Rb5
+c6 32. Re5 d5 33. Re2 h4 34. gxh4 gxh4 35. f3 Rc4 36. Ke3 f5 37. Rg2 Kc7
+38. Kd2 Kb6 39. Rg5 f4 40. Rg4 h3 41. Rh4 Rc3 42. Rxh3 Kc5 43. Rh6 Rxf3 44.
+Rf6 Rf2+ 45. Kd3 Kb6 46. Rf7 c5 47. Rf6+ Kc7 48. Re6 Rf3+ 49. Ke2 Rc3 50.
+Kd2 d4 51. Re5 Kc6 52. Re6+ Kd5 53. Rf6 f3 54. Rf8 Kc4 55. Rf6 Re3 56. Rf5
+Re2+ 57. Kd1 Rf2 58. Kc1 Kb5 59. Rf8 Rf1+ 60. Kd2 c4 61. Rb8+ Kc5 62. Rc8+
+Kb6 63. Rb8+ Kc7 64. Rf8 c3+ 65. Kd3 Rd1+ 66. Kc4 d3 67. Rxf3 dxc2 68. Kxb4
+Rb1+ 69. Ka4 c1=R 70. Rf7+ Kd6 71. Rf6+ Ke5 72. Rc6 Rb2 73. Rc5+ Kd4 74.
+Rxc3 Rxc3 75. Ka5 Ra3#
+{Black mates} 0-1
+
+
+[Event "Computer chess game"]
+[Site "TARN"]
+[Date "2008.01.18"]
+[Round "-"]
+[White "OliThink 5.0.6"]
+[Black "GNU Chess 5.07"]
+[Result "1-0"]
+[TimeControl "40/60"]
+
+1. d4 d5 2. Bf4 Nc6 3. e3 e5 4. Bxe5 Nxe5 5. dxe5 Bb4+ 6. c3 Be7 7. Nf3 Nh6
+8. Nbd2 O-O 9. Bd3 Bf5 10. Bxf5 Nxf5 11. g4 Nh6 12. h3 a5 13. a4 f5 14.
+exf6 Bxf6 15. Nb3 Be7 16. Nbd4 Ra6 17. Ne5 c5 18. Ndf3 Nf7 19. Nxf7 Rxf7
+20. Ne5 Rf8 21. f4 Raf6 22. g5 Rd6 23. h4 Qb6 24. Rh2 c4 25. Qf3 Qb3 26.
+Qh3 Re8 27. Nd7 Ra6 28. Qf5 Kh8 29. Qf7 Raa8 30. Qxd5 Rad8 31. Rd2 Bb4 32.
+Kf1 Rxe3 33. Qxb7 Bf8 34. Qc7 Ree8 35. Kg1 Ra8 36. Nxf8 Rxf8 37. Kh2 Qb8
+38. Qxb8 Raxb8 39. Rf1 Rfd8 40. Rxd8+ Rxd8 41. f5 Kg8 42. Rf4 Rb8 43. Rxc4
+Rxb2+ 44. Kh3 Rb7 45. Rc5 Rb3 46. g6 hxg6 47. fxg6 Kf8 48. h5 Ke7 49. Kg2
+Kd6 50. Rc8 Rb2+ 51. Kg3 Rb1 52. Ra8 Rc1 53. Kf4 Rxc3 54. h6 Rc4+ 55. Ke3
+gxh6 56. g7 Rg4 57. g8=Q Rxg8 58. Rxg8 Kd5 59. Rg4 Kd6 60. Kd4 Kc7 61. Rh4
+Kb6 62. Rxh6+ Kb7 63. Kd5 Kc7 64. Rh7+ Kd8 65. Ke6 Kc8 66. Kd6 Kb8 67. Kc6
+Ka8 68. Kb6 Kb8 69. Rh8#
+{White mates} 1-0
+
+
+[Event "Computer chess game"]
+[Site "TARN"]
+[Date "2008.01.18"]
+[Round "-"]
+[White "OliThink 5.0.6"]
+[Black "GNU Chess 5.07"]
+[Result "1-0"]
+[TimeControl "40/60"]
+
+1. d4 d5 2. Bf4 Nc6 3. e3 e5 4. Bxe5 Nxe5 5. dxe5 Bb4+ 6. c3 Be7 7. Nf3 Nh6
+8. Nbd2 O-O 9. Bd3 Bf5 10. Bxf5 Nxf5 11. g4 Nh6 12. h3 a5 13. a4 f5 14.
+exf6 Bxf6 15. Nb3 Be7 16. Nbd4 Ra6 17. Ne5 c5 18. Ndf3 Nf7 19. Nxf7 Rxf7
+20. Ne5 Rf8 21. f4 Raf6 22. g5 Rd6 23. h4 Qb6 24. Rh2 c4 25. Qf3 Qb3 26.
+Qh3 Re8 27. Nd7 Ra6 28. Qf5 Kh8 29. Qf7 Raa8 30. Qxd5 Rad8 31. Rd2 Bb4 32.
+Kf1 Rxe3 33. Qxb7 Bf8 34. Qc7 Ree8 35. Kg1 Ra8 36. Nxf8 Rxf8 37. Kh2 Qb8
+38. Qxb8 Raxb8 39. Rf1 Rfd8 40. Rxd8+ Rxd8 41. Rf2 Rd3 42. Re2 Kg8 43. Re4
+Kf7 44. Rxc4 Ke6 45. Rc5 Rd2+ 46. Kg3 Rxb2 47. Rxa5 Rc2 48. Rc5 Kd6 49. Rc4
+g6 50. Kh3 Kd5 51. Rc7 Ke4 52. Kg3 Rc1 53. Re7+ Kd5 54. Rxh7 Rxc3+ 55. Kg4
+Rc1 56. Rd7+ Ke4 57. Re7+ Kd5 58. Rg7 Rc6 59. Rf7 Rc1 60. Rf6 Rg1+ 61. Kf3
+Rf1+ 62. Kg2 Ra1 63. Rxg6 Ke4 64. Rf6 Rxa4 65. h5 Rc4 66. h6 Rc2+ 67. Kg3
+Rc8 68. h7 Kd4 69. g6 Rh8 70. Rf5 Kc3 71. Rh5 Kd4 72. g7 Rxh7 73. Rxh7 Kc3
+74. g8=Q Kd3 75. Qb3+ Ke4 76. Rh5 Kd4 77. Rd5+ Ke4 78. Qd3#
+{White mates} 1-0
+
+[Event "Computer chess game"]
+[Site "TARN"]
+[Date "2008.01.18"]
+[Round "-"]
+[White "OliThink 5.0.6"]
+[Black "GNU Chess 5.07"]
+[Result "1-0"]
+[TimeControl "40/60"]
+
+1. d4 d5 2. Bf4 Nc6 3. e3 e5 4. Bxe5 Nxe5 5. dxe5 Bb4+ 6. c3 Be7 7. Nf3 Nh6
+8. Nbd2 O-O 9. Bd3 Bf5 10. Bxf5 Nxf5 11. g4 Nh6 12. h3 a5 13. a4 f5 14.
+exf6 Bxf6 15. Qb3 Ra6 16. Qxb7 Rb6 17. Qa7 Qd6 18. Qxa5 Qc6 19. Nd4 Bxd4
+20. cxd4 Rxb2 21. Qc5 Qb7 22. Rc1 Rf7 23. f4 Qa6 24. Rh2 Qe6 25. Qa3 Rb6
+26. Nf3 Rxf4 27. Ng5 Qe8 28. Re2 Rf8 29. Qc5 Rd6 30. a5 Qg6 31. Qxc7 Ra6
+32. Qe5 Rxa5 33. Rf2 Re8 34. Rf7 Qxf7 35. Nxf7 Rxe5 36. Nxe5 g5 37. Rc8+
+Kg7 38. Rd8 Ng8 39. Rd7+ Kh6 40. h4 gxh4 41. g5+ Kxg5 42. Rg7+ Kf5 43. Rxg8
+h3 44. Kf2 Ra2+ 45. Kg1 Re2 46. Rg3 h2+ 47. Kh1 h5 48. Rh3 Ke4 49. Rxh5
+Kxe3 50. Nc6 Rc2 51. Re5+ Kf3 52. Ne7 Kg3 53. Re3+ Kg4 54. Nxd5 Rd2 55. Nc3
+Kf4 56. Re4+ Kf3 57. Rh4 Rc2 58. Rh3+ Kf4 59. Rd3 Rf2 60. d5 Ke5 61. d6 Rf8
+62. d7 Rd8 63. Na4 Kf6 64. Nc5 Ke7 65. Rd2 Rg8 66. Nb7 Rf8 67. d8=Q+ Rxd8
+68. Nxd8 Kf6 69. Kxh2 Ke5 70. Nc6+ Kf4 71. Kg2 Ke4 72. Kg3 Kf5 73. Rd6 Ke4
+74. Rd7 Kf5 75. Nd4+ Ke4 76. Nf3 Kf5 77. Rd6 Ke4 78. Kg4 Ke3 79. Rd4 Ke2
+80. Rd5 Ke3 81. Rd2 Ke4 82. Rd1 Ke3 83. Nd4 Ke4 84. Nf5 Ke5 85. Rd6 Ke4 86.
+Rd4+ Ke5 87. Kg5 Ke6 88. Rd6+ Ke5 89. Rd2 Ke4 90. Kg4 Ke5 91. Rd1 Ke4 92.
+Rc1 Ke5 93. Rc5+ Kf6 94. Nd4 Ke7 95. Kf5 Kd6 96. Ne6 Kd7 97. Kf6 Kd6 98.
+Kf7 Kd7 99. Nd8 Kd6 100. Nb7+ Kd7 101. Kf6 Ke8 102. Rd5 Kf8 103. Rd8#
+{White mates} 1-0
+
+
+[Event "Computer chess game"]
+[Site "TARN"]
+[Date "2008.01.18"]
+[Round "-"]
+[White "OliThink 5.0.6"]
+[Black "GNU Chess 5.07"]
+[Result "1-0"]
+[TimeControl "40/60"]
+
+1. d4 d5 2. Bf4 Nc6 3. e3 e5 4. Bxe5 Nxe5 5. dxe5 Bb4+ 6. c3 Bc5 7. Nf3 Ne7
+8. b4 Bb6 9. Bd3 Bf5 10. Bxf5 Nxf5 11. a4 a5 12. g4 Ne7 13. bxa5 Bxa5 14.
+Qb3 Qd7 15. Nbd2 O-O 16. g5 Ng6 17. Rc1 Qe6 18. Nd4 Qxe5 19. h4 Bb6 20. Kf1
+Ne7 21. Qc2 Rfe8 22. Rb1 Nc6 23. Nf5 Ra5 24. Rb5 Rxb5 25. axb5 Ne7 26.
+Nxe7+ Qxe7 27. Qf5 Qc5 28. Qd7 Ra8 29. Kg2 Rf8 30. Rd1 g6 31. Nf3 Qxc3 32.
+Qxd5 Qc2 33. Rd2 Qb1 34. Ne5 Ba5 35. Rd4 c6 36. bxc6 Bb6 37. Nxf7 Bc7 38.
+Nh6+ Kg7 39. Qd7+ Kh8 40. Rf4 Bxf4 41. Qd4+ Be5 42. Qxe5+ Rf6 43. Qxf6#
+{White mates} 1-0
+
+
+
+
+
+
+
 
 [Event "Computer chess game"]
 [Site "TARN"]
@@ -349,3 +475,40 @@ void generateChecks(int c, int ply) {
 	}
 }
 
+Move movestack[128];
+void displayms(int ply) {
+	int i;
+	for (i = 0; i < ply; i++) {
+		displaym(movestack[i]); printf(" ");
+	}
+}
+
+void display64(u64 bb) {
+	int i, j;
+	for (i = 0; i < 8; i++) {
+		for (j = 0; j < 8; j++) {
+			printf(" %d", TEST(j + (7-i)*8, bb) ? 1 : 0);
+		} printf("\n");
+	} printf("\n");
+}
+
+void displayb() {
+	int i, j;
+	for (i = 0; i < 8; i++) {
+		for (j = 0; j < 8; j++) {
+			int f = j + (7-i)*8;
+			printf(" %c", pieceChar[identPiece(f)] + identColor(f)*32);
+		} printf("\n");
+	} printf("\n");
+}
+
+int identColor(int f) {
+	if (TEST(f, colorb[1])) return 1;
+	return 0;
+}
+
+	for (i = 0; i < 64; i++) {
+		u64 b = nmoves[i];
+		while (b) n2moves[i] |= nmoves[pullLsb(&b)];
+		n2moves[i] ^= BIT[i];
+	}
