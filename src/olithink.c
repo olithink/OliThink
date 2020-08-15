@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 11.Jul.2020, ob112@web.de, http://brausch.org */
-#define VER "5.5.3"
+/* OliThink5 (c) Oliver Brausch 14.Jul.2020, ob112@web.de, http://brausch.org */
+#define VER "5.5.4"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -1079,23 +1079,11 @@ int evalc(int c, int* sf) {
 		*sf += 9;
 		f = pullLsb(&b);
 
-		colorb[c] ^= pieceb[BISHOP] & cb;	
-
-		a = BATT3(f) | BATT4(f);
+		a = BATT3(f) | BATT4(f) | RATT1(f) | RATT2(f);
 		if (a & kn) katt += _bitcnt(a & kn) << 3;
 		mn += bitcnt(a);
-
-		colorb[c] ^= pieceb[BISHOP] & cb;	
-		colorb[c] ^= pieceb[ROOK] & cb;	
-
-		a = RATT1(f) | RATT2(f);
-		if (a & kn) katt += _bitcnt(a & kn) << 3;
-		mn += bitcnt(a);
-
-		colorb[c] ^= pieceb[ROOK] & cb;	
 	}
 
-	colorb[oc] ^= RQU & ocb; //Opposite Queen & Rook doesn't block mobility for bishop
 	b = pieceb[BISHOP] & cb;
 	while (b) {
 		*sf += 3;
@@ -1105,7 +1093,6 @@ int evalc(int c, int* sf) {
 		mn += bitcnt(a) << 3;
 	}
 
-	colorb[oc] ^= pieceb[ROOK] & ocb; //Opposite Queen doesn't block mobility for rook.
 	colorb[c] ^= pieceb[ROOK] & cb; //Own non-pinned Rook doesn't block mobility for rook.
 	b = pieceb[ROOK] & cb;
 	while (b) {
@@ -1139,7 +1126,6 @@ int evalc(int c, int* sf) {
 		if ((t & 65) == 65) mn += _bitcnt(BATT4(f));
 	}
 
-	colorb[oc] ^= pieceb[QUEEN] & ocb; //Back
 	xorBit(kingpos[oc], colorb+oc); //Back
 	if (*sf < 14) katt = katt * (*sf) / 14; //Reduce the bonus for attacking king squares
 	return mn + katt;
@@ -1155,7 +1141,7 @@ int kmobilf(int sf, int c, int sfi) {
 	return km * (12- (sf > 4 ? sf : 4));
 }
 
-int eval1 = 0;
+u64 eval1 = 0;
 int eval(int c, int matrl) {
 	int sf0 = 0, sf1 = 0;
 	int ev0 = evalc(0, &sf0);
@@ -1177,7 +1163,7 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 	int i, best = -MAXSCORE, poff;
 	int cmat = c ? -mat: mat;
 
-	if (ply == 63) return eval(c, mat);
+	if (ply == 127) return eval(c, mat);
 	if (!ch) do {
 		if (cmat - 200 >= beta) return beta;
 		if (cmat + 200 <= alpha) break;
@@ -1503,8 +1489,8 @@ int calc(int sd, int tm) {
 	maxtime = extendtime;
 	starttime = getTime();
 
-	eval1 = sabort = iter = value[0] = 0;
-	qnodes = nodes = 0LL;
+	sabort = iter = value[0] = 0;
+	eval1 = qnodes = nodes = 0LL;
 	if (book) {
 		if (!bkcount[onmove]) book = 0;
 		else {
@@ -1521,7 +1507,7 @@ int calc(int sd, int tm) {
 		if (pvlength[0] == 0 && iter > 1) { pvlength[0] = pvlengsave; value[iter] = value[iter -1]; }
 		t1 = (int)(getTime() - starttime);
 		if (post && pvlength[0] > 0 && (!sabort || (!analyze && sabort>=1))) { 
-			printf("%2d %5d %6d %9lu  ", iter, MEVAL(value[iter]), t1/10, (u32)(nodes + qnodes));
+			printf("%2d %5d %6d %9llu  ", iter, MEVAL(value[iter]), t1/10, nodes + qnodes);
 			displaypv(); printf("\n"); 
 		}
 		if (sabort) break;
@@ -1545,7 +1531,7 @@ int calc(int sd, int tm) {
 	}
 	printf("move "); displaym(pv[0][0]); printf("\n");
 
-	if (post && ics) printf("kibitz W: %d Nodes: %lu QNodes: %lu Evals: %d cs: %d knps: %lu\n", MEVAL(value[iter > sd ? sd : iter]), (u32)nodes, (u32)qnodes, eval1, t1/10, (u32)(nodes+qnodes)/(t1+1));
+	if (post && ics) printf("kibitz W: %d Nodes: %llu QNodes: %llu Evals: %llu cs: %d knps: %llu\n", MEVAL(value[iter > sd ? sd : iter]), nodes, qnodes, eval1, t1/10, (nodes+qnodes)/(t1+1));
 
 	if (resign > 0) {
 		int w = value[iter > sd ? sd : iter];
