@@ -13,6 +13,11 @@ LinesOfCode: 1653
 Stability: 100%
 Strength: slightly weaker than Glaurung/Crafty
 
+v5.2.5: changes since 5.2.4:
+Storing moves history and flags for whole match
+Bugfix in Internal Iterative Deepening
+Bugfix when finishing matches with ponder=on
+
 v5.2.4: changes since 5.2.3:
 Pondering changed to save more time during search
 Additional commands of Xboard protocol
