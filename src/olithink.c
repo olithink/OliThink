@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 16.Jun.2020, ob112@web.de, http://brausch.org */
-#define VER "5.4.0s"
+/* OliThink5 (c) Oliver Brausch 18.Jun.2020, ob112@web.de, http://brausch.org */
+#define VER "5.4.1s"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -1322,10 +1322,13 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		doMove(m, c);
 		nch = attacked(kingpos[c^1], c^1);
 		if (nch) ext++; // Check Extension
-		else if (d >= 3 && n == 3 && !pvnode) { //LMR
+		else if (n == 3 && !pvnode) { //LMR
 			if (m == killer[ply]); //Don't reduce killers
 			else if (PIECE(m) == PAWN && !(pawnfree[TO(m) + (c << 6)] & pieceb[PAWN] & colorb[c^1])); //Don't reduce free pawns
-			else ext--;
+			else {
+				if (d >= 2) ext--;
+				else if (i > 14) { undoMove(m, c); continue; } // Move count pruning
+			}
 	        }
 
 		if (first && pvnode) {
@@ -1508,7 +1511,7 @@ int calc(int sd, int tm) {
 	}
 	printf("move "); displaym(pv[0][0]); printf("\n");
 
-	if (post) printf("\nkibitz W: %d Nodes: %lu QNodes: %lu Evals: %d cs: %d knps: %lu\n", MEVAL(value[iter > sd ? sd : iter]), (u32)nodes, (u32)qnodes, eval1, t1/10, (u32)(nodes+qnodes)/(t1+1));
+	if (post) printf("kibitz W: %d Nodes: %lu QNodes: %lu Evals: %d cs: %d knps: %lu\n", MEVAL(value[iter > sd ? sd : iter]), (u32)nodes, (u32)qnodes, eval1, t1/10, (u32)(nodes+qnodes)/(t1+1));
 	return execMove(pv[0][0]);
 }
 
@@ -1564,6 +1567,7 @@ int protV2(char* buf) {
 		else if (!strncmp(buf,"otim",4));//otim <optime>
 		else if (!strncmp(buf,"draw",4));//draw offer 
 		else if (!strncmp(buf,"st",2)) sscanf(buf+3,"%d",&st);
+		else if (!strncmp(buf,"?",1));
 		else if (!strncmp(buf,"bk",2));
 		else if (!strncmp(buf,"hint",4));
 		else if (!strncmp(buf,"computer",8));
