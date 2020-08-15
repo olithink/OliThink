@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 28.Jan.2010, ob112@web.de, http://home.arcor.de/dreamlike
+OliThink5 (c) Oliver Brausch 27.Feb.2012, ob112@web.de, http://home.arcor.de/dreamlike
 
-Version: 5.3.0
+Version: 5.3.1
 Protocol: Winboard 2
 HashSize: 48mb
 Ponder: Yes
@@ -9,9 +9,12 @@ EndgameTables: No
 AnalyzeMode: No
 SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing/pawnhanging evaluation
-LinesOfCode: 1670
+LinesOfCode: 1668
 Stability: 100%
 Strength: slightly weaker than Glaurung/Crafty
+
+v5.3.1: changes since 5.3.0:
+Removed bug in quiesce
 
 v5.3.0: changes since 5.2.9:
 No LMR for passed pawns

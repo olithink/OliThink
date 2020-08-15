@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 25.Jan.2010, ob112@web.de, http://home.arcor.de/dreamlike */
-#define VER "5.3.0"
+/* OliThink5 (c) Oliver Brausch 27.Feb.2012, ob112@web.de, http://home.arcor.de/dreamlike */
+#define VER "5.3.1"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -1202,7 +1202,6 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 	int i, w, best = -32000, poff;
 	int cmat = c ? -mat: mat;
 
-//	printf("%d,%d,%d\n", cmat, alpha, beta);
 	if (ply == 63) return eval(c) + cmat;
 	if (!ch) do {
 		if (cmat - 200 >= beta) return beta;
@@ -1237,7 +1236,7 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 			}
 		}
 	}
-	return best >= alpha ? best : eval(c) + cmat;
+	return best > -32000 ? best : eval(c) + cmat;
 }
 
 int retPVMove(int c, int ply) {
@@ -1546,8 +1545,7 @@ int calc(int sd, int tm) {
 			pon = 0;
 			return engine != onmove;
 		}
-		printf("%d. ... ", COUNT/2 + 1);
-		displaym(pv[0][0]); printf("\n");
+		printf("move "); displaym(pv[0][0]); printf("\n");
 
 		if (post) printf("\nkibitz W: %d Nodes: %lu QNodes: %lu Evals: %d cs: %d knps: %lu\n", value[iter > sd ? sd : iter], (u32)nodes, (u32)qnodes, eval1, t1/10, (u32)(nodes+qnodes)/(t1+1));
 		return execMove(pv[0][0]);
