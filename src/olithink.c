@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 20.Jul.2020, ob112@web.de, http://brausch.org */
-#define VER "5.5.8"
+/* OliThink5 (c) Oliver Brausch 24.Jul.2020, ob112@web.de, http://brausch.org */
+#define VER "5.5.9"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -220,10 +220,10 @@ void _parse_fen(char *fen) {
 	if (enps[0] >= 'a' && enps[0] <= 'h' && enps[1] >= '1' && enps[1] <= '8') flags |= 8*(enps[1] - '1') + enps[0] - 'a'; 
 	count = (fullm - 1)*2 + onmove + (halfm << 10);
 	for (i = 0; i < COUNT; i++) hstack[i] = 0LL;
-	if (fen != sfen) reseth(3);
+	reseth(fen == sfen ? 2 : 3);
 }
 
-int parseMoveNExec(char*, int, Move*, int);
+int parseMoveNExec(char*, int, Move*);
 int parseMove(char*, int, Move);
 int protV2(char*,int);
 #define BKSIZE 8192
@@ -262,9 +262,9 @@ void _readbook(char *bk) {
 						i += (int)(strlen(s2) + 1);
 					} else 
 					sscanf(s0,"%*[^.].%[^.]", s1);
-					parseMoveNExec(s1, 0, bkmove + n*32+ (j++), 0);
+					parseMoveNExec(s1, 0, bkmove + n*32+ (j++));
 					if (s2[0] == 0 || s2[0] == '*') break;
-					parseMoveNExec(s2, 1, bkmove + n*32+ (j++), 0);
+					parseMoveNExec(s2, 1, bkmove + n*32+ (j++));
 					if (j > 30 || i >= strlen(buf)) break;
 				}
 				bkmove[n*32 + j] = 0;
@@ -1093,6 +1093,7 @@ int evalc(int c) {
 		mn += bitcnt(a);
 	}
 
+	colorb[oc] ^= RQU & ocb; //Opposite Queen & Rook doesn't block mobility for bishop
 	b = pieceb[BISHOP] & cb;
 	while (b) {
 		f = pullLsb(&b);
@@ -1101,6 +1102,7 @@ int evalc(int c) {
 		mn += bitcnt(a) << 3;
 	}
 
+	colorb[oc] ^= pieceb[ROOK] & ocb; //Opposite Queen doesn't block mobility for rook.
 	colorb[c] ^= pieceb[ROOK] & cb; //Own non-pinned Rook doesn't block mobility for rook.
 	b = pieceb[ROOK] & cb;
 	while (b) {
@@ -1127,6 +1129,7 @@ int evalc(int c) {
 		if ((t & 65) == 65) mn += _bitcnt(BATT4(f));
 	}
 
+	colorb[oc] ^= pieceb[QUEEN] & ocb; //Back
 	xorBit(kingpos[oc], colorb+oc); //Back
 	if (sf[c] < 14) katt = katt * sf[c] / 14; //Reduce the bonus for attacking king squares
 	return mn + katt;
@@ -1373,18 +1376,19 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 }
 
 void reseth(int level) {
-        int i, istart = level < 0 ? 1 : 0;
-        for (i = 0; i < 0x1000; i++) history[i] = 0LL;
-        for (i = istart; i < 127; i++) killer[i] = level <= 1 ? killer[i+level] : 0;
-        for (i = istart; i < 127; i++) pv[0][i] = level <= 1 ? pv[0][i+level] : 0;
-        pvlength[0] = level <= 1 && pvlength[0] - level > 0 ? pvlength[0] - level : 0;
-
-	memset(hashDB, 0, sizeof(hashDB)); // Until depth decrementing tables
-        if (level >= 2) pvlength[0] = pv[0][0] = 0;
-	if (level == 3) memset(hashDP, 0, sizeof(hashDP));
+	int i, istart = level < 0 ? 1 : 0;
+	for (i = 0; i < 0x1000; i++) history[i] = 0LL;
+	for (i = istart; i < 127; i++) killer[i] = level <= 1 ? killer[i+level] : 0;
+	for (i = istart; i < 127; i++) pv[0][i] = level <= 1 ? pv[0][i+level] : 0;
+	pvlength[0] = level <= 1 && pvlength[0] - level > 0 ? pvlength[0] - level : 0;
+	if (level <= 1) return;
+	pvlength[0] = pv[0][0] = 0;
+	if (level < 3) return;
+	memset(hashDB, 0, sizeof(hashDB));
+	memset(hashDP, 0, sizeof(hashDP));
 }
 
-int execMove(Move m, int r) {
+int execMove(Move m) {
 	doMove(m, onmove);
 	onmove ^= 1; 
 	int i, c = onmove;
@@ -1395,7 +1399,7 @@ int execMove(Move m, int r) {
 		}
 	}
 	hstack[COUNT] = HASHP;
-	if (r) reseth(1);
+	reseth(1);
 	i = GENERATE(c);
 	if (pondering) return (movenum[0] == 0);
 	if (movenum[0] == 0) {
@@ -1459,22 +1463,22 @@ int parseMove(char *s, int c, Move p) {
 	return 0;
 }
 
-int parseMoveNExec(char *s, int c, Move *m, int r) {
+int parseMoveNExec(char *s, int c, Move *m) {
 	*m = parseMove(s, c, 0);
 	if (*m == -1) printf("UNKNOWN COMMAND: %s\n", s);
 	else if (*m == 0) fprintf(stderr,"Illegal move: %s\n",s);
-	else return execMove(*m, r);
+	else return execMove(*m);
 	return -1;
 }
 
 void undo() {
-        int cnt = COUNT - 1;
+	int cnt = COUNT - 1;
 	if (cnt < 0) return;
-        onmove ^= 1;
-        Move m = mstack[cnt] >> 27L;
-        undoMove(m, onmove);
-        reseth(-1);
-        pv[0][0] = m;
+	onmove ^= 1;
+	Move m = mstack[cnt] >> 27L;
+	undoMove(m, onmove);
+	reseth(-1);
+	pv[0][0] = m;
 }
 
 int ttime = 30000, mps = 0, inc = 0, post = 1, st = 0; char base[16];
@@ -1542,14 +1546,14 @@ int calc(int sd, int tm) {
 		lastw = w;
 	}
 
-	return execMove(pv[0][0], 1);
+	return execMove(pv[0][0]);
 }
 
 int doponder(int c) {
 	pon = retPVMove(c, 0);
 	if (pon) {
 		pondering = 1;
-		if (execMove(pon, 1)) {
+		if (execMove(pon)) {
 			pondering = 0;
 			undo();
 			pon = 0;
@@ -1628,7 +1632,7 @@ int input(int c) {
 		if (irbuf[0]) strcpy(buf,irbuf); else fgets(buf,255,stdin);
 		irbuf[0] = 0;
 		ex = protV2(buf, 1);	
-		if (ex == -1) return parseMoveNExec(buf, c, &m, 1);
+		if (ex == -1) return parseMoveNExec(buf, c, &m);
 		return ex;
 }
 
