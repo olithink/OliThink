@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 05.Jul.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 08.Jul.2020, ob112@web.de, http://brausch.org
 
-Version: 5.5.0
+Version: 5.5.1
 Protocol: Winboard 2
 HashSize: 96MB
 Ponder: Yes
@@ -9,9 +9,12 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1699
+LinesOfCode: 1702
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution!
+
+v5.5.1: changes since 5.5.0:
+Substantial changes in pawn evaluation. Fix value bug on seach abort.
 
 v5.5.0: changes since 5.4.13a:
 Refactor time management.

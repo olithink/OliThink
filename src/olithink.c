@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 05.Jul.2020, ob112@web.de, http://brausch.org */
-#define VER "5.5.0"
+/* OliThink5 (c) Oliver Brausch 08.Jul.2020, ob112@web.de, http://brausch.org */
+#define VER "5.5.1"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -1044,13 +1044,16 @@ int evalc(int c, int* sf) {
 		}
 		if (m) ppos += 8; else ppos -= 8;
 		/* The only non-mobility eval is the detection of free pawns/hanging pawns */
-		if (!(pawnfile[t] & pieceb[PAWN] & ocb)) { //Free file?
-			if (!(pawnfree[t] & pieceb[PAWN] & ocb)) ppos *= 2; //Free run?
-			if (!(pawnhelp[t] & pieceb[PAWN] & colorb[c])) ppos -= 33; //Hanging backpawn?
-		}
+		int openfile = !(pawnfile[t] & pieceb[PAWN] & ocb);
+		if (openfile && !(pawnfree[t] & pieceb[PAWN] & ocb)) ppos <<= 1; //Free run?
+
+		if (!(pawnhelp[t] & pieceb[PAWN] & colorb[c])) { // No support
+			a = ((BATT3(f) | BATT4(f)) & BQU) | ((RATT1(f) | RATT2(f)) & RQU);
+			a |= (nmoves[f] & pieceb[KNIGHT]) | (kmoves[f] & pieceb[KING]);
+			ppos -= (_bitcnt(a & ocb) + (openfile ? 2 : 1)) << 4; // Open file
+		}	
 
 		mn += ppos;
-
 	}
 
 	cb = colorb[c] & (~pin);
@@ -1250,7 +1253,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		if (bioskey()) sabort = inputSearch();
 		if (!pondering && getTime() - starttime > maxtime) sabort = 1;
 	}
-	if (sabort) return 0;
+	if (sabort) return alpha;
 
 	hp = HASHP;
 	if (ply && isDraw(hp, 1)) return 0;
@@ -1347,7 +1350,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 			if (w > alpha && w < beta && pvnode) w = -search(nch, c^1, d-1+ext, ply+1, -beta, -alpha, 1, 1);
 		}
 		undoMove(m, c);
-		if (sabort) return 0;
+		if (sabort) return alpha;
 
 		if (w > alpha) {
 			hashDP[hp & HMASKP] = (hp & HINVP) | m;
@@ -1372,7 +1375,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		if (first == 1) first = 0;
 	    }
 	}
-	if (sabort) return 0;
+	if (sabort) return alpha;
 	if (first == 1) return ch ? -MAXSCORE+ply : 0;
 	else if (!first) hashDB[hb & HMASKB] = (hb & HINVB) | 0x10000 | (alpha + MAXSCORE);
 	return alpha;
