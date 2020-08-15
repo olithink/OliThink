@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 18.Jan.2008, ob112@web.de, http://home.arcor.de/dreamlike */
-#define VER "5.0.7"
+/* OliThink5 (c) Oliver Brausch 25.Jan.2008, ob112@web.de, http://home.arcor.de/dreamlike */
+#define VER "5.0.8"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <string.h>
@@ -25,9 +25,10 @@ typedef int Move;
 #define ROOK 6
 #define QUEEN 7
 
+#define CNODES 0xFFFF
 #define HEUR 9900000
-const int capval[] = {0, HEUR+2, HEUR+3, 0, HEUR+2, HEUR+3, HEUR+4, HEUR+5};
 const int pval[] = {0, 100, 300, 0, 100, 300, 500, 950};
+const int capval[] = {0, HEUR+1, HEUR+2, 0, HEUR+1, HEUR+2, HEUR+3, HEUR+4};
 
 #define FROM(x) ((x) & 63)
 #define TO(x) (((x) >> 6) & 63)
@@ -43,23 +44,23 @@ const int pval[] = {0, 100, 300, 0, 100, 300, 500, 950};
 #define _CAP(x) ((x) << 19)
 #define PREMOVE(f, p) ((f) | _ONMV(c) | _PIECE(p))
 
-#define RATT1(f) rays[((f) << 7) | key000(board, f)]
-#define RATT2(f) rays[((f) << 7) | key090(board, f) | 0x2000]
-#define BATT3(f) rays[((f) << 7) | key045(board, f) | 0x4000]
-#define BATT4(f) rays[((f) << 7) | key135(board, f) | 0x6000]
-#define RXRAY1(f) rays[((f) << 7) | key000(board, f) | 0x8000]
-#define RXRAY2(f) rays[((f) << 7) | key090(board, f) | 0xA000]
-#define BXRAY3(f) rays[((f) << 7) | key045(board, f) | 0xC000]
-#define BXRAY4(f) rays[((f) << 7) | key135(board, f) | 0xE000]
+#define RATT1(f) rays[((f) << 7) | key000(BOARD, f)]
+#define RATT2(f) rays[((f) << 7) | key090(BOARD, f) | 0x2000]
+#define BATT3(f) rays[((f) << 7) | key045(BOARD, f) | 0x4000]
+#define BATT4(f) rays[((f) << 7) | key135(BOARD, f) | 0x6000]
+#define RXRAY1(f) rays[((f) << 7) | key000(BOARD, f) | 0x8000]
+#define RXRAY2(f) rays[((f) << 7) | key090(BOARD, f) | 0xA000]
+#define BXRAY3(f) rays[((f) << 7) | key045(BOARD, f) | 0xC000]
+#define BXRAY4(f) rays[((f) << 7) | key135(BOARD, f) | 0xE000]
 
-#define ROCC1(f) (RATT1(f) & board)
-#define ROCC2(f) (RATT2(f) & board)
-#define BOCC3(f) (BATT3(f) & board)
-#define BOCC4(f) (BATT4(f) & board)
-#define RMOVE1(f) (RATT1(f) & (~board))
-#define RMOVE2(f) (RATT2(f) & (~board))
-#define BMOVE3(f) (BATT3(f) & (~board))
-#define BMOVE4(f) (BATT4(f) & (~board))
+#define ROCC1(f) (RATT1(f) & BOARD)
+#define ROCC2(f) (RATT2(f) & BOARD)
+#define BOCC3(f) (BATT3(f) & BOARD)
+#define BOCC4(f) (BATT4(f) & BOARD)
+#define RMOVE1(f) (RATT1(f) & (~BOARD))
+#define RMOVE2(f) (RATT2(f) & (~BOARD))
+#define BMOVE3(f) (BATT3(f) & (~BOARD))
+#define BMOVE4(f) (BATT4(f) & (~BOARD))
 #define RCAP1(f, c) (RATT1(f) & colorb[(c)^1])
 #define RCAP2(f, c) (RATT2(f) & colorb[(c)^1])
 #define BCAP3(f, c) (BATT3(f) & colorb[(c)^1])
@@ -71,16 +72,16 @@ const int pval[] = {0, 100, 300, 0, 100, 300, 500, 950};
 #define RCAP(f, c) (ROCC(f) & colorb[(c)^1])
 #define BCAP(f, c) (BOCC(f) & colorb[(c)^1])
 
-#define SHORTMOVE(x) ((x) & ((x)^board))
-#define SHORTOCC(x) ((x) & board)
+#define SHORTMOVE(x) ((x) & ((x)^BOARD))
+#define SHORTOCC(x) ((x) & BOARD)
 #define SHORTCAP(x, c) ((x) & colorb[(c)^1])
 
 #define NMOVE(x) (SHORTMOVE(nmoves[x]))
 #define KMOVE(x) (SHORTMOVE(kmoves[x]))
-#define PMOVE(x, c) (pmoves[(x) | ((c)<<6)] & (~board))
+#define PMOVE(x, c) (pmoves[(x) | ((c)<<6)] & (~BOARD))
 #define NOCC(x) (SHORTOCC(nmoves[x]))
 #define KOCC(x) (SHORTOCC(kmoves[x]))
-#define POCC(x, c) (pcaps[(x) | ((c)<<6)] & board)
+#define POCC(x, c) (pcaps[(x) | ((c)<<6)] & BOARD)
 #define NCAP(x, c) (SHORTCAP(nmoves[x], (c)))
 #define KCAP(x, c) (SHORTCAP(kmoves[x], (c)))
 #define PCAP(x, c) (pcaps[(x) | ((c)<<6)] & colorb[(c)^1])
@@ -109,12 +110,6 @@ static u64 pmoves[128];
 static u64 pcaps[384];
 static u64 nmoves[64];
 static u64 kmoves[64];
-int count;
-int flags;
-int mat;
-u64 pieceb[8];
-u64 colorb[2];
-u64 board;
 static int _knight[8] = {-17,-10,6,15,17,10,-6,-15};
 static int _king[8] = {-9,-1,7,8,9,1,-7,-8};
 static u64 BIT[64];
@@ -123,8 +118,6 @@ static char BITC[0x10000] ;
 static int crevoke[64];
 static int nmobil[64];
 static int kmobil[64];
-int onmove;
-int kingpos[2];
 Move movelist[64*256];
 int movenum[64];
 Move pv[64][64];
@@ -134,14 +127,23 @@ u64 searchtime;
 u64 maxtime;
 u64 starttime;
 int sabort;
-#define CNODES 0xFFFF
+int count;
+int flags;
+int mat;
+int onmove;
+int kingpos[2];
+u64 pieceb[8];
+u64 colorb[2];
+#define BOARD (colorb[0] | colorb[1])
+#define RQU (pieceb[QUEEN] | pieceb[ROOK])
+#define BQU (pieceb[QUEEN] | pieceb[BISHOP])
 
-void setBit(int f, u64 *board) {
-	*board |= BIT[f];
+void setBit(int f, u64 *b) {
+	*b |= BIT[f];
 }
 
-void xorBit(int f, u64 *board) {
-	*board ^= BIT[f];
+void xorBit(int f, u64 *b) {
+	*b ^= BIT[f];
 }
 
 u64 getLowestBit(u64 bb) {
@@ -151,9 +153,7 @@ u64 getLowestBit(u64 bb) {
 void _parse_fen(char *fen) {
 	char c, mv, pos[128], cas[5], enps[3];
 	int i, j = 0, halfm = 0, fullm = 1, col = 0, row = 7;
-	for (i = 0; i < 8; i++) {
-		pieceb[i] = 0LL;
-	}
+	for (i = 0; i < 8; i++) pieceb[i] = 0LL;
 	colorb[0] = colorb[1] = hashb = 0LL;
 	mat = 0;
 	sscanf(fen, "%s %c %s %s %d %d", pos, &mv, cas, enps, &halfm, &fullm);
@@ -189,10 +189,7 @@ void _parse_fen(char *fen) {
 		if (c == 'Q') flags |= BIT[8];
 		if (c == 'q') flags |= BIT[9];
 	}
-	if (enps[0] != '-') {
-		flags |= 8*(enps[1] - '1') + enps[0] - 'a'; 
-	}
-	board = colorb[0] | colorb[1];
+	if (enps[0] != '-') flags |= 8*(enps[1] - '1') + enps[0] - 'a'; 
 	count = (fullm - 1)*2 + onmove + (halfm << 11);
 	for (i = 0; i < COUNT; i++) hstack[i] = 0LL;
 }
@@ -241,26 +238,26 @@ char _slow_lsb(u64 bm) {
 	return (char)k;
 }
 
-int pullLsb(u64* bit) {
-	int f = getLsb(*bit);
+char pullLsb(u64* bit) {
+	char f = getLsb(*bit);
 	*bit ^= BIT[f];
 	return f;
 }
 
-int _bitcnt(u64 bit) {
-	int c = 0;
+char _bitcnt(u64 bit) {
+	char c = 0;
 	while (bit) { bit &= (bit - 1); c++; }
 	return c;
 }
 
-int bitcnt (u64 n) {    
+char bitcnt (u64 n) {    
      return BITC[n         & 0xFFFF]
          +  BITC[(n >> 16) & 0xFFFF]
          +  BITC[(n >> 32) & 0xFFFF]
          +  BITC[(n >> 48) & 0xFFFF];
 }
 
-int identPiece(int f) {
+char identPiece(int f) {
 	if (TEST(f, pieceb[PAWN])) return PAWN;
 	if (TEST(f, pieceb[KNIGHT])) return KNIGHT;
 	if (TEST(f, pieceb[BISHOP])) return BISHOP;
@@ -313,9 +310,6 @@ int key135(u64 b, int f) {
 }
 
 #define DUALATT(x, y, c) (battacked(x, c) || battacked(y, c))
-#define RQU (pieceb[ROOK] | pieceb[QUEEN])
-#define BQU (pieceb[BISHOP] | pieceb[QUEEN])
-
 int battacked(int f, int c) {
 	if (PCAP(f, c) & pieceb[PAWN]) return 1;
 	if (NCAP(f, c) & pieceb[KNIGHT]) return 1;
@@ -434,7 +428,6 @@ u64 _bishop135(int f, u64 board, int t) {
 	return (t < 2) ? free : (t == 2 ? occ : xray);
 }
 
-
 void displaym(Move m) {
 	printf("%c%c%c%c", 'a' + FROM(m) % 8, '1' + FROM(m) / 8,
 		'a' + TO(m) % 8, '1' + TO(m) / 8);
@@ -467,9 +460,7 @@ int bioskey() {
       }
     }
     if (pipe) {
-      if (!PeekNamedPipe(inh, NULL, 0, NULL, &dw, NULL)) {
-        return 1;
-      }
+      if (!PeekNamedPipe(inh, NULL, 0, NULL, &dw, NULL)) return 1;
       return dw;
     } else {
       GetNumberOfConsoleInputEvents(inh, &dw);
@@ -477,8 +468,6 @@ int bioskey() {
 	}
 #endif
 }
-
-
 
 void displaypv() {
 	int i;
@@ -577,7 +566,6 @@ void doMove(Move m, int c) {
 	} else if (p == ROOK && CASTLE) {
 		flags &= crevoke[f];
 	}
-	board = colorb[0] | colorb[1];
 }
 
 void registerCaps(Move m, u64 bc, int* mlist, int* mn) {
@@ -631,9 +619,9 @@ void registerKing(Move m, u64 bc, u64 bm, int* mlist, int* mn, int c) {
 int generateCheckEsc(u64 ch, u64 apin, int c, int k, int *ml, int *mn) {
 	u64 cc, fl;
 	int d, bf = _bitcnt(ch);
-	board ^= BIT[k];
+	xorBit(k, colorb+c);
 	registerKing(PREMOVE(k, KING), KCAP(k, c), KMOVE(k), ml, mn, c);
-	board ^= BIT[k];
+	xorBit(k, colorb+c);
 	if (bf > 1) return bf; //Doublecheck
 	bf = getLsb(ch);
 
@@ -678,7 +666,7 @@ int generateCheckEsc(u64 ch, u64 apin, int c, int k, int *ml, int *mn) {
 			else
 				registerMoves(PREMOVE(bf, PAWN), 0LL, BIT[f], ml, mn);
 		}
-		if (RANK(f, c ? 0x20 : 0x18) && (board & BIT[bf]) == 0 && (BIT[c ? f+16 : f-16] & pieceb[PAWN] & colorb[c] & apin))
+		if (RANK(f, c ? 0x20 : 0x18) && (BOARD & BIT[bf]) == 0 && (BIT[c ? f+16 : f-16] & pieceb[PAWN] & colorb[c] & apin))
 			registerMoves(PREMOVE(c ? f+16 : f-16, PAWN), 0LL, BIT[f], ml, mn);
 	}
 	return 1;
@@ -709,12 +697,12 @@ int generateMoves(u64 ch, int c, int ply) {
 			if (ENPASS && (BIT[ENPASS] & pcaps[(f) | ((c)<<6)])) {
 				u64 hh;
 				int clbd = ENPASS^8;
-				board ^= BIT[clbd];
+				xorBit(clbd, colorb+c);
 				hh = ROCC1(f);
 				if (!(hh & BIT[kingpos[c]]) || !(hh & colorb[c^1] & RQU)) {
 					a = a | BIT[ENPASS];
 				}
-				board ^= BIT[clbd];
+				xorBit(clbd, colorb+c);
 			}
 			registerMoves(PREMOVE(f, PAWN), a, m, ml, mn);
 		}
@@ -821,12 +809,12 @@ int generateCaps(u64 ch, int c, int ply) {
 			if (ENPASS && (BIT[ENPASS] & pcaps[(f) | ((c)<<6)])) {
 				u64 hh;
 				int clbd = ENPASS^8;
-				board ^= BIT[clbd];
+				xorBit(clbd, colorb+c);
 				hh = ROCC1(f);
 				if (!(hh & BIT[kingpos[c]]) || !(hh & colorb[c^1] & RQU)) {
 					a = a | BIT[ENPASS];
 				}
-				board ^= BIT[clbd];
+				xorBit(clbd, colorb+c);
 			}
 			registerCaps(PREMOVE(f, PAWN), a, ml, mn);
 		}
@@ -884,6 +872,20 @@ int generateCaps(u64 ch, int c, int ply) {
 	return 0;
 }
 
+int identColor(int f) {
+	if (TEST(f, colorb[1])) return 1;
+	return 0;
+}
+
+void displayb() {
+	int i, j;
+	for (i = 0; i < 8; i++) {
+		for (j = 0; j < 8; j++) {
+			int f = j + (7-i)*8;
+			printf(" %c", pieceChar[identPiece(f)] + identColor(f)*32);
+		} printf("\n");
+	} printf("\n");
+}
 /* In quiesce the moves are ordered just for the value of the captured piece */
 Move qpick(Move* ml, int mn, int s) {
 	Move m;
@@ -928,25 +930,27 @@ Move spick(Move* ml, int mn, int s, int ply) {
 	return m;
 }
 
-int eval1 = 0;
 /* The evulation for Color c. It's just mobility stuff. Pinned pieces are still awarded for limiting opposite's king */
 int evalc(int c, int* sf) {
 	int t, f;
 	int mn = 0;
+	int oc = c^1;
+	u64 ocb = colorb[oc];
 	u64 m, b, a, cb = colorb[c];
-	u64 kn = kmoves[kingpos[c^1]];
-	u64 pin = pinnedPieces(kingpos[c], c^1);
-	eval1++;
+	u64 kn = kmoves[kingpos[oc]];
+	u64 pin = pinnedPieces(kingpos[c], oc);
 
 	b = pieceb[PAWN] & colorb[c];
 	while (b) {
 		f = pullLsb(&b);
-		mn += (c ? 56 - (f & 56) : (f & 56));
+		mn += (c ? 56 - (f & 56) : (f & 56)) - 8;
 		m = PMOVE(f, c);
 		a = POCC(f, c);
 		if (a & kn) mn += _bitcnt(a & kn) << 4;
 		if (BIT[f] & pin) {
 			if (!(getDir(f, kingpos[c]) & 16)) m = 0;
+		} else {
+			mn += _bitcnt(a & pieceb[PAWN] & colorb[c]) << 2;
 		}
 		if (m) mn += 8;
 	}
@@ -956,36 +960,20 @@ int evalc(int c, int* sf) {
 	while (b) {
 		*sf += 1;
 		f = pullLsb(&b);
-		a = NOCC(f) | NMOVE(f);
+		a = nmoves[f];
 		if (a & kn) mn += _bitcnt(a & kn) << 4;
-		mn += bitcnt(a) << 3;
+		mn += nmobil[f];
 	}
 
 	b = pieceb[KNIGHT] & pin;
 	while (b) {
 		*sf += 1;
 		f = pullLsb(&b);
-		a = NOCC(f) | NMOVE(f);
+		a = nmoves[f];
 		if (a & kn) mn += _bitcnt(a & kn) << 4;
 	}
 
-	b = pieceb[BISHOP] & cb;
-	while (b) {
-		*sf += 1;
-		f = pullLsb(&b);
-		a = BATT3(f) | BATT4(f);
-		if (a & kn) mn += _bitcnt(a & kn) << 4;
-		mn += bitcnt(a) << 3;
-	}
-
-	b = pieceb[ROOK] & cb;
-	while (b) {
-		*sf += 2;
-		f = pullLsb(&b);
-		a = RATT1(f) | RATT2(f);
-		if (a & kn) mn += _bitcnt(a & kn) << 4;
-		mn += bitcnt(a) << 1;
-	}
+	xorBit(kingpos[oc], colorb+oc); //Opposite King doesn't block mobility at all
 
 	b = pieceb[QUEEN] & cb;
 	while (b) {
@@ -996,8 +984,32 @@ int evalc(int c, int* sf) {
 		mn += bitcnt(a);
 	}
 
-	b = pin & (pieceb[ROOK] | pieceb[BISHOP] | pieceb[QUEEN]); 
+	colorb[oc] ^= RQU & ocb; //Opposite Queen & Rook doesn't block mobility for bishop
 
+	b = pieceb[BISHOP] & cb;
+	while (b) {
+		*sf += 1;
+		f = pullLsb(&b);
+		a = BATT3(f) | BATT4(f);
+		if (a & kn) mn += _bitcnt(a & kn) << 4;
+		mn += bitcnt(a) << 3;
+	}
+
+	colorb[oc] ^= pieceb[ROOK] & ocb; //Opposite Queen  doesn't block mobility for rook.
+	colorb[c] ^= pieceb[ROOK] & cb; //Own non-pinned Rooks doesn't block mobility for rook.
+
+	b = pieceb[ROOK] & cb;
+	while (b) {
+		*sf += 2;
+		f = pullLsb(&b);
+		a = RATT1(f) | RATT2(f);
+		if (a & kn) mn += _bitcnt(a & kn) << 4;
+		mn += bitcnt(a) << 2;
+	}
+
+	colorb[c] ^= pieceb[ROOK] & cb; // Back
+
+	b = pin & (pieceb[ROOK] | pieceb[BISHOP] | pieceb[QUEEN]); 
 	while (b) {
 		int p;
 		f = pullLsb(&b);
@@ -1021,13 +1033,18 @@ int evalc(int c, int* sf) {
 		if ((t & 33) == 33) mn += _bitcnt(BATT3(f));
 		if ((t & 65) == 65) mn += _bitcnt(BATT4(f));
 	}
+
+	colorb[oc] ^= pieceb[QUEEN] & ocb; //Back
+	xorBit(kingpos[oc], colorb+oc); //Back
 	return mn;
 }
 
+int eval1 = 0;
 int eval(int c) {
 	int sf0 = 0, sf1 = 0;
 	int ev0 = evalc(0, &sf0);
 	int ev1 = evalc(1, &sf1);
+	eval1++;
 	if (sf1 < 5) ev0 += kmobil[kingpos[0]];
 	else if (sf1 > 5) ev0 -= kmobil[kingpos[0]];
 	if (sf0 < 5) ev1 += kmobil[kingpos[1]];
@@ -1046,7 +1063,7 @@ int quiesce(int c, int ply, int alpha, int beta) {
 	int matstore = mat;
 	int cmat = c ? -mat: mat;
 	u64 ch = attacked(kingpos[c], c);
-	if (!ch) for (;;) {
+	if (!ch) do {
 		if (cmat + 250 < alpha) break;
 		if (cmat - 250 >= beta) return beta;
 		w = eval(c) + cmat;
@@ -1054,8 +1071,7 @@ int quiesce(int c, int ply, int alpha, int beta) {
 			if (w >= beta) return beta;
 			alpha = w;
 		}
-		break;
-	}
+	} while(0);
 
 	generateCaps(ch, c, ply);
 	if (movenum[ply] == 0) return ch ? -32000 + ply : (w == -99999 ? eval(c) + cmat : w);
@@ -1081,7 +1097,7 @@ int quiesce(int c, int ply, int alpha, int beta) {
 	return alpha;
 }
 
-int search(int c, int d, int ply, int alpha, int beta) {
+int search(int c, int d, int ply, int alpha, int beta, int null) {
 	int i, j, n, w, poff, asave;
 	int flagstore = flags;
 	int countstore = count;
@@ -1106,6 +1122,7 @@ int search(int c, int d, int ply, int alpha, int beta) {
 	if (!((he^hb) & HINV)) {
 		w = (u32)(he & 0xFFFF) - 32768;
 		if (he & 0x10000) {
+			null = 0;
 			if (w <= alpha) return alpha;
 		} else {
 			if (w >= beta) return beta;
@@ -1120,6 +1137,19 @@ int search(int c, int d, int ply, int alpha, int beta) {
 
 	ch = attacked(kingpos[c], c);
 	if (ch) d++; // Check Extension. The only extension at all.
+
+	if (!ch && null && d>1 && bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1))) > 2) {
+		flags &= 960;
+		count += 0x801;
+		w = -search(c^1, d/2-1, ply+1, -beta, -beta + 1, 0);
+		flags = flagstore;
+		count = countstore;
+		if (w >= beta) {
+			hashDB[hb & HMASK] = (hb & HINV) | (w + 32768); 
+			return beta;
+		}
+	}
+
 	poff = ply << 8;
 	n = i = -1;
 	asave = alpha;
@@ -1139,7 +1169,7 @@ int search(int c, int d, int ply, int alpha, int beta) {
 			if (hsave && m == hsave) continue;
 		}
 		doMove(m, c);
-		w = -search(c^1, d-1, ply+1, -beta, -alpha);
+		w = -search(c^1, d-1, ply+1, -beta, -alpha, 1);
 		doMove(m, c);
 		flags = flagstore;
 		count = countstore;
@@ -1156,7 +1186,6 @@ int search(int c, int d, int ply, int alpha, int beta) {
 				hashDB[hb & HMASK] = (hb & HINV) | (w + 32768); 
 				return beta;
 			}
-
 			pv[ply][ply] = m;
 			for (j = ply +1; j < pvlength[ply +1]; j++) pv[ply][j] = pv[ply +1][j];
 			pvlength[ply] = pvlength[ply +1];			
@@ -1194,7 +1223,7 @@ int execMove(Move m) {
 
 int engine = -1;
 int sd = 32;
-int ttime = 30000;
+int ttime = 300000;
 int ponder = 0;
 int post = 1;
 char *sfen = "rnbqkbnr/pppppppp/////PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -1204,30 +1233,30 @@ int calc(int sd, int tm, int pon) {
 		Move ms = pv[0][0];
 		eval1 = sabort = 0;
 		qnodes = nodes = 0LL;
-		if (pon) tm = 999999999;
+		if (pon) tm = 99999999;
 		maxtime = (tm * 10LL) / 5;
 		searchtime = (tm * 10LL) / 40;
 		starttime = getTime();
 		for (i = 1; i <= sd; i++) {
-			w = search(onmove, i, 0, alpha, beta);
+			w = search(onmove, i, 0, alpha, beta, 0);
 			if (sabort) w = ws;
-			if (w >= beta) { w = search(onmove, i, 0, beta-1, 32000); }
-			if (w <= alpha) { w = search(onmove, i, 0, -32000, alpha+1); }
+			if (w >= beta) { w = search(onmove, i, 0, beta-1, 32000, 0); }
+			if (w <= alpha) { w = search(onmove, i, 0, -32000, alpha+1, 0); }
+			t1 = (int)(getTime() - starttime);
 			if (post) { 
-				printf("%2d %5d %6llu %9llu  ", i, w, (getTime() - starttime)/10, nodes);
+				printf("%2d %5d %6d %9llu  ", i, w, t1/10, nodes + qnodes);
 				displaypv(); printf("\n"); 
 			}
 			ws = w; ms = pv[0][0];
-			if (i >= 32000-w || sabort) break;
+			if (i >= 32000-w || sabort || t1 > searchtime/2) break;
 			alpha = w - 60;
 			beta = w + 60;
 		}
 		if (pon) return -1;
-		t1 = (int)(getTime() - starttime + 1);
 		printf("%d. ... ", COUNT/2 + 1);
 		displaym(ms); printf("\n");
 
-		if (post) printf("\nkib Nodes: %llu QNodes: %llu Evals: %d cs: %d knps: %llu\n", nodes, qnodes, eval1, t1/10, (nodes+qnodes)/t1);
+		if (post) printf("\nkib Nodes: %llu QNodes: %llu Evals: %d cs: %d knps: %llu\n", nodes, qnodes, eval1, t1/10, (nodes+qnodes)/(t1+1));
 		return execMove(ms);
 }
 
@@ -1243,7 +1272,6 @@ int input() {
 		if (!strncmp(buf,"setboard",8)) _parse_fen(buf+9);
 		if (!strncmp(buf,"sd",2)) sscanf(buf+3,"%d",&sd);
 		if (!strncmp(buf,"time",4)) sscanf(buf+5,"%d",&ttime);
-		if (!strncmp(buf,"otim",4)) ;
 		if (!strncmp(buf,"hard",4)) { ponder = 1; return 0; }
 		if (!strncmp(buf,"easy",4)) ponder = 0;
 		if (!strncmp(buf,"post",4)) post = 1;
@@ -1272,8 +1300,12 @@ int main(int argc, char **argv)
 	int i, ex = -1;
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
-//	if (argc > 1) sscanf(argv[1], "%d", &sd);
-//	if (argc > 2) sfen = argv[2];
+	if (argc > 1 && !strncmp(argv[1],"-sd",3)) {
+		if (argc > 2) {
+			sscanf(argv[2], "%d", &sd);
+			if (argc > 3) sfen = argv[3];
+		}
+	}
 	for (i = 0; i < 0x10000; i++) LSB[i] = _slow_lsb(i);
 	for (i = 0; i < 0x10000; i++) BITC[i] = _bitcnt(i);
 	for (i = 0; i < 4096; i++) hashxor[i] = _rand_64();
@@ -1299,8 +1331,8 @@ int main(int argc, char **argv)
 	_init_pawns(pmoves, pcaps, 0);
 	_init_pawns(pmoves + 64, pcaps + 64, 1);
 	_parse_fen(sfen);
-	for (i = 0; i < 64; i++) nmobil[i] = bitcnt(NOCC(i) | NMOVE(i))*6;
-	for (i = 0; i < 64; i++) kmobil[i] = (bitcnt(NOCC(i) | NMOVE(i))/2)*4;
+	for (i = 0; i < 64; i++) nmobil[i] = bitcnt(nmoves[i]) << 3;
+	for (i = 0; i < 64; i++) kmobil[i] = (bitcnt(nmoves[i])/2)*4;
 	for (;;) {
 		if (engine == onmove) ex = calc(sd, ttime, 0);
 		else if (ex == 0 && ponder && engine != -1) ex = calc(sd, ttime, 1);
