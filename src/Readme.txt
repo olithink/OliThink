@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 08.Jul.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 10.Jul.2020, ob112@web.de, http://brausch.org
 
-Version: 5.5.1
+Version: 5.5.2
 Protocol: Winboard 2
 HashSize: 96MB
 Ponder: Yes
@@ -9,9 +9,12 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1702
+LinesOfCode: 1721
 Stability: 100%
-Special thanks to Dann Corbit for his support and contribution!
+Special thanks to Dann Corbit for his support and contribution.
+
+v5.5.2: changes since 5.5.1:
+Extend Queen Promotions, don't reduce any promotion. Win NBK vs k.
 
 v5.5.1: changes since 5.5.0:
 Substantial changes in pawn evaluation. Fix value bug on seach abort.

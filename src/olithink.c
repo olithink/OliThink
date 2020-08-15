@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 08.Jul.2020, ob112@web.de, http://brausch.org */
-#define VER "5.5.1"
+/* OliThink5 (c) Oliver Brausch 10.Jul.2020, ob112@web.de, http://brausch.org */
+#define VER "5.5.2"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -122,7 +122,7 @@ static int _knight[8] = {-17,-10,6,15,17,10,-6,-15};
 static int _king[8] = {-9,-1,7,8,9,1,-7,-8};
 static u64 BIT[64];
 static char LSB[0x10000];
-static char BITC[0x10000] ;      
+static char BITC[0x10000];      
 static int crevoke[64];
 static int nmobil[64];
 static int kmobil[64];
@@ -130,6 +130,10 @@ static int pawnprg[128];
 static u64 pawnfree[128];
 static u64 pawnfile[128];
 static u64 pawnhelp[128];
+static int cornbase[] = {4, 4, 2, 1, 0, 0 ,0};
+static int bishcorn[64];
+u64 whitesq;
+
 Move movelist[128*256];
 int movenum[128];
 Move pv[128][128];
@@ -1150,6 +1154,17 @@ int evalc(int c, int* sf) {
 	return mn + katt;
 }
 
+int kmobilf(int sf, int c, int sfi) {
+	if (sf >= 12) return 0;
+	int km = kmobil[kingpos[c]];
+	u64 b = pieceb[BISHOP] & colorb[c^1];
+	if (_bitcnt(b) == 1 && !pieceb[PAWN]) { // BNK_vs_k
+		int bc = sf == 5 && sfi == 0 ? bishcorn[kingpos[c]] << 2 : bishcorn[kingpos[c]] / 2;
+		if (b & whitesq) km += bc; else km -= bc; 
+	}
+	return km * (12- (sf > 4 ? sf : 4));
+}
+
 int eval1 = 0;
 int eval(int c, int matrl) {
 	int sf0 = 0, sf1 = 0;
@@ -1157,8 +1172,8 @@ int eval(int c, int matrl) {
 	int ev1 = evalc(1, &sf1);
 	eval1++;
 
-	if (sf1 < 12) ev0 += kmobil[kingpos[0]]*(12-(sf1 > 4 ? sf1 : 4));
-	if (sf0 < 12) ev1 += kmobil[kingpos[1]]*(12-(sf0 > 4 ? sf0 : 4));
+	ev0 += kmobilf(sf1, 0, sf0);
+	ev1 += kmobilf(sf0, 1, sf1);
 
 	if ((matrl < 0 && NOMATEMAT(sf1, sf0, 1)) || (matrl > 0 && NOMATEMAT(sf0, sf1, 0)))
 		matrl = 0;
@@ -1329,9 +1344,9 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		doMove(m, c);
 		nch = attacked(kingpos[c^1], c^1);
 		if (nch) ext++; // Check Extension
-		else if (n == 2 && !pvnode && d >= 2 && !ch && swap(m) < 0) ext--; //Reduce bad exchanges
+		else if (n == 2 && !pvnode && d >= 2 && !ch && !PROM(m) && swap(m) < 0) ext--; //Reduce bad exchanges
 		else if (n == 3 && !pvnode) { //LMR
-			if (m == killer[ply]); //Don't reduce killers
+			if (m == killer[ply] || PROM(m)); //Don't reduce killers or promotions
 			else if (PIECE(m) == PAWN && !(pawnfree[TO(m) + (c << 6)] & pieceb[PAWN] & colorb[c^1])); //Don't reduce free pawns
 			else {
 				u32 his = history[m & 0xFFF];
@@ -1341,6 +1356,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 				else if (i > 14) { undoMove(m, c); continue; } // Move count pruning
 			}
 	        }
+		if (PROM(m) == QUEEN) ext++;
 
 		if (first == 1 && pvnode) {
 			w = -search(nch, c^1, d-1+ext, ply+1, -beta, -alpha, 1, 1);
@@ -1659,6 +1675,7 @@ int main(int argc, char **argv)
 	for (i = 0; i < 64; i++) bmask135[i] = _bishop135(i, 0LL, 0) | BIT[i];
 	for (i = 0; i < 64; i++) crevoke[i] = 0x3FF;
 	for (i = 0; i < 64; i++) kmoves[i] = nmoves[i] = 0LL;
+	for (i = 0; i < 64; i++) if ((i/8)%2 != (i&7)%2) whitesq |= BIT[i];
 	crevoke[7] ^= BIT[6];
 	crevoke[63] ^= BIT[7];
 	crevoke[0] ^= BIT[8];
@@ -1676,6 +1693,8 @@ int main(int argc, char **argv)
 
 	for (i = 0; i < 64; i++) nmobil[i] = (bitcnt(nmoves[i])-1)*6;
 	for (i = 0; i < 64; i++) kmobil[i] = (bitcnt(nmoves[i])/2);
+	for (i = 0; i < 32; i++) bishcorn[i] = bishcorn[63-i] = (i&7) < 4 ? cornbase[(i&7) + i/8] : -cornbase[7 - (i&7) + i/8];
+
 	if (argc > 1 && !strncmp(argv[1],"-sd",3)) {
 		ttime = 99999999;
 		if (argc > 2) {
