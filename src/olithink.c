@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 22.Jun.2020, ob112@web.de, http://brausch.org */
-#define VER "5.4.5"
+/* OliThink5 (c) Oliver Brausch 23.Jun.2020, ob112@web.de, http://brausch.org */
+#define VER "5.4.6"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -170,6 +170,8 @@ int _getpiece(char s, int *c) {
 	return 0;
 }
 
+char *sfen = "rnbqkbnr/pppppppp/////PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+void reseth(int level);
 int book;
 void _parse_fen(char *fen) {
 	char s, mv, pos[128], cas[5], enps[3];
@@ -204,12 +206,12 @@ void _parse_fen(char *fen) {
 	if (enps[0] >= 'a' && enps[0] <= 'h' && enps[1] >= '1' && enps[1] <= '8') flags |= 8*(enps[1] - '1') + enps[0] - 'a'; 
 	count = (fullm - 1)*2 + onmove + (halfm << 10);
 	for (i = 0; i < COUNT; i++) hstack[i] = 0LL;
+	reseth(fen == sfen ? 2 : 3);
 }
 
 int parseMoveNExec(char*, int, Move*);
 int parseMove(char*, int, Move);
 int protV2(char*);
-char *sfen = "rnbqkbnr/pppppppp/////PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 #define BKSIZE 8192
 Move bkmove[BKSIZE*32];
 int bkflag[BKSIZE];
@@ -260,8 +262,6 @@ void _readbook(char *bk) {
 	}
 	_parse_fen(sfen);
 	if (bkcount[0] > 0 || bkcount[1] > 0) book = 1;
-	engine = 1;
-	sd = 64;
 }
 
 #define LOW16(x) ((x) & 0xFFFF)
@@ -1047,10 +1047,10 @@ int evalc(int c, int* sf) {
 		/* The only non-mobility eval is the detection of free pawns/hanging pawns */
 		if (!(pawnfile[t] & pieceb[PAWN] & ocb)) { //Free file?
 			if (!(pawnfree[t] & pieceb[PAWN] & ocb)) ppos *= 2; //Free run?
-			if (!(pawnhelp[t] & pieceb[PAWN] & colorb[c])) ppos -= 33; //Hanging backpawn?
 		}
 
 		mn += ppos;
+
 	}
 
 	cb = colorb[c] & (~pin);
@@ -1377,6 +1377,19 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	return alpha;
 }
 
+void reseth(int level) {
+	int i;
+	for (i = 0; i < 0x1000; i++) history[i] = 0LL;
+	for (i = 0; i < 127; i++) killer[i] = level == 1 ? killer[i+1] : 0;
+	for (i = 0; i < 127; i++) pv[0][i] = level == 1 ? pv[0][i+1] : 0;
+	pvlength[0] = pvlength[0] > 0 ? pvlength[0] - 1 : 0;
+	if (level == 1) return;
+	pvlength[0] = pv[0][0] = 0;
+	if (level < 3) return;
+	for (i = 0; i < HSIZEB; i++) hashDB[i] = 0LL;
+	for (i = 0; i < HSIZEP; i++) hashDP[i] = 0LL;
+}
+
 int execMove(Move m) {
 	int i, c;
 	doMove(m, onmove);
@@ -1389,8 +1402,7 @@ int execMove(Move m) {
 		}
 	}
 	hstack[COUNT] = HASHP;
-	for (i = 0; i < 127; i++) killer[i] = killer[i+1];
-	for (i = 0; i < 0x1000; i++) history[i] = 0LL;
+	reseth(1);
 	i = GENERATE(c);
 	if (pondering) return (movenum[0] == 0);
 	if (movenum[0] == 0) {
@@ -1466,6 +1478,7 @@ void undo() {
 	int cnt = COUNT - 1;
 	onmove ^= 1; 
 	undoMove((mstack[cnt] >> 42L), onmove);
+	reseth(3);
 }
 
 int ttime = 30000, mps = 0, base = 5, inc = 0, post = 1, st = 0;
@@ -1482,10 +1495,10 @@ int calc(int sd, int tm) {
 	if (st > 0) maxtime = searchtime = st*1000LL;
 
 	starttime = getTime();
-	srand((u32)starttime);
 	if (book) {
 		if (!bkcount[onmove]) book = 0;
 		else {
+			srand((u32)starttime);
 			j = rand() % bkcount[onmove];
 			for (i = 0; i < BKSIZE; i++) {
 				if (bkflag[i] == onmove && j == t1++) { pv[0][0] = bkmove[i*32 + COUNT]; break; }
@@ -1498,7 +1511,7 @@ int calc(int sd, int tm) {
 		value[iter] = search(ch, onmove, iter, 0, -32000, 32000, 1, 0);
 		if (pvlength[0] == 0 && iter > 1) { pvlength[0] = pvlengsave; value[iter] = value[iter -1]; }
 		t1 = (int)(getTime() - starttime);
-		if (post && pvlength[0] > 0) { 
+		if (post && pvlength[0] > 0 && (!sabort || !analyze)) { 
 			printf("%2d %5d %6d %9lu  ", iter, MEVAL(value[iter]), t1/10, (u32)(nodes + qnodes));
 			displaypv(); printf("\n"); 
 		}
@@ -1519,7 +1532,7 @@ int calc(int sd, int tm) {
 }
 
 int doponder(int c) {
-	pon = retPVMove(c, 1);
+	pon = retPVMove(c, 0);
 	if (pon) {
 		pondering = 1;
 		if (execMove(pon)) {
@@ -1547,6 +1560,13 @@ u64 perft(int c, int d, int div) {
 	return cnt;
 }
 
+void newGame(int level) {
+	_readbook("olibook.pgn");
+	reseth(level);
+	engine = 1;
+	sd = 64;
+}
+
 int protV2(char* buf) {
 		if (!strncmp(buf,"protover",8)) printf("feature setboard=1 myname=\"OliThink " VER "\" colors=0 analyze=1 done=1\n");
 		else if (!strncmp(buf,"xboard",6));
@@ -1559,7 +1579,7 @@ int protV2(char* buf) {
 		else if (!strncmp(buf,"undo",4)) undo();
 		else if (!strncmp(buf,"easy",4)) ponder = forceponder;
 		else if (!strncmp(buf,"hard",4)) ponder = 1;
-		else if (!strncmp(buf,"analyze",7)) analyze = pondering = 1;
+		else if (!strncmp(buf,"analyze",7)) { analyze = pondering = 1; engine = -1; pon = 0; return -5;}
 		else if (!strncmp(buf,"exit",4)) analyze = pondering = 0;
 		else if (!strncmp(buf,"sd",2)) sscanf(buf+3,"%d",&sd);
 		else if (!strncmp(buf,"time",4)) sscanf(buf+5,"%d",&ttime);
@@ -1581,6 +1601,7 @@ int protV2(char* buf) {
 		else if (!strncmp(buf,"perft",5)) {int i; for (i = 1; i <= sd; i++) printf("Depth: %d Nodes: %llu\n", i, perft(onmove, i, 0));}
 		else if (!strncmp(buf,"divide",5)) perft(onmove, sd, 1);
 		else if (strchr(buf, '/') != NULL && strlen(buf)>16) { engine = -1; _parse_fen(buf); analyze = pondering = 1; }
+		else if (strlen(buf) == 0);
 		else return -1;
 		return 0;
 }
@@ -1606,8 +1627,6 @@ int main(int argc, char **argv)
 	for (i = 0; i < 0x10000; i++) LSB[i] = _slow_lsb(i);
 	for (i = 0; i < 0x10000; i++) BITC[i] = _bitcnt(i);
 	for (i = 0; i < 4096; i++) hashxor[i] = _rand_64();
-	for (i = 0; i < HSIZEB; i++) hashDB[i] = 0LL;
-	for (i = 0; i < HSIZEP; i++) hashDP[i] = 0LL;
 	for (i = 0; i < 64; i++) BIT[i] = 1LL << i;
 	for (i = 0; i < 128; i++) pmoves[i] = pawnfree[i] = pawnfile[i] = pawnhelp[i] = 0LL;
 	for (i = 0; i < 384; i++) pcaps[i] = 0LL;
@@ -1628,7 +1647,7 @@ int main(int argc, char **argv)
 	_init_shorts(kmoves, _king);
 	_init_pawns(pmoves, pcaps, pawnfree, pawnfile, pawnhelp, 0);
 	_init_pawns(pmoves + 64, pcaps + 64, pawnfree + 64, pawnfile + 64, pawnhelp + 64, 1);
-	_readbook("olibook.pgn");
+	newGame(3);
 
 	for (i = 0; i < 64; i++) nmobil[i] = (bitcnt(nmoves[i])-1)*6;
 	for (i = 0; i < 64; i++) kmobil[i] = (bitcnt(nmoves[i])/2);
@@ -1648,7 +1667,7 @@ int main(int argc, char **argv)
 		if (!ponder || book || engine == -1 || ex != 0) ex = input(onmove);
 		if (ex > 0) engine = -1;
 		if (ex == -2) break;
-		if (ex == -3) _readbook("olibook.pgn");
+		if (ex == -3) newGame(analyze ? 3 : 2);
 		if (ex == -4) { undo(); undo(); }
 	}
 	return 0;

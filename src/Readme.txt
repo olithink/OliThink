@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 22.Jun.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 23.Jun.2020, ob112@web.de, http://brausch.org
 
-Version: 5.4.5
+Version: 5.4.6
 Protocol: Winboard 2
 HashSize: 48MB
 Ponder: Yes
@@ -8,10 +8,13 @@ OpeningBook: Small
 EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, LMR
-Evaluation: Just mobility and a very simple pawnprogressing/pawnhanging evaluation
-LinesOfCode: 1655
+Evaluation: Just mobility and a very simple pawnprogressing evaluation
+LinesOfCode: 1675
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution!
+
+v5.4.6: changes since 5.4.5:
+Adaption in printouts, protocols and engine reuse. Remove asymetrical eval.
 
 v5.4.5: changes since 5.4.4:
 Some issues about the printout of moves and evaluations have been fixed. It could fix a bug, where a strange move has been made.
