@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 12.Jun.2020, ob112@web.de, http://brausch.org */
-#define VER "5.3.5"
+/* OliThink5 (c) Oliver Brausch 16.Jun.2020, ob112@web.de, http://brausch.org */
+#define VER "5.4.0"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -95,14 +95,15 @@ const int pawnrun[] = {0, 0, 1, 8, 16, 32, 64, 128};
 #define CASTLE (flags & 960)
 #define COUNT (count & 0x3FF)
 #define MEVAL(w) (w > 31000 ? (232001-w)/2 : (w < -31000 ? (-232000-w)/2 : w))
+#define NOMATEMAT(s, t, c) ((s <= 4 || (s == 5 && t > 0)) && (pieceb[PAWN] & colorb[c]) == 0)
 
-#define HSIZEB 0x2000000
-#define HMASKB 0x1FFFFFF
-#define HINVB 0xFFFFFFFFFE000000LL
+#define HSIZEB 0x200000
+#define HMASKB 0x1FFFFF
+#define HINVB 0xFFFFFFFFFFE00000LL
 
-#define HSIZEP 0x2000000
-#define HMASKP 0x1FFFFFF
-#define HINVP 0xFFFFFFFFFE000000LL
+#define HSIZEP 0x400000
+#define HMASKP 0x3FFFFF
+#define HINVP 0xFFFFFFFFFFC00000LL
 
 u64 hashDB[HSIZEB];
 u64 hashDP[HSIZEP];
@@ -130,14 +131,14 @@ static u64 pawnfile[128];
 static u64 pawnhelp[128];
 Move movelist[64*256];
 int movenum[64];
-Move pv[64][64];
-int pvlength[64];
+Move pv[64][128];
+int pvlength[128];
 int value[64];
 int iter;
 const char pieceChar[] = "*PNK.BRQ";
 u64 searchtime, maxtime, starttime;
 int sabort, noabort;
-int ponder = 0, pondering = 0, analyze = 0;
+int ponder = 0, pondering = 0, analyze = 0, forceponder = 0;
 Move pon = 0;
 int count, flags, mat, onmove, engine =-1;
 int sd = 48;
@@ -209,7 +210,7 @@ int parseMoveNExec(char*, int, Move*);
 int parseMove(char*, int, Move);
 int protV2(char*);
 char *sfen = "rnbqkbnr/pppppppp/////PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-#define BKSIZE 1024
+#define BKSIZE 8192
 Move bkmove[BKSIZE*32];
 int bkflag[BKSIZE];
 int bkcount[3];
@@ -226,18 +227,29 @@ void _readbook(char *bk) {
 			if (buf[0] == '[') {
 				sscanf(buf,"%s %s", s1, s2);
 				if (!strncmp(s2, "\"OliThink", 8)) bkflag[n] = strncmp(s1, "[Black", 6) ? 0 : 1;
-			} else if (buf[0] == '1') {
+				else if (!strncmp(s1, "[Result", 7)) {
+					if (bkflag[n]) {
+						if (!strncmp(s2, "\"0-1", 4)) bkflag[n] = 2;
+					} else if (strncmp(s2, "\"1-0", 4)) bkflag[n] = 2;
+				}
+			} else if (buf[0] == '1' && buf[1] == '.' && bkflag[n] < 2) {
 				int i = 0, j = 0;
 				_parse_fen(sfen);
 				for (;;) {
+					if (strchr(buf+i, ' ') == NULL) break;
 					sscanf(buf+i,"%s %s", s0, s2);
 					if (s0[0] < '1' || s0[0] > '9') break;
 					i += (int)(strlen(s0) + strlen(s2) + 2);
+					if (s0[strlen(s0)-1] == '.') {
+						strcpy(s1, s2); s2[0] = 0;
+						sscanf(buf+i,"%s", s2);
+						i += (int)(strlen(s2) + 1);
+					} else 
 					sscanf(s0,"%*[^.].%[^.]", s1);
 					parseMoveNExec(s1, 0, bkmove + n*32+ (j++));
 					if (s2[0] == 0 || s2[0] == '*') break;
 					parseMoveNExec(s2, 1, bkmove + n*32+ (j++));
-					if (j > 30) break;
+					if (j > 30 || i >= strlen(buf)) break;
 				}
 				bkmove[n*32 + j] = 0;
 				if (j) bkcount[bkflag[n]]++;
@@ -954,7 +966,7 @@ int swap(Move m) //SEE Stuff
 
 	s_list[nc] = -s_list[nc - 1] + a_piece;
 	a_piece = pval[piece];
-	//if (a_piece < s_list[nc]) return -1;
+	//if (a_piece < s_list[nc - 1]) break;
 	nc++;
 	c ^= 1;
   }
@@ -1044,7 +1056,7 @@ int evalc(int c, int* sf) {
 	cb = colorb[c] & (~pin);
 	b = pieceb[KNIGHT] & cb;
 	while (b) {
-		*sf += 1;
+		*sf += 2;
 		f = pullLsb(&b);
 		a = nmoves[f];
 		if (a & kn) katt += _bitcnt(a & kn) << 4;
@@ -1053,7 +1065,7 @@ int evalc(int c, int* sf) {
 
 	b = pieceb[KNIGHT] & pin;
 	while (b) {
-		*sf += 1;
+		*sf += 2;
 		f = pullLsb(&b);
 		a = nmoves[f];
 		if (a & kn) katt += _bitcnt(a & kn) << 4;
@@ -1062,7 +1074,7 @@ int evalc(int c, int* sf) {
 	xorBit(kingpos[oc], colorb+oc); //Opposite King doesn't block mobility at all
 	b = pieceb[QUEEN] & cb;
 	while (b) {
-		*sf += 4;
+		*sf += 9;
 		f = pullLsb(&b);
 		a = RATT1(f) | RATT2(f) | BATT3(f) | BATT4(f);
 		if (a & kn) katt += _bitcnt(a & kn) << 4;
@@ -1072,7 +1084,7 @@ int evalc(int c, int* sf) {
 	colorb[oc] ^= RQU & ocb; //Opposite Queen & Rook doesn't block mobility for bishop
 	b = pieceb[BISHOP] & cb;
 	while (b) {
-		*sf += 1;
+		*sf += 3;
 		f = pullLsb(&b);
 		a = BATT3(f) | BATT4(f);
 		if (a & kn) katt += _bitcnt(a & kn) << 4;
@@ -1083,7 +1095,7 @@ int evalc(int c, int* sf) {
 	colorb[c] ^= pieceb[ROOK] & cb; //Own non-pinned Rook doesn't block mobility for rook.
 	b = pieceb[ROOK] & cb;
 	while (b) {
-		*sf += 2;
+		*sf += 5;
 		f = pullLsb(&b);
 		a = RATT1(f) | RATT2(f);
 		if (a & kn) katt += _bitcnt(a & kn) << 4;
@@ -1097,15 +1109,15 @@ int evalc(int c, int* sf) {
 		f = pullLsb(&b);
 		p = identPiece(f);
 		if (p == BISHOP) {
-			*sf += 1; 
+			*sf += 3; 
 			a = BATT3(f) | BATT4(f);
 			if (a & kn) katt += _bitcnt(a & kn) << 4;
 		} else if (p == ROOK) {
-			*sf += 2; 
+			*sf += 5; 
 			a = RATT1(f) | RATT2(f);
 			if (a & kn) katt += _bitcnt(a & kn) << 4;
 		} else {
-			*sf += 4;
+			*sf += 9;
 			a = RATT1(f) | RATT2(f) | BATT3(f) | BATT4(f);
 			if (a & kn) katt += _bitcnt(a & kn) << 4;
 		}
@@ -1118,23 +1130,26 @@ int evalc(int c, int* sf) {
 
 	colorb[oc] ^= pieceb[QUEEN] & ocb; //Back
 	xorBit(kingpos[oc], colorb+oc); //Back
-	if (*sf == 1 && !(pieceb[PAWN] & colorb[c])) mn = -200; //No mating material
-	if (*sf < 7) katt = katt * (*sf) / 7; //Reduce the bonus for attacking king squares
-	if (*sf < 2) *sf = 2;
+	if (*sf < 14) katt = katt * (*sf) / 14; //Reduce the bonus for attacking king squares
 	return mn + katt;
 }
 
 int eval1 = 0;
-int eval(int c) {
-	int sf0 = 0, sf1 = 0;
+int eval(int c, int matrl) {
+	int sf0 = 0, sf1 = 0, w = 0;
 	int ev0 = evalc(0, &sf0);
 	int ev1 = evalc(1, &sf1);
 	eval1++;
 
-	if (sf1 < 6) ev0 += kmobil[kingpos[0]]*(6-sf1);
-	if (sf0 < 6) ev1 += kmobil[kingpos[1]]*(6-sf0);
+	if (sf1 < 12) ev0 += kmobil[kingpos[0]]*(12-(sf1 > 4 ? sf1 : 4));
+	if (sf0 < 12) ev1 += kmobil[kingpos[1]]*(12-(sf0 > 4 ? sf0 : 4));
 
-	return (c ? (ev1 - ev0) : (ev0 - ev1));
+	w = ev1 - ev0 - matrl;
+		
+	if ((w > 0 && NOMATEMAT(sf1, sf0, 1)) || (w < 0 && NOMATEMAT(sf0, sf1, 0)))
+		w = kmobil[kingpos[1]] - kmobil[kingpos[0]];
+		
+	return c  ? w : -w;
 }
 
 u64 nodes;
@@ -1143,11 +1158,11 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 	int i, w, best = -32000, poff;
 	int cmat = c ? -mat: mat;
 
-	if (ply == 63) return eval(c) + cmat;
+	if (ply == 63) return eval(c, mat);
 	if (!ch) do {
 		if (cmat - 200 >= beta) return beta;
 		if (cmat + 200 <= alpha) break;
-		best = eval(c) + cmat;
+		best = eval(c, mat);
 		if (best > alpha) {
 			alpha = best;
 			if (best >= beta) return beta;
@@ -1177,7 +1192,7 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 			}
 		}
 	}
-	return best > -32000 ? best : eval(c) + cmat;
+	return best > -32000 ? best : eval(c, mat);
 }
 
 int retPVMove(int c, int ply) {
@@ -1223,7 +1238,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	u64 hb, hp, he;
 
 	pvlength[ply] = ply;
-	if (ply == 63) return eval(c) + (c ? -mat: mat);
+	if (ply == 127) return eval(c, mat);
 	if ((++nodes & CNODES) == 0) {
 		u64 consumed = getTime() - starttime;
 		if (!pondering && (consumed > maxtime || (consumed > searchtime && !noabort))) sabort = 1;
@@ -1536,7 +1551,7 @@ int protV2(char* buf) {
 		else if (!strncmp(buf,"go",2)) engine = pondering ? onmove^1 : onmove;
 		else if (!strncmp(buf,"setboard",8)) _parse_fen(buf+9);
 		else if (!strncmp(buf,"undo",4)) undo();
-		else if (!strncmp(buf,"easy",4)) ponder = 0;
+		else if (!strncmp(buf,"easy",4)) ponder = forceponder;
 		else if (!strncmp(buf,"hard",4)) ponder = 1;
 		else if (!strncmp(buf,"analyze",7)) analyze = pondering = 1;
 		else if (!strncmp(buf,"exit",4)) analyze = pondering = 0;
@@ -1608,14 +1623,14 @@ int main(int argc, char **argv)
 	_readbook("olibook.pgn");
 
 	for (i = 0; i < 64; i++) nmobil[i] = (bitcnt(nmoves[i])-1)*6;
-	for (i = 0; i < 64; i++) kmobil[i] = (bitcnt(nmoves[i])/2)*2;
+	for (i = 0; i < 64; i++) kmobil[i] = (bitcnt(nmoves[i])/2);
 	if (argc > 1 && !strncmp(argv[1],"-sd",3)) {
 		ttime = 99999999;
 		if (argc > 2) {
 			sscanf(argv[2], "%d", &sd);
 			if (argc > 3) { _parse_fen(argv[3]); engine = -1; }
 		}
-	}
+	} else if (argc > 1 && !strncmp(argv[1],"-forceponder",11)) ponder = forceponder = 1;
 	irbuf[0] = 0;
 
 	for (;;) {
