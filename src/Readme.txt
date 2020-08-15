@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 09.Jan.2010, ob112@web.de, http://home.arcor.de/dreamlike
+OliThink5 (c) Oliver Brausch 28.Jan.2010, ob112@web.de, http://home.arcor.de/dreamlike
 
-Version: 5.2.9
+Version: 5.3.0
 Protocol: Winboard 2
 HashSize: 48mb
 Ponder: Yes
@@ -12,6 +12,9 @@ Evaluation: Just mobility and a very simple pawnprogressing/pawnhanging evaluati
 LinesOfCode: 1670
 Stability: 100%
 Strength: slightly weaker than Glaurung/Crafty
+
+v5.3.0: changes since 5.2.9:
+No LMR for passed pawns
 
 v5.2.9: changes since 5.2.8:
 More flexible reducing in Null Move Pruning
