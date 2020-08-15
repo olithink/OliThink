@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 14.Aug.2020, ob112@web.de, http://brausch.org */
-#define VER "5.6.4"
+/* OliThink5 (c) Oliver Brausch 15.Aug.2020, ob112@web.de, http://brausch.org */
+#define VER "5.6.5"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -105,8 +105,9 @@ const int pawnrun[] = {0, 0, 1, 8, 16, 32, 64, 128};
 struct entry {
 	u64 key;
 	Move move;
-	char depth;
 	short value;
+	char depth;
+	char type;
 };
 
 struct entry hashDB[HSIZE];
@@ -1247,7 +1248,10 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	struct entry he = hashDB[hp & HMASK];
 	if (he.key == hp) {
 		w = he.value;
-		if (he.depth >= d && w >= beta) return beta;
+		if (he.depth >= d) {
+			if (he.type && w <= alpha) return alpha;
+			if (!he.type && w >= beta) return beta;
+		}
 		if (!hmove) hmove = he.move;
 	} 
 
@@ -1321,27 +1325,32 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		if (sabort) return alpha;
 
 		if (w > alpha) {
-			hashDB[hp & HMASK] = (struct entry) {.key = hp, .move = m, .depth = d, .value = w};
 			alpha = w;
 			first = -1;
 			pv[ply][ply] = m;
 			for (j = ply +1; pv[ply +1][j]; j++) pv[ply][j] = pv[ply +1][j];
 			pv[ply][j] = 0;
 
+			if (w == MAXSCORE-1 - ply) { matekiller[ply] = m; n = 3; break; }
 			if (w >= beta) {
 				if (CAP(m) == 0) {
 					killer[ply] = m;
 					history[m & 0xFFF]+=d*d;
 				}
-				return beta;
+				n = 3; break;
 			}
-			if (w == MAXSCORE-1 - ply) { matekiller[ply] = m; return w; }
 		}
 		if (first == 1) first = 0;
 	    }
 	}
 	if (sabort) return alpha;
 	if (first == 1) return ch ? -MAXSCORE+ply : 0;
+
+	char type = 1;
+	if (first == -1) { type = 0; hmove = pv[ply][ply]; } // Found a good move, lower bound
+	
+	hashDB[hp & HMASK] = (struct entry) {.key = hp, .move = hmove, .value = alpha, .depth = d, .type = type};
+
 	return alpha;
 }
 
