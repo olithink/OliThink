@@ -1,171 +1,178 @@
-olithink 9 "4R3/2p2pk1/5p2/1p1q1bp1/1Q1P3p/2P2P2/r1P3PP/4N1K1 b - - 0 28"
+olithink -sd 10 "4R3/2p2pk1/5p2/1p1q1bp1/1Q1P3p/2P2P2/r1P3PP/4N1K1 b - - 0 28"
 go
- 1    97      0        41  f5c2
- 2    91      1       238  f5c2 g2g4
- 3    92      1      2121  f5c2 b4f8 g7g6 f8h8
- 4    81      3      8450  f5c2 e1c2 a2c2 g1h1
- 5    27     10     76691  f5c2 b4f8 g7g6 f8g8 g6h6 g8h8 c2h7 h8f6
- 6    25     25    209639  d5d6 b4b5 f5d7 b5b1 a2a3 e8b8
- 7    32     48    565826  d5d6 b4b5 f5c2 b5c4 a2a1 g1f2 c2f5
- 8    28    254   2368830  d5d6 b4b5 f5d7 b5b1 a2a3 e8b8 a3c3 b1d1
- 9    68    578   7200522  d5d6 b4b5 f5d7 b5b1 a2a3 e8b8 a3c3 b1b4 d6b4
-10    46   2820  30042953  d5d6 b4d6 c7d6 e8b8 f5c2 b8b5 c2g6 b5b8 a2e2 g1f1
+ 1    77      0        67  f5c2
+ 2    73      0      1465  f5c2 g2g4
+ 3    74      1      5654  f5c2 b4f8 g7g6 f8h8
+ 4    61      3     31236  f5c2 e1c2 a2c2 g1h1
+ 5    21      9    129328  f5c2 b4f8 g7g6 f8g8 g6h6 g8h8 c2h7 h8f6
+ 6    21     16    260052  d5d6 b4b5 f5d7 b5b1 a2a3 e8b8
+ 7    26     24    417745  d5d6 b4b5 f5c2 b5c4 a2a1 g1f2 c2f5
+ 8    24     56   1095365  d5d6 b4b5 f5d7 b5b1 a2a3 e8b8 a3c3 b1d1
+ 9    68    108   2181136  d5d6 b4b5 f5d7 b5b1 a2a3 e8e4 d7c6 e4e3 a3c3
+10    44    214   4510748  d5d6 b4d6 c7d6 e8b8 f5c2 b8b5 c2g6 b5b8 a2e2 g1f1
 28. ... d5d6
 
-kib Nodes: 7200522 QNodes: 3425971 Evals: 3533734 cs: 586 knps: 1813
-kib Nodes: 30042953 QNodes: 17530306 Evals: 18414326 cs: 2820 knps: 1686
+kib Nodes: 2215798 QNodes: 2294950 Evals: 1149492 cs: 214 knps: 2100
 
-olithink 9 "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
+olithink -sd 9 "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
 go
- 1    19      0        49  e2a6
- 2    19      1       185  e2a6 b4c3
- 3     6      3      2695  e2a6 e6d5 c3d5
- 4     6      7      8431  e2a6 e6d5 c3d5 b6d5
- 5   -28     25     66583  d5e6 e7e6 e2a6 e6e5 d2f4
- 6   -51     53    248451  d5e6 e7e6 e2a6 e6e5 d2f4 e5d4
- 7   -47    143   1273355  d5e6 e7e6 e2a6 e6e5 d2f4 e5d4 a1d1
- 8   -56    582   5367197  d5e6 e7e6 e2a6 e6e5 d2f4 e5e6 c3b5 b6d5
- 9   -66   2200  24495420  d5e6 a6e2 c3e2 e7e6 d2f4 c7c5 g2h3 d7d6 e5c6
+ 1     7      0      3294  e2a6
+ 2     7      1      7322  e2a6 b4c3
+ 3    -6      2     19966  e2a6 e6d5 c3d5
+ 4    -6      4     60419  e2a6 e6d5 c3d5 b6d5
+ 5   -24     24    458944  d5e6 e7e6 e2a6 e6e5 d2f4
+ 6   -63     49   1007720  d5e6 e7e6 e2a6 e6e5 d2f4 e5d4
+ 7   -55    112   2341414  d5e6 a6e2 c3e2 e7e6 d2f4 b6c4 e5c4
+ 8   -68    234   5007332  d5e6 e7e6 e2a6 e6e5 d2f4 e5e6 c3b5 b6d5
+ 9   -66    474  10453256  d5e6 a6e2 c3e2 e7e6 d2f4 f6h5 e5d3 h5f4 e2f4
 1. ... d5e6
 
-kib Nodes: 24495420 QNodes: 22299393 Evals: 6428268 cs: 2200 knps: 2126
+kib Nodes: 2188290 QNodes: 8264966 Evals: 3051075 cs: 474 knps: 2203
 
-olithink 8 "1r1q1rk1/5ppp/Qpp1b3/4n3/8/2N1PB2/PPP3PP/R3K2R w KQ - 0 22"
+olithink -sd 9 "1r1q1rk1/5ppp/Qpp1b3/4n3/8/2N1PB2/PPP3PP/R3K2R w KQ - 0 22"
 go
- 1    91      0        46  e1g1
- 2    49      0       290  e1g1 d8h4
- 3    48      0      3530  h2h4 e6c4 a6a7
- 4    57      3     18994  a6a4 d8g5 a4f4 f7f6
- 5    26     28    125718  a6f1 f7f5 b2b3 d8h4 e1d1 b8d8
- 6     7     79    516376  h2h4 e5c4 a1d1 d8c7 e1f2 c4b2
- 7   -10    217   1904538  h2h4 e6c4 a6a3 b8a8 c3a4 e5f3 g2f3 f7f5
- 8     8   2335  21396595  a6e2 d8h4 e1d1 f7f5 d1c1 e6c4 e2e1 h4e1 h1e1 b8d8
-22. ... a6e2
+ 1    97      0        78  e1g1
+ 2    39      0      1293  e1g1 d8h4
+ 3    42      1     11034  h2h4 e5f3 g2f3 d8d6
+ 4    27      4     47722  a6a4 d8g5 a4f4 f7f6
+ 5    25     10    130918  h2h4 e6c4 a6a4 e5f3 g2f3 b6b5
+ 6    12     29    476588  h2h4 e6c4 a6a4 b6b5 a4a7 d8d6
+ 7   -16    138   2540072  a6a4 e5c4 e1g1 c4e3 f3c6 e3f1 a1f1
+ 8     1    250   4771812  a6a4 e5c4 e1g1 c4e3 f1e1 b6b5 a4e4 e3d5
+ 9     4    802  15429140  a6a4 e6c4 f3c6 d8h4 e1d2 f8c8 c6e4 h4f2 d2c1 f2e3 c1b1 g7g6
+22. ... a6a4
 
-kib Nodes: 21396595 QNodes: 14470061 Evals: 18348842 cs: 2336 knps: 1535
+kib Nodes: 6983141 QNodes: 8445999 Evals: 4872692 cs: 802 knps: 1922
 
-olithink 11 "6k1/p7/1p1p4/1PpP3p/2P1q1pP/P5P1/6RQ/5rNK w - - 0 1"
+olithink -sd 12 "6k1/p7/1p1p4/1PpP3p/2P1q1pP/P5P1/6RQ/5rNK w - - 0 1"
 go
- 1   173      0         3  a3a4
- 2   173      0        46  a3a4 e4c4
- 3    62      1       213  a3a4 e4c4 g2f2
- 4    62      1      1684  a3a4 e4c4 g2f2 c4d5
- 5   -28      3      5620  a3a4 g8h7 a4a5 b6a5 b5b6
- 6   -28      6     29162  a3a4 g8h7 a4a5 b6a5 b5b6 a7b6
- 7 -1023     15     80463  a3a4 g8f7 a4a5 b6a5 b5b6 a7b6 h2h3
- 8 -1023     26    313453  a3a4 g8f7 a4a5 b6a5 b5b6 a7b6 h2h3 g4h3
- 9 -31990     59    822539  a3a4 g8f7 a4a5 b6a5 b5b6 a7b6 h2h3 g4h3 h1h2
-10 -31990    125   2355673  a3a4 g8f7 a4a5 b6a5 b5b6 a7b6 h2h3 g4h3 h1h2 e4g2
-11 -31990    301   5476917  a3a4 g8f7 a4a5 b6a5 b5b6 a7b6 h2h3 g4h3 h1h2 e4g2
+ 1   165      0        19  a3a4
+ 2   165      0        73  a3a4 e4c4
+ 3    85      1       914  a3a4 e4c4 g2f2
+ 4    85      1      2207  a3a4 e4c4 g2f2 c4d5
+ 5   -46      2      9397  a3a4 g8h7 a4a5 b6a5 b5b6
+ 6   -46      3     20593  a3a4 g8h7 a4a5 b6a5 b5b6 a7b6
+ 7 -1035      5     54944  a3a4 g8g7 a4a5 b6a5 b5b6 a7b6 h2h3
+ 8 -1035      8    126955  a3a4 g8g7 a4a5 b6a5 b5b6 a7b6 h2h3 g4h3
+ 9 -31990     15    322441  a3a4 g8g7 a4a5 b6a5 b5b6 a7b6 h2h3 g4h3 h1h2
+10 -31990     26    670834  a3a4 g8g7 a4a5 b6a5 b5b6 a7b6 h2h3 g4h3 h1h2 e4g2
+11 -31990     44   1251131  a3a4 g8g7 a4a5 b6a5 b5b6 a7b6 h2h3 g4h3 h1h2 e4g2
+12 -31990     89   2711888  a3a4 g8g7 a4a5 b6a5 b5b6 a7b6 h2h3 g4h3 h1h2 e4g2
 1. ... a3a4
 
-kib Nodes: 5476917 QNodes: 2052030 Evals: 429538 cs: 301 knps: 2496
+kib Nodes: 1537471 QNodes: 1174417 Evals: 94080 cs: 89 knps: 3030
 
-olithink 17 "//3k4///3KR3// w - - 0 1"
+olithink -sd 17 "//3k4///3KR3// w - - 0 1"
 go
- 1   576      0        18  d3c4
- 2   528      0        63  d3c4 d6c6
- 3   580      0       418  d3c4 d6c6 e3e6
- 4   576      1      3135  e3g3 d6c6 g3g6 c6c5 d3e4
- 5   580      3     12810  d3d4 d6d7 e3g3 d7c7 g3g6
- 6   572     10     57317  d3d4 d6c6 e3c3 c6b7 c3a3 b7b8 d4e4
- 7   580     18    122948  d3d4 d6c6 e3e7 c6b6 e7e1 b6b5 e1a1
- 8   576     34    379843  d3d4 d6c6 e3e7 c6b6 d4c4 b6a6 c4b4 a6b6
- 9   580     56    755334  d3d4 d6c6 e3e7 c6d6 e7a7 d6e6 a7a5 e6e7 a5a6
-10   580    100   1542577  d3d4 d6c7 d4d5 c7d7 e3c3 d7e7 c3c7 e7f6 c7c8 f6g5 c8c6
-11   584    143   2400172  d3d4 d6c6 e3e6 c6c7 d4c5 c7d7 e6d6 d7c7 d6b6 c7d8 b6b7 d8c8 b7a7
-12   584    207   3731156  d3d4 d6c6 e3e6 c6c7 d4c5 c7d7 e6f6 d7e7 f6g6 e7f7 g6b6 f7g7 c5d5
-13   584    296   5577831  d3d4 d6c6 e3e6 c6d7 d4d5 d7c7 e6e7 c7b6 e7d7 b6b5 d7b7 b5a6 d5c6 a6a5 b7b8 a5a4
-14   584    412   8116749  d3d4 d6c6 e3e6 c6d7 d4d5 d7c7 e6e7 c7b6 e7e1 b6c7 e1b1 c7d8 b1b7 d8e8 d5d6 e8f8
-15   588    512  10527615  d3d4 d6c6 e3e6 c6d7 d4d5 d7c7 d5c5 c7d7 e6e5 d7c7 e5e7 c7d8 c5d6 d8c8 e7d7 c8b8 d6e6
-16 31983    621  13279670  d3c4 d6c6 e3d3 c6b6 d3d6 b6b7 c4b5 b7c7 d6d5 c7b7 d5c5 b7a7 b5c6 a7a8 c6c7 a8a7 c5a5
-17 31983    759  16996617  d3c4 d6c6 e3d3 c6b6 d3d6 b6b7 c4b5 b7c7 d6d5 c7b7 d5c5 b7a7 b5c6 a7a8 c6c7 a8a7 c5a5
+ 1   604      0        21  d3c4
+ 2   556      0        66  d3c4 d6c6
+ 3   608      0       453  d3c4 d6c6 e3e6
+ 4   604      1      3409  e3g3 d6c6 g3g6 c6c5 d3e4
+ 5   608      2     13662  d3d4 d6d7 e3g3 d7c7 g3g6
+ 6   600      5     62301  d3d4 d6c6 e3c3 c6b7 d4d5 b7a8 c3b3
+ 7   608      9    128073  d3d4 d6c6 e3e7 c6b6 e7e1 b6b5 e1a1
+ 8   604     23    413532  d3d4 d6c6 e3e7 c6b6 d4c4 b6a6 c4b4 a6b6
+ 9   608     43    854759  d3d4 d6c6 e3e7 c6d6 e7a7 d6e6 a7a5 e6e7 a5a6
+10   608     81   1674634  d3d4 d6c7 d4d5 c7d7 e3c3 d7e7 c3c7 e7f6 c7b7 f6g5 b7b6
+11   612    122   2576655  d3d4 d6c6 e3e6 c6c7 d4c5 c7d7 e6d6 d7c7 d6b6 c7d8 b6b7 d8c8 b7a7
+12   612    182   3970948  d3d4 d6c6 e3e6 c6c7 d4c5 c7d7 e6f6 d7e7 f6g6 e7f8 c5d6 f8f7 g6e6
+13   612    263   5883874  d3d4 d6c6 e3e6 c6d7 d4d5 d7c7 e6e7 c7b6 e7d7 b6b5 d7b7 b5a6 d5c6 a6a5 c6d6 a5a6
+14   612    369   8470979  d3d4 d6c6 e3e6 c6d7 d4d5 d7c7 e6e7 c7b6 e7d7 b6b5 d7b7 b5a6 d5c6 a6a5 c6d6 a5a6 b7b8
+15   616    493  11478687  d3d4 d6c6 e3e6 c6d7 d4d5 d7c7 d5c5 c7d7 e6e5 d7c7 e5e7 c7d8 c5d6 d8c8 e7d7 c8b8 d6c6
+16 31983    681  16135981  d3c4 d6c6 e3d3 c6b6 d3d6 b6b7 c4b5 b7c7 d6d5 c7b7 d5c5 b7a8 c5c7 a8b8 b5b6 b8a8 c7c8
+17 31983    791  19068854  d3c4 d6c6 e3d3 c6b6 d3d6 b6b7 c4b5 b7c7 d6d5 c7b7 d5c5 b7a8 b5a6 a8b8 c5c4 b8a8 c4c8
 1. ... d3c4
 
-kib Nodes: 16996617 QNodes: 417249 Evals: 6726694 cs: 759 knps: 2293
+kib Nodes: 18540136 QNodes: 528718 Evals: 4186511 cs: 791 knps: 2408
 
-olithink 8 "1r2k1r1/pbppnp1p/1bn2P2/7q/Q7/B1PB1N2/P4PPP/3RR1K1 b - - 0 19"
+olithink -sd 9 "1r2k1r1/pbppnp1p/1bn2P2/7q/Q7/B1PB1N2/P4PPP/3RR1K1 b - - 0 19"
 go
- 1   478      0        46  h5f3
- 2   700      1       350  h5f3 e1e7
- 3   710      4      2789  h5f3 d3f1 f3f2
- 4   767      9     13012  h5f3 d3e4 b6f2 g1h1 f3f6
- 5   182     93    201947  h5f3 e1e7 e8d8 d3e4 f3f2 g1h1 f2f6
- 6   186    136    461351  h5f3 e1e7 e8d8 d3e4 f3f6 e7d7 d8c8 a4c2
- 7   112    690   3982215  h5h3 d3f1 h3f5 g1h1 f5f6 a3e7 c6e7
- 8    97   1429  10067788  h5h3 d3f1 h3f5 a3e7 f5f3 g1h1 f3h5 e7c5
+ 1   464      0       662  h5f3
+ 2   686      1     18583  h5f3 d3f1
+ 3   686      3     50051  h5f3 d3f1 f3f2
+ 4   745      6     93381  h5f3 d3e4 b6f2 g1h1 f3f6
+ 5   174     45    931255  h5f3 e1e7 e8d8 d3e4 f3f2 g1h1 d8c8
+ 6   174     63   1332423  h5f3 e1e7 e8d8 d3e4 f3f2 g1h1 d8c8 e7f7
+ 7   108    241   5342630  h5h3 d3f1 h3f5 g1h1 f5f6 a3e7 c6e7
+ 8    79    671  14973877  h5h3 d3f1 h3f5 a3e7 f5f3 g1h1 f3h5 e7c5
+ 9    67   1346  30167173  h5h3 d3f1 h3f5 g1h1 f5f6 a3e7 c6e7 d1d7 b7f3
 19. ... h5h3
 
-kib Nodes: 10067788 QNodes: 15790945 Evals: 6925340 cs: 1429 knps: 1808
+kib Nodes: 6834046 QNodes: 23333127 Evals: 6435795 cs: 1346 knps: 2239
 
-olithink 9 "2k3r1/5p1p/p3bp2/1pn4q/2p1B3/4QN1P/PPP2PP1/2KR4 b - - 0 21"
+olithink -sd 10 "2k3r1/5p1p/p3bp2/1pn4q/2p1B3/4QN1P/PPP2PP1/2KR4 b - - 0 21"
 go
- 1   104      0        39  c5e4
- 2   122      0       327  g8g2 d1d5
- 3   127      1      1875  g8g2 e4h7 e6h3
- 4   105      4     13433  c5e4 e3e4 h5h6 c1b1 g8g2
- 5    16     26    120692  c5e4 e3e4 c8b8 e4f4 b8b7 f4e4
- 6    11     48    361086  g8g2 d1d5 c5d3 c2d3 e6d5 e3c5 c8d8 e4d5
- 7     7    134   1219604  g8g2 e4a8 g2g7 d1d5 c5d3 c2d3 e6d5 e3c5
- 8   -10    506   5585296  c5e4 e3e4 h5h6 c1b1 c8c7 f3d4 e6d7 f2f4 c7c8
- 9   -31   1801  19326227  c5e4 e3e4 h5h6 c1b1 c8b8 e4c6 e6c8 d1g1 h6f4 g2g4
+ 1    98      0       165  c5e4
+ 2   116      0      1545  g8g2 f3h4
+ 3   121      1      4759  g8g2 e4h7 e6h3
+ 4    97      2     24688  c5e4 e3e4 h5h6 c1b1 g8g2
+ 5    22     10    184907  c5e4 e3e4 c8b8 e4f4 b8b7 f4e4
+ 6    13     18    351028  g8g2 d1d5 c5d3 c2d3 e6d5 e3c5 c8d8 e4d5
+ 7    13     32    662893  g8g2 d1d5 c5d3 c2d3 e6d5 e3c5 c8d8 e4d5 c4d3
+ 8    12     60   1307612  g8g2 d1d5 c5d3 c2d3 e6d5 e3c5 c8d8 e4d5 h5h6 c5e3 h6e3
+ 9   -47    446   9626875  c5e4 e3e4 c8c7 e4e3 e6c8 e3e7 c7b8 e7f6 g8g2 d1d8
+10   -48   1226  26317980  c5e4 e3e4 h5h6 c1b1 c8c7 f3d4 e6c8 e4e7 c7b6 g2g4 h6h3 e7f6
 21. ... c5e4
 
-kib Nodes: 19326227 QNodes: 13297689 Evals: 10129110 cs: 1801 knps: 1810
+kib Nodes: 10819698 QNodes: 15498282 Evals: 7362276 cs: 1226 knps: 2145
 
-olithink 12 "8/8/1P1p4/K1p2r2/4P1Pk/8/1R3p2/8 w - - 0 5"
+olithink -sd 13 "8/8/1P1p4/K1p2r2/4P1Pk/8/1R3p2/8 w - - 0 5"
 go
- 1   -22      0        18  b6b7
- 2   -22      0        76  b6b7 f2f1q
- 3   -22      0       411  b6b7 f2f1q b7b8q
- 4   -85      0      1905  b6b7 f2f1q b2h2 h4g4 b7b8q
- 5  -144      0      6474  b6b7 f2f1q b2h2 h4g4 b7b8q f1a1
- 6  -141      1     16282  b6b7 f2f1q b2h2 h4g4 b7b8q f1a1 a5b6 f5f6
- 7  -325      6     73028  b6b7 f2f1q b2h2 h4g3 g4f5 f1b1 h2h7 g3f3
- 8  -340     10    135572  g4f5 f2f1q b2h2 h4g3 b6b7 f1b1 h2h7 b1b4 a5a6 g3f3
- 9  -334     21    252872  g4f5 f2f1q b2h2 h4g3 b6b7 f1b1 h2h7 g3f3 h7e7 b1b3
-10  -280     60    750915  b2f2 f5f2 b6b7 f2b2 a5a6 h4g4 a6a7 d6d5 b7b8q b2b8
-11  -280    178   2166799  b2f2 f5f2 b6b7 f2b2 a5a6 h4g4 a6a7 d6d5 b7b8q b2b8 a7b8
-12  -280   1115  13603402  b2b1 f2f1q b1f1 f5f1 b6b7 f1b1 a5a6 h4g4 a6a7 d6d5 b7b8q b1b8
+ 1   -22      0       159  b6b7
+ 2   -22      0       355  b6b7 f2f1q
+ 3   -22      0       918  b6b7 f2f1q b7b8q
+ 4   -77      1      2322  b6b7 f2f1q b2h2 h4g4 b7b8q
+ 5  -136      2      8463  b6b7 f2f1q b2h2 h4g4 b7b8q f1a1
+ 6  -131      3     20112  b6b7 f2f1q b2h2 h4g4 b7b8q f1a1 a5b6 f5f6
+ 7  -307      7     97543  b6b7 f2f1q b2h2 h4g3 g4f5 f1b1 h2h7 g3f3
+ 8  -322     12    185979  g4f5 f2f1q b2h2 h4g3 b6b7 f1b1 h2h7 b1b4 a5a6 g3f3
+ 9  -322     18    313262  g4f5 f2f1q b2h2 h4g3 b6b7 f1b1 h2h7 g3f3 h7e7 b1b3
+10  -264     51   1010112  b2f2 f5f2 b6b7 f2b2 a5a6 h4g4 a6a7 d6d5 b7b8q b2b8
+11  -264     78   1625318  b2f2 f5f2 b6b7 f2b2 a5a6 h4g4 a6a7 d6d5 b7b8q b2b8 a7b8
+12  -264    487  10732991  b2b1 f2f1q b1f1 f5f1 b6b7 f1b1 a5a6 h4g4 a6a7 d6d5 b7b8q b1b8
+13  -264    831  18315822  b2b1 f2f1q b1f1 f5f1 b6b7 f1b1 a5a6 h4g4 a6a7 d6d5 b7b8q b1b8 a7b8
 5. ... b2b1
 
-kib Nodes: 13603402 QNodes: 5955809 Evals: 10373582 cs: 1115 knps: 1753
+kib Nodes: 12442408 QNodes: 5873414 Evals: 5287966 cs: 831 knps: 2201
 
-olithink 11 "3Q4/8/1kp3p1/p1p1p2p/P3q2P/1P4r1/5rR1/6RK b - - 0 44"
+olithink -sd 14 "3Q4/8/1kp3p1/p1p1p2p/P3q2P/1P4r1/5rR1/6RK b - - 0 44"
 go
- 1   417      0        61  b6b7 d8d7
- 2   390      1       367  b6b7 d8d7 b7a6 d7c8
- 3   387      1      1103  b6b7 d8d7 b7a6 d7c8 a6a7 c8c7
- 4   285      1      3514  b6b7 d8d7 b7a6 d7c8 a6a7 c8c7 a7a8 c7a5
- 5     0      1     10310  b6b7 d8d7 b7a6 d7c8 a6a7 c8c7 a7a8 c7c8 a8a7
- 6     0      3     25103  b6b7 d8d7 b7a6 d7c8 a6a7 c8c7 a7a8 c7c8 a8a7
- 7     0      6     60713  b6b7 d8d7 b7a6 d7c8 a6a7 c8c7 a7a8 c7c8 a8a7
- 8     0     14    147183  b6b7 d8d7 b7a6 d7c8 a6a7 c8c7 a7a8 c7c8 a8a7
- 9     0     29    322535  b6b7 d8d7 b7a6 d7c8 a6a7 c8c7 a7a8 c7c8 a8a7
-10     0     65    757414  b6b7 d8d7 b7a6 d7c8 a6a7 c8c7 a7a8 c7c8 a8a7
-11     0    175   2131254  b6b7 d8d7 b7a6 d7c8 a6a7 c8c7 a7a8 c7c8 a8a7
+ 1   423      0       623  b6b7 d8d7
+ 2   396      0      1706  b6b7 d8d7 b7a6 d7c8
+ 3   393      0      3227  b6b7 d8d7 b7a6 d7c8 a6a7 c8c7
+ 4   299      1      5441  b6b7 d8d7 b7a6 d7c8 a6a7 c8c7 a7a8 c7a5
+ 5     0      2      8133  b6b7 d8d7 b7a6 d7c8 a6a7 c8c7 a7a8 c7c8 a8a7
+ 6     0      3     12226  b6b7 d8d7 b7a6 d7c8 a6a7 c8c7 a7a8 c7c8 a8a7
+ 7     0      4     17978  b6b7 d8d7 b7a6 d7c8 a6a7 c8c7 a7a8 c7c8 a8a7
+ 8     0      4     26999  b6b7 d8d7 b7a6 d7c8 a6a7 c8c7 a7a8 c7c8 a8a7
+ 9     0      6     48929  b6b7 d8d7 b7a6 d7c8 a6a7 c8c7 a7a8 c7c8 a8a7
+10     0      8     71959  b6b7 d8d7 b7a6 d7c8 a6a7 c8c7 a7a8 c7c8 a8a7
+11     0     10     99706  b6b7 d8d7 b7a6 d7c8 a6a7 c8c7 a7a8 c7c8 a8a7
+12     0     13    145044  b6b7 d8d7 b7a6 d7c8 a6a7 c8c7 a7a8 c7c8 a8a7
+13     0     16    204233  b6b7 d8d7 b7a6 d7c8 a6a7 c8c7 a7a8 c7c8 a8a7
+14     0     21    297125  b6b7 d8d7 b7a6 d7c8 a6a7 c8c7 a7a8 c7c8 a8a7
 44. ... b6b7
 
-kib Nodes: 2131254 QNodes: 861426 Evals: 1102838 cs: 175 knps: 1709
+kib Nodes: 157591 QNodes: 139534 Evals: 67464 cs: 21 knps: 1408
 
-olithink 13 "8/k7/3R2p1/p1p1p2p/q6P/6r1/6r1/7K w - - 0 8"
+olithink -sd 13 "8/k7/3R2p1/p1p1p2p/q6P/6r1/6r1/7K w - - 0 8"
 go
- 1 -2580      0        14  d6a6
- 2 -2018      0       129  d6d7 a7b6 d7d6
- 3 -2580      1       540  d6a6 a7b7 a6a7 b7b6 a7b7
- 4 -2584      1      1010  d6a6 a7b7 a6b6 b7c7 b6b7 c7c6 b7b6
- 5 -2580      1      2774  d6d7 a7a8 d7d8 a8b7 d8b8 b7c7 b8c8 c7d7 c8d8
- 6 -2580      3      5380  d6d7 a7a8 d7a7 a8b8 a7b7 b8c8 b7b8 c8c7 b8c8 c7d7 c8d8
- 7 -2580      4     10031  d6d7 a7a8 d7a7 a8b8 a7a8 b8c7 a8a7 c7c6 a7a6 c6b7 a6b6 b7c7 b6b7
- 8 -2576      7     35022  d6d7 a7b8 d7b7 b8c8 b7c7 c8d8 c7d7 d8e8 d7e7 e8f8 e7f7 f8g8 f7g7 g8h8 g7h7
- 9 -1106     21    187138  d6d7 a7a6 d7d6 a6b5 d6b6 b5c4 b6b4 c4d5 b4a4 g2d2 a4a5 g3h3 h1g1 h3h4
-10 -1165     31    350118
-11 -1116     64    960264  d6d7 a7a6 d7d6 a6b5 d6b6 b5c4 b6b4 c4d5 b4d4 d5e6 d4a4 g2g1 h1h2 g3g2 h2h3 g2g4 a4g4 g1g4
-12 -1210    154   2656118  d6d7 a7a6 d7d6 a6b5 d6b6 b5c4 b6b4 c4d5 b4d4 d5e6 d4a4 g2g1 h1h2 g3g2 h2h3 g2g4 a4g4 g1g4 h3h2
-13 -1151    457   8321500
+ 1 -2624      0        36  d6a6
+ 2 -2036      0       258  d6d7 a7b6 d7d6
+ 3 -2620      0       756  d6d7 a7b6 d7b7 b6a6 b7a7
+ 4 -2624      1      1580  d6d7 a7b6 d7d6 b6b7 d6b6 b7c7 b6b7
+ 5 -2620      2      3080  d6d7 a7b6 d7b7 b6c6 b7b6 c6c7 b6b7 c7c8 b7b8
+ 6 -2620      2      6356  d6a6 a7b7 a6b6 b7c7 b6b7 c7d6 b7b6 d6d7 b6b7 d7c8 b7b8
+ 7 -2561      4     27636
+ 8 -2620      5     37464  d6d7 a7b8 d7b7 b8c8 b7c7 c8d8 c7d7 d8e8 d7e7 e8f8 e7f7 f8g8 f7f8 g8g7 f8g8
+ 9 -2040     13    209277  d6d7 a7a8 d7d8 a8b7 d8d7 b7b6 d7b7 b6c6 b7b6 c6c7 b6b7 c7d6 b7b6 d6e7 b6b7 e7f6 b7b6
+10 -2099     22    399230
+11 -1112     66   1697108  d6d7 a7a6 d7d6 a6b5 d6b6 b5c4 b6b4 c4d5 b4d4 d5e6 d4a4 g2g1 h1h2 g3g2 h2h3 g2g4 a4g4 g1g4
+12 -2160    383   9951203  d6d7 a7a6 d7d6 a6b7 d6d7 b7b6 d7b7 b6c6 b7c7 c6d6 c7d7 d6e6 d7e7 e6f5 e7e5 f5g4 e5g5 g4f3 g5f5 f3e3 f5f3 g3f3 h1g2
+13 -1196   1405  37206501  d6d7 a7a6 d7d6 a6b5 d6b6 b5c4 b6b4 c4d5 b4d4 d5e6 d4a4 g2g1 h1h2 g3g2 h2h3 g2g4 a4g4 g1g4 h3h2 g4h4
 8. ... d6d7
 
-kib Nodes: 8321500 QNodes: 1464497 Evals: 2035622 cs: 457 knps: 2137
+kib Nodes: 31094520 QNodes: 6111981 Evals: 4292540 cs: 1405 knps: 2647
 
 go
  1 -2548      0        14  d6-a6
@@ -390,71 +397,68 @@ AppWizard uses "TODO:" comments to indicate parts of the source code you
 should add to or customize.
 
 /////////////////////////////////////////////////////////////////////////////
+int swap(Move m)
+{
+  int source = FROM(m);
+  int target = TO(m);
+  int wtm = ONMV(m);
+  u64 attacks, temp = 0;
+  register int attacked_piece;
+  register int piece;
+  register int color, nc = 1;
+  int swap_list[32];
 
-int slist[64];
-int swap(Move m) {
-	int p, last, f = FROM(m);
-	int t = TO(m);
-	int c = ONMV(m);
-	int oc = c^1;
-	int n = 1;
-	u64 b = (attacked(t, oc) ^ BIT[f]) & (~pinnedPieces(kingpos[c], c));
-	u64 ob = attacked(t, c) & (~pinnedPieces(kingpos[oc], oc));
-	slist[0] = pval[CAP(m)];
-	last = -pval[PIECE(m)];
-	if (PROM(m)) {
-		slist[0] += pval[PROM(m)] - pval[PAWN];
-		last = -pval[PROM(m)];
-	}
-	while (ob) {
-		for (p = PAWN; p<= QUEEN+1; p++) {
-			u64 m;
-			int _p = p;
-			if (_p == QUEEN +1) _p = KING;
-			else if (_p == ENP) continue;
-			m = ob & pieceb[_p];
-			if (m) {
-				int f2 = getLsb(m);
-				ob^= BIT[f2];
-				slist[n] = slist[n-1] + last;
-				n++;
-				last = pval[_p];
-				break;
-			}
-		}
-		if (!b) break;
-		for (p = PAWN; p<= QUEEN+1; p++) {
-			u64 m;
-			int _p = p;
-			if (_p == QUEEN +1) _p = KING;
-			else if (_p == ENP) continue;
-			m = b & pieceb[_p];
-			if (m) {
-				int f2 = getLsb(m);
-				b^= BIT[f2];
-				slist[n] = slist[n-1] + last;
-				n++;
-				last = -pval[_p];
-				break;
-			}
-		}
-	}
-	n--;
-   while (n)
-   {
-      if (n & 1)
-      {
-         if (slist[n] <= slist[n-1])
-	    slist[n-1] = slist[n]; 
-      }
+  attacks = attacked(target, 0) | attacked(target, 1);
+  attacked_piece = pval[CAP(m)];
+
+  color = wtm^1;
+  swap_list[0] = attacked_piece;
+  piece = PIECE(m);
+  attacked_piece = pval[piece];
+  board ^= BIT[source];
+  if (piece & 4 || piece == 1) {
+	int d = getDir(source, target);
+    if (d == 32 || d == 64) attacks |= BOCC(target) & BQU;
+	if (d == 8 || d == 16) attacks |= ROCC(target) & RQU;
+  }
+  attacks &= board;
+
+  while (attacks) {
+      if ((temp = pieceb[PAWN] & colorb[color] & attacks))
+        piece = PAWN;
+      else if ((temp = pieceb[KNIGHT] & colorb[color] & attacks))
+        piece = KNIGHT;
+      else if ((temp = pieceb[BISHOP] & colorb[color] & attacks))
+        piece = BISHOP;
+      else if ((temp = pieceb[ROOK] & colorb[color] & attacks))
+        piece = ROOK;
+      else if ((temp = pieceb[QUEEN] & colorb[color] & attacks))
+        piece = QUEEN;
+      else if ((temp = pieceb[KING] & colorb[color] & attacks))
+        piece = KING;
       else
-      {
-         if (slist[n] >= slist[n-1])
-	    slist[n-1] = slist[n]; 
-      }
-      n--;
-   }
-   return (slist[0]);
+        break;
+ 
+	temp &= -temp;
+    board ^= temp;
+    if (piece & 4 || piece == 1) {
+      if (piece & 1) attacks |= BOCC(target) & BQU;
+      if (piece & 2) attacks |= ROCC(target) & RQU;
+    }
+    attacks &= board;
+
+	swap_list[nc] = -swap_list[nc - 1] + attacked_piece;
+    attacked_piece = pval[piece];
+    nc++;
+    color ^= 1;
+  }
+
+  while (--nc)
+    if (swap_list[nc] > -swap_list[nc - 1])
+      swap_list[nc - 1] = -swap_list[nc];
+
+  board = colorb[0] | colorb[1];
+  return (swap_list[0]);
 }
 
 
