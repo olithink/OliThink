@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 30.Jun.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 02.Jul.2020, ob112@web.de, http://brausch.org
 
-Version: 5.4.11
+Version: 5.4.12
 Protocol: Winboard 2
 HashSize: 48MB
 Ponder: Yes
@@ -9,9 +9,12 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1701
+LinesOfCode: 1698
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution!
+
+v5.4.12: changes since 5.4.11:
+Reduce search for captures with negative SEE.
 
 v5.4.11: changes since 5.4.10:
 Several protocol fixes. Support for resign and offer draw.

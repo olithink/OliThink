@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 30.Jun.2020, ob112@web.de, http://brausch.org */
-#define VER "5.4.11"
+/* OliThink5 (c) Oliver Brausch 02.Jul.2020, ob112@web.de, http://brausch.org */
+#define VER "5.4.12"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -1219,10 +1219,6 @@ int retPVMove(int c, int ply) {
 int inputSearch() {
 	int ex;
 	fgets(irbuf,255,stdin);
-	if (0 && analyze) {
-		if (irbuf[0] == '.') { irbuf[0] = 0; return 0; }
-		return 1;
-	}
 	ex = protV2(irbuf, 0);
 	if (analyze) { if (ex <= -1) return ex; else ex = 0; }
 	if (!ponder || ex || engine != onmove) pondering = analyze;
@@ -1333,6 +1329,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		doMove(m, c);
 		nch = attacked(kingpos[c^1], c^1);
 		if (nch) ext++; // Check Extension
+		else if (n == 2 && !pvnode && d >= 2 && !ch && swap(m) < 0) ext--; //Reduce bad exchanges
 		else if (n == 3 && !pvnode) { //LMR
 			if (m == killer[ply]); //Don't reduce killers
 			else if (PIECE(m) == PAWN && !(pawnfree[TO(m) + (c << 6)] & pieceb[PAWN] & colorb[c^1])); //Don't reduce free pawns
@@ -1521,7 +1518,7 @@ int calc(int sd, int tm) {
 	if (!book || analyze) for (iter = 1; iter <= sd; iter++) {
 		int pvlengsave = pvlength[0];
 		noabort = 0;
-		value[iter] = search(ch, onmove, iter, 0, -32000, 32000, 1, 0);
+		value[iter] = search(ch, onmove, iter, 0, -MAXSCORE, MAXSCORE, 1, 0);
 		if (pvlength[0] == 0 && iter > 1) { pvlength[0] = pvlengsave; value[iter] = value[iter -1]; }
 		t1 = (int)(getTime() - starttime);
 		if (post && pvlength[0] > 0 && (!sabort || (!analyze && sabort>=1))) { 
@@ -1546,7 +1543,7 @@ int calc(int sd, int tm) {
 	if (resign > 0) {
 		int w = value[iter > sd ? sd : iter];
 		if (w < -resign && lastw < -resign) printf("resign\n");
-		int dt = COUNT > 40 ? (COUNT - 40)/2 : 0;
+		int dt = COUNT > 40 ? (COUNT - 40)/4 : 0;
 		if (w < dt && w > -dt && lastw < dt && lastw > -dt) printf("offer draw\n");
 		lastw = w;
 	}
