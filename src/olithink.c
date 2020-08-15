@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 08.Aug.2020, ob112@web.de, http://brausch.org */
-#define VER "5.6.2"
+/* OliThink5 (c) Oliver Brausch 13.Aug.2020, ob112@web.de, http://brausch.org */
+#define VER "5.6.3"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,7 +27,7 @@ typedef int Move;
 #define ROOK 6
 #define QUEEN 7
 
-#define CNODES 0xFFFF
+#define CNODES 0x3FFF
 const int pval[] = {0, 100, 290, 0, 100, 310, 500, 980};
 const int fval[] = {0, 0, 2, 0, 0, 3, 5, 9};
 const int pawnrun[] = {0, 0, 1, 8, 16, 32, 64, 128};
@@ -142,7 +142,7 @@ int value[128];
 int iter;
 const char pieceChar[] = "*PNK.BRQ";
 u64 maxtime, starttime;
-int sabort, ics = 0, ponder = 0, pondering = 0, analyze = 0, resign = 0, lastw = 0;
+int sabort, ics = 0, ponder = 0, pondering = 0, analyze = 0, lastw = 0;
 Move pon = 0;
 int count, flags, mat, onmove, engine =-1;
 int sd = 64;
@@ -203,7 +203,7 @@ void _parse_fen(char *fen) {
 			int p = _getpiece(s, &c);
 			if (p == KING) kingpos[c] = row*8 + col;
 			else mat += changeMat(_CAP(p) | _TO(row*8 + col), c^1, -1);
-			hashb ^= hashxor[col | row << 3 | i << 6 | (c ? 512 : 0)];
+			hashb ^= hashxor[col | row << 3 | p << 6 | c << 9];
 			setBit(row*8 + col, pieceb + p);
 			setBit(row*8 + (col++), colorb + c);			
 		}
@@ -279,20 +279,6 @@ void _readbook(char *bk) {
 
 #define LOW16(x) ((x) & 0xFFFF)
 #define LOW32(x) ((x) & 0xFFFFFFFF)
-static u32 r_x = 30903, r_y = 30903, r_z = 30903, r_w = 30903, r_carry = 0;
-u32 _rand_32() {
-	r_x = LOW32(r_x * 69069 + 1);
-	r_y ^= LOW32(r_y << 13);
-	r_y ^= LOW32(r_y >> 17);
-	r_y ^= LOW32(r_y << 5);
-	u32 t = LOW32((r_w << 1) + r_z + r_carry);
-	r_carry = (LOW32(r_z >> 2) + LOW32(r_w >> 3) + LOW32(r_carry >> 2)) >> 30;
-	r_z = r_w;
-	r_w = t;
-	return LOW32(r_x + r_y + r_w);
-}
-
-u64 _rand_64() { u64 c = _rand_32(); return _rand_32() | (c << 32); }
 
 u64 getTime() {
 #ifdef _WIN32
@@ -1033,9 +1019,17 @@ int evalc(int c) {
 
 	b = pieceb[PAWN] & colorb[c];
 	while (b) {
-		int ppos = 0;
 		f = pullLsb(&b);
 		t = f + (c << 6);
+
+		/* The only non-mobility eval is the detection of free pawns/hanging pawns */
+		int ppos = pawnprg[t];
+		if (!(pawnfree[t] & pieceb[PAWN] & ocb)) ppos <<= 1; //Free run?
+
+		if (!(pawnhelp[t] & pieceb[PAWN] & colorb[c])) { // No support
+			int openfile = !(pawnfile[t] & pieceb[PAWN] & ocb);
+			ppos -= (openfile ? 2 : 1) << 4; // Open file
+		}
 
 		m = PMOVE(f, c);
 		a = POCC(f, c);
@@ -1046,15 +1040,6 @@ int evalc(int c) {
 			ppos += _bitcnt(a & pieceb[PAWN] & colorb[c]) << 2;
 		}
 		if (m) ppos += 8; else ppos -= 8;
-
-		/* The only non-mobility eval is the detection of free pawns/hanging pawns */
-		ppos += pawnprg[t];
-		int openfile = !(pawnfile[t] & pieceb[PAWN] & ocb);
-		if (openfile && !(pawnfree[t] & pieceb[PAWN] & ocb)) ppos <<= 1; //Free run?
-
-		if (!(pawnhelp[t] & pieceb[PAWN] & colorb[c])) { // No support
-			ppos -= (openfile ? 2 : 1) << 4; // Open file
-		}
 
 		if (!(pawnhelp[t] & pieceb[PAWN] & colorb[c])) { // No support
 			a = ((BATT3(f) | BATT4(f)) & BQU) | ((RATT1(f) | RATT2(f)) & RQU);
@@ -1279,11 +1264,8 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		w = -search(0LL, c^1, d-R, ply+1, -beta, 1-beta, 0, 0);
 		flags = flagstore;
 		count -= 0x401;
-		if (!sabort && w >= beta) {
-			if (n <= 2) return search(ch, c, d-R, ply, alpha, beta, pvnode, 0);
-			hashDB[hb & HMASKB] = (hb & HINVB) | (w + MAXSCORE); 
-			return beta;
-		}
+		if (d >= 6 && n <= 2 && w >= beta) w = search(ch, c, d-5, ply, beta-1, beta, pvnode, 0);
+		if (!sabort && w >= beta) return beta;
 	}
 
 	Move hmove = ply ? 0 : retPVMove(c, 0);
@@ -1533,14 +1515,6 @@ int calc(int sd, int tm) {
 
 	if (post && ics) printf("kibitz W: %d Nodes: %llu QNodes: %llu Evals: %llu cs: %d knps: %llu\n", MEVAL(value[iter > sd ? sd : iter]), nodes, qnodes, eval1, t1/10, (nodes+qnodes)/(t1+1));
 
-	if (resign > 0) {
-		int w = value[iter > sd ? sd : iter];
-		if (w < -resign && lastw < -resign) printf("resign\n");
-		int dt = COUNT > 88 ? (COUNT - 80)/8 : 0;
-		if (w < dt && w > -dt && lastw < dt && lastw > -dt) printf("offer draw\n");
-		lastw = w;
-	}
-
 	return execMove(pv[0][0]);
 }
 
@@ -1633,14 +1607,14 @@ int input(int c) {
 
 int main(int argc, char **argv)
 {
-	int i, ex = -1;
+	int i, ex = -1; u64 m, n;
 
 	setbuf(stdout, NULL);
 	setbuf(stdin, NULL);
 	signal(SIGINT, SIG_IGN);
 	for (i = 0; i < 0x10000; i++) LSB[i] = _slow_lsb(i);
 	for (i = 0; i < 0x10000; i++) BITC[i] = _bitcnt(i);
-	for (i = 0; i < 4096; i++) hashxor[i] = _rand_64();
+	for (i = 4096, n = 1, m = 6364136223846793005LL; i--; hashxor[4095-i] = n = n*m +1LL);
 	for (i = 0; i < 64; i++) BIT[i] = 1LL << i;
 	for (i = 0; i < 128; i++) pmoves[i] = pawnfree[i] = pawnfile[i] = pawnhelp[i] = 0LL;
 	for (i = 0; i < 384; i++) pcaps[i] = 0LL;
@@ -1674,7 +1648,7 @@ int main(int argc, char **argv)
 			sscanf(argv[2], "%d", &sd);
 			if (argc > 3) { _parse_fen(argv[3]); calc(sd, ttime); return 0; }
 		}
-	} else if (argc > 1 && !strncmp(argv[1],"-resign",7)) sscanf(argv[2], "%d", &resign); 
+	}
 	irbuf[0] = 0;
 
 	for (;;) {
@@ -1683,7 +1657,7 @@ int main(int argc, char **argv)
 
 		if (!ponder || book || engine == -1 || ex != 0) ex = input(onmove);
 		if (ex == -2) break;
-		if (ex == -3) newGame(analyze || resign > 0 ? 3 : 2);
+		if (ex == -3) newGame(analyze ?  3 : 2);
 		if (ex == -4) { undo(); undo(); }
 		if (ex == -5) { analyze = pondering = 1; engine = -1; }
 		if (ex == -6) analyze = pondering = 0;
