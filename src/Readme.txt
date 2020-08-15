@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 16.Jun.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 18.Jun.2020, ob112@web.de, http://brausch.org
 
-Version: 5.4.0
+Version: 5.4.1
 Protocol: Winboard 2
 HashSize: 48MB
 Ponder: Yes
@@ -9,12 +9,15 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Deepening, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing/pawnhanging evaluation
-LinesOfCode: 1647
+LinesOfCode: 1651
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution!
 
+v5.4.1: changes since 5.4.0:
+Implementing a very simple Move Count Pruning
+
 v5.4.0: changes since 5.3.5f:
-Refactoring of "No mating material" which yields big gains in strength
+Refactoring of "No mating material" which yields gains in strength
 
 v5.3.5f: changes since 5.3.5c:
 Option -forceponder. Pvlength = 128. Preparing code for corrected "No mating matieral"
