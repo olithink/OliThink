@@ -138,7 +138,7 @@ u64 getLowestBit(u64 bb) {
 }
 
 void _parse_fen(char *fen) {
-	char c, mv, pos[128], cas[4], enps[2];
+	char c, mv, pos[128], cas[5], enps[3];
 	int i, j = 0, halfm = 0, fullm = 1, col = 0, row = 7;
 	for (i = 0; i < 8; i++) {
 		pieceb[i] = 0LL;
