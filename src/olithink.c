@@ -453,8 +453,8 @@ void displayb() {
 }
 
 void displaym(Move m) {
-	printf("%c%c%c%c%c", 'a' + FROM(m) % 8, '1' + FROM(m) / 8,
-		CAP(m) == 0 ? '-' : 'x', 'a' + TO(m) % 8, '1' + TO(m) / 8);
+	printf("%c%c%c%c", 'a' + FROM(m) % 8, '1' + FROM(m) / 8,
+		'a' + TO(m) % 8, '1' + TO(m) / 8);
 	if (PROM(m)) printf("%c", pieceChar[PROM(m)]+32);
 }
 
@@ -1139,7 +1139,7 @@ int main(int argc, char **argv)
 		}
 
 		fgets(buf,255,stdin);
-		if (!strncmp(buf,"xboard",6)) printf("feature setboard=1 done=1\n");
+		if (!strncmp(buf,"xboard",6)) printf("feature setboard=1 myname=\"OliThink 5.0.0\" done=1\n");
 		if (!strncmp(buf,"quit",4)) return 0;
 		if (!strncmp(buf,"force",5)) engine = -1;
 		if (!strncmp(buf,"go",2)) engine = onmove;
