@@ -468,7 +468,7 @@ void displaypv() {
 int isDraw(u64 hp, int nrep) {
 	if (fifty > 1) {
 		int i, c = 0, n = nstack - fifty;
-		if (fifty >= 50) return 2;
+		if (fifty >= 100) return 2;
 		for (i = nstack - 2; i >= n; i--) if (hstack[i] == hp) if (++c == nrep) return 1;
 	}
 	return 0;
