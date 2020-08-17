@@ -645,7 +645,7 @@ void registerKing(Move m, u64 bc, u64 bm, int* mlist, int* mn, int c) {
 char getDir(int f, int t) {
 	if (!((f ^ t) & 56)) return 8;
 	if (!((f ^ t) & 7)) return 16;
-	return ((f - t) % 7) ? 32 : 64;
+	return (!((f - t) % 9)) ? 32 : 64;
 }
 
 int generateCheckEsc(u64 ch, u64 apin, int c, int k, int *ml, int *mn) {
