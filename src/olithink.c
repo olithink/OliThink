@@ -1008,7 +1008,7 @@ int search(int c, int d, int ply, int alpha, int beta) {
 	int nstackstore = nstack;
 	Move hmove;
 	u64 hb, hp, he;
-	nodes++;
+	if (nodes++ > 3200000) return alpha;
 	hp = HASHP;
 	if (isDraw(hp, 1)) return 0;
 
@@ -1084,7 +1084,7 @@ void calc(int sd) {
 			printf("%2d %5d %6llu %9llu  ", i, w, (getTime() - t1)/10, nodes);
 			displaypv(); printf("\n");
 
-			if (sd == 64 && nodes > 3000000) break;
+			if (sd == 64 && nodes > 1600000) break;
 		}
 		t1 = getTime() - t1 + 1;
 		printf("%d. ... ", nstack/2 + 1);
