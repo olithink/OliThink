@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 27.Oct.2008, ob112@web.de, http://home.arcor.de/dreamlike */
-#define VER "5.1.8alpha"
+#define VER "5.1.8"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
