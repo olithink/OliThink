@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 19.Sep.2009, ob112@web.de, http://home.arcor.de/dreamlike */
-#define VER "5.2.1"
+/* OliThink5 (c) Oliver Brausch 05.Dec.2009, ob112@web.de, http://home.arcor.de/dreamlike */
+#define VER "5.2.2"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -97,11 +97,16 @@ const int pawnrun[] = {0, 0, 1, 8, 16, 32, 64, 128};
 #define CASTLE (flags & 960)
 #define COUNT (count & 0x7FF)
 
-#define HSIZE 0x800000
-#define HMASK 0x7FFFFF
-#define HINV 0xFFFFFFFFFF800000LL
-u64 hashDB[HSIZE];
-u64 hashDP[HSIZE];
+#define HSIZEB 0x200000
+#define HMASKB 0x1FFFFF
+#define HINVB 0xFFFFFFFFFFE00000LL
+
+#define HSIZEP 0x400000
+#define HMASKP 0x3FFFFF
+#define HINVP 0xFFFFFFFFFFC00000LL
+
+u64 hashDB[HSIZEB];
+u64 hashDP[HSIZEP];
 u64 hashb;
 u64 hstack[0x800];
 
@@ -321,8 +326,9 @@ int key000(u64 b, int f) {
 	return (int) ((b >> (f & 56)) & 0x7E);
 }
 
-#if defined(_WIN64) || defined(_LP64)
+#if defined(_WIN64) || defined(_LIIIP64)
 int key090(u64 b, int f) {
+iii
 	u64 _b = (b >> (f&7)) & 0x0101010101010101LL;
 	_b = _b * 0x0080402010080400LL;
 	return (int)(_b >> 57);
@@ -1175,6 +1181,8 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 	int countstore = count;
 	int matstore = mat;
 	int cmat = c ? -mat: mat;
+
+//	printf("%d,%d,%d\n", cmat, alpha, beta);
 	if (ply == 63) return eval(c) + cmat;
 	if (!ch) do {
 		if (cmat - 200 >= beta) return beta;
@@ -1224,7 +1232,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	int matstore = mat;
 	Move hsave, hmove;
 	u64 hb, hp, he;
-	
+
 	pvlength[ply] = ply;
 	if (ply == 63) return eval(c) + (c ? -mat: mat);
 	if ((++nodes & CNODES) == 0) {
@@ -1241,8 +1249,8 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 
 	hb = HASHB;
 	
-	he = hashDB[hb & HMASK];
-	if (!((he^hb) & HINV)) {
+	he = hashDB[hb & HMASKB];
+	if (!((he^hb) & HINVB)) {
 		w = (u32)LOW16(he) - 32768;
 		if (he & 0x10000) {
 			null = 0;
@@ -1260,19 +1268,19 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		flags = flagstore;
 		count = countstore;
 		if (!sabort && w >= beta) {
-			hashDB[hb & HMASK] = (hb & HINV) | (w + 32768); 
+			hashDB[hb & HMASKB] = (hb & HINVB) | (w + 32768); 
 			return beta;
 		}
 	}
 
 	hsave = hmove = 0;
-	he = hashDP[hp & HMASK];
-	if (!((he^hp) & HINV)) hsave = hmove = (Move)(he & HMASK);
+	he = hashDP[hp & HMASKP];
+	if (!((he^hp) & HINVP)) hsave = hmove = (Move)(he & HMASKP);
 
 	if (d >= 4 && hmove == 0) { // Simple version of Internal Iterative Deepening
 		w = search(ch, c, d-3, ply, alpha, beta, 0, pvnode);
-		he = hashDP[hp & HMASK];
-		if (!((he^hp) & HINV)) hsave = hmove = (Move)(he & HMASK);
+		he = hashDP[hp & HMASKP];
+		if (!((he^hp) & HINVP)) hsave = hmove = (Move)(he & HMASKP);
 	}
 
 	poff = ply << 8;
@@ -1317,7 +1325,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 
 		if (!sabort && w > best) {
 			if (w > alpha) {
-				hashDP[hp & HMASK] = (hp & HINV) | m;
+				hashDP[hp & HMASKP] = (hp & HINVP) | m;
 				alpha = w;
 			}
 			if (w >= beta) {
@@ -1325,7 +1333,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 					killer[ply] = m;
 					history[m & 0xFFF]++;
 				}
-				hashDB[hb & HMASK] = (hb & HINV) | (w + 32768); 
+				hashDB[hb & HMASKB] = (hb & HINVB) | (w + 32768); 
 				return beta;
 			}
 			if (pvnode && w >= alpha) {
@@ -1340,9 +1348,9 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		first = 0;
 	}
 	if (pvnode) {
-		if (!sabort && asave == alpha) hashDB[hb & HMASK] = (hb & HINV) | 0x10000 | (asave + 32768);
+		if (!sabort && asave == alpha) hashDB[hb & HMASKB] = (hb & HINVB) | 0x10000 | (asave + 32768);
 	} else {
-		if (!sabort && best < beta) hashDB[hb & HMASK] = (hb & HINV) | 0x10000 | (best + 32768);
+		if (!sabort && best < beta) hashDB[hb & HMASKB] = (hb & HINVB) | 0x10000 | (best + 32768);
 	}
 	return alpha;
 }
@@ -1398,6 +1406,7 @@ int _parseMove(char *s, int c, Move* mp) {
 	if (!ISRANK(c2)) return -1;
 	if (*s >= '0') {
 		if (*s == '=') prom = _getpiece(s[1], &i);
+		else if (*s == '+');
 		else { // Algebraic Notation
 			from = c1 - 'a' + 8*(c2 - '1');
 			c1 = *s++; c2 = *s++;
@@ -1467,7 +1476,7 @@ int calc(int sd, int tm, int pon) {
 				printf("%2d %5d %6d %9llu  ", iter, value[iter], t1/10, nodes + qnodes);
 				displaypv(); printf("\n"); 
 			}
-			if (iter >= 32000-value[iter] || sabort || t1 > searchtime/2) break;
+			if (iter >= 32000-value[iter] || sabort || (u32)t1 > searchtime/2) break;
 		}
 		if (pon) return -1;
 		printf("%d. ... ", COUNT/2 + 1);
@@ -1510,13 +1519,15 @@ int input() {
 int main(int argc, char **argv)
 {
 	int i, ex = -1;
+
 	setbuf(stdout, NULL);
 	setbuf(stdin, NULL);
 	signal(SIGINT, SIG_IGN);
 	for (i = 0; i < 0x10000; i++) LSB[i] = _slow_lsb(i);
 	for (i = 0; i < 0x10000; i++) BITC[i] = _bitcnt(i);
 	for (i = 0; i < 4096; i++) hashxor[i] = _rand_64();
-	for (i = 0; i < HSIZE; i++) hashDB[i] = hashDP[i] = 0LL;
+	for (i = 0; i < HSIZEB; i++) hashDB[i] = 0LL;
+	for (i = 0; i < HSIZEP; i++) hashDP[i] = 0LL;
 	for (i = 0; i < 64; i++) BIT[i] = 1LL << i;
 	for (i = 0; i < 128; i++) pmoves[i] = pawnfree[i] = pawnfile[i] = pawnhelp[i] = 0LL;
 	for (i = 0; i < 384; i++) pcaps[i] = 0LL;
