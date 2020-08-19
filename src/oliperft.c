@@ -1,4 +1,4 @@
-/* OliPerft 1.0.2 - Bitboard Magic Move (c) Oliver Brausch 22.Jul.2008, ob112@web.de */
+/* OliPerft 1.0.3 - Bitboard Magic Move (c) Oliver Brausch 20.Aug.2020, ob112@web.de */
 /* oliperft 6 "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
 Nodes: 8229523927 cs: 1565 knps: 525747 (gcc4 64bit AMD Ryzen Threadripper 2950X 1/16-Core Processor)
 Nodes: 8229523927 cs: 1601 knps: 513831 (gcc4 64bit AMD EPYC 7502P 1/32-Core Processor)
@@ -558,7 +558,7 @@ void registerKing(Move m, u64 bc, u64 bm, int* mlist, int* mn, int c) {
 char getDir(int f, int t) {
 	if (!((f ^ t) & 56)) return 8;
 	if (!((f ^ t) & 7)) return 16;
-	return ((f - t) % 7) ? 32 : 64;
+	return (!((f - t) % 9)) ? 32 : 64;
 }
 
 int generateCheckEsc(u64 ch, u64 apin, int c, int k, int *ml, int *mn) {
