@@ -1,5 +1,8 @@
-/* OliPerft 1.0.1 - Bitboard Magic Move (c) Oliver Brausch 01.Jan.2008, ob112@web.de */
+/* OliPerft 1.0.2 - Bitboard Magic Move (c) Oliver Brausch 22.Jul.2008, ob112@web.de */
 /* oliperft 6 "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
+Nodes: 8229523927 cs: 1565 knps: 525747 (gcc4 64bit AMD Ryzen Threadripper 2950X 1/16-Core Processor)
+Nodes: 8229523927 cs: 1601 knps: 513831 (gcc4 64bit AMD EPYC 7502P 1/32-Core Processor)
+Nodes: 8229523927 cs: 1917 knps: 429135 (gcc OSX i7 8850H 2.6 GHz)
 Nodes: 8229523927 ms: 40610 knps: 202647 (VS2005 64bit AMD64 4600+)
 Nodes: 8229523927 ms: 64860 knps: 126881 (VS2005 32bit AMD64 4600+)
 Nodes: 8229523927 ms: 97251 knps: 84621 (gcc4 32bit AMD Opteron 1210HE)
@@ -127,7 +130,7 @@ u64 getLowestBit(u64 bb) {
 }
 
 void _parse_fen(char *fen) {
-	char c, mv, pos[128], cas[4], enps[2];
+	char c, mv, pos[128], cas[5], enps[3];
 	int i, j = 0, halfm = 0, fullm = 1, col = 0, row = 7;
 	for (i = 0; i < 8; i++) {
 		pieceb[i] = 0LL;
