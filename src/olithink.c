@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 15.Aug.2020, ob112@web.de, http://brausch.org */
-#define VER "5.6.5"
+/* OliThink5 (c) Oliver Brausch 23.Aug.2020, ob112@web.de, http://brausch.org */
+#define VER "5.6.6"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -574,6 +574,7 @@ u64 pinnedPieces(int f, int oc) {
 	return pin;
 }
 
+/* precondition: f and t are on common rank (8), file (16), diagonal (32) or antidiagonal (64) */
 char getDir(int f, int t) {
 	if (!((f ^ t) & 56)) return 8;
 	if (!((f ^ t) & 7)) return 16;
@@ -1269,10 +1270,8 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		if (!sabort && w >= beta) return beta;
 	}
 
-	if (d >= 4 && !hmove) { // Simple version of Internal Iterative Deepening
-		w = search(ch, c, d-3, ply, alpha, beta, pvnode, 0);
-		he = hashDB[hp & HMASK];
-		if (he.key == hp) hmove = he.move;
+	if (d >= 5 && !hmove) { // Internal Iterative Reduction (IIR)
+		d--;
 	}
 
 	int poff = ply << 8;
