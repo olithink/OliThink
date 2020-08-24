@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 16.Jun.2020, ob112@web.de, http://brausch.org */
-#define VER "5.4.0"
+#define VER "5.4.0s"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -129,11 +129,11 @@ static int pawnprg[128];
 static u64 pawnfree[128];
 static u64 pawnfile[128];
 static u64 pawnhelp[128];
-Move movelist[64*256];
-int movenum[64];
-Move pv[64][128];
+Move movelist[128*256];
+int movenum[128];
+Move pv[128][128];
 int pvlength[128];
-int value[64];
+int value[128];
 int iter;
 const char pieceChar[] = "*PNK.BRQ";
 u64 searchtime, maxtime, starttime;
