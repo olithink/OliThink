@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 23.Aug.2020, ob112@web.de, http://brausch.org */
-#define VER "5.6.6"
+#define VER "5.6.6a"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -1036,7 +1036,7 @@ int evalc(int c) {
 
 		m = PMOVE(f, c);
 		a = POCC(f, c);
-		if (a & kn) katt += _bitcnt(a & kn) << 3;
+		if (a & kn) katt += _bitcnt(a & kn) << 4;
 		if (BIT[f] & pin) {
 			if (!(getDir(f, kingpos[c]) & 16)) m = 0;
 		} else if (a) {
@@ -1058,7 +1058,7 @@ int evalc(int c) {
 	while (b) {
 		f = pullLsb(&b);
 		a = nmoves[f];
-		if (a & kn) katt += _bitcnt(a & kn) << 3;
+		if (a & kn) katt += _bitcnt(a & kn) << 4;
 		mn += nmobil[f];
 	}
 
@@ -1066,7 +1066,7 @@ int evalc(int c) {
 	while (b) {
 		f = pullLsb(&b);
 		a = nmoves[f];
-		if (a & kn) katt += _bitcnt(a & kn) << 3;
+		if (a & kn) katt += _bitcnt(a & kn) << 4;
 	}
 
 	xorBit(kingpos[oc], colorb+oc); //Opposite King doesn't block mobility at all
@@ -1076,7 +1076,7 @@ int evalc(int c) {
 		f = pullLsb(&b);
 
 		a = BATT3(f) | BATT4(f) | RATT1(f) | RATT2(f);
-		if (a & kn) katt += _bitcnt(a & kn) << 3;
+		if (a & kn) katt += _bitcnt(a & kn) << 4;
 		mn += bitcnt(a);
 	}
 
@@ -1085,7 +1085,7 @@ int evalc(int c) {
 	while (b) {
 		f = pullLsb(&b);
 		a = BATT3(f) | BATT4(f);
-		if (a & kn) katt += _bitcnt(a & kn) << 3;
+		if (a & kn) katt += _bitcnt(a & kn) << 4;
 		mn += bitcnt(a) << 3;
 	}
 
@@ -1095,7 +1095,7 @@ int evalc(int c) {
 	while (b) {
 		f = pullLsb(&b);
 		a = RATT1(f) | RATT2(f);
-		if (a & kn) katt += _bitcnt(a & kn) << 3;
+		if (a & kn) katt += _bitcnt(a & kn) << 4;
 		mn += bitcnt(a) << 2;
 	}
 
@@ -1108,7 +1108,7 @@ int evalc(int c) {
 		else if (p == ROOK) a = RATT1(f) | RATT2(f);
 		else a = RATT1(f) | RATT2(f) | BATT3(f) | BATT4(f);
 
-		if (a & kn) katt += _bitcnt(a & kn) << 3;
+		if (a & kn) katt += _bitcnt(a & kn) << 4;
 		t = p | getDir(f, kingpos[c]);
 		if ((t & 10) == 10) mn += _bitcnt(RATT1(f));
 		if ((t & 18) == 18) mn += _bitcnt(RATT2(f));
