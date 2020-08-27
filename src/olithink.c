@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 23.Aug.2020, ob112@web.de, http://brausch.org */
-#define VER "5.6.6c"
+#define VER "5.6.6d"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -1015,8 +1015,7 @@ Move spick(Move* ml, int mn, int s, int ply) {
 int evalc(int c) {
 	int t, f, mn = 0, katt = 0;
 	int oc = c^1;
-	u64 ocb = colorb[oc];
-	u64 m, b, a, cb;
+	u64 b, a, cb, ocb = colorb[oc];
 	u64 kn = kmoves[kingpos[oc]];
 	u64 pin = pinnedPieces(kingpos[c], oc);
 
@@ -1034,15 +1033,11 @@ int evalc(int c) {
 			ppos -= (openfile ? 2 : 1) << 4; // Open file
 		}
 
-		m = PMOVE(f, c);
 		a = POCC(f, c);
-		if (a & kn) katt += _bitcnt(a & kn) << 4;
-		if (BIT[f] & pin) {
-			if (!(getDir(f, kingpos[c]) & 16)) m = 0;
-		} else if (a) {
+		if (a) {
 			ppos += _bitcnt(a & pieceb[PAWN] & colorb[c]) << 2;
 		}
-		if (m) ppos += 8; else ppos -= 8;
+		if (a & kn) katt += _bitcnt(a & kn) << 4;
 
 		if (!(pawnhelp[t] & pieceb[PAWN] & colorb[c])) { // No support
 			a = ((BATT3(f) | BATT4(f)) & BQU) | ((RATT1(f) | RATT2(f)) & RQU);
