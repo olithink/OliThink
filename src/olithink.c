@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 23.Aug.2020, ob112@web.de, http://brausch.org */
-#define VER "5.6.6a"
+#define VER "5.6.6b"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -1257,7 +1257,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	} 
 
 	//Null Move
-	if (!ch && null && d > 1 && (n = bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1)))) > 1) {
+	if (!ch && !pvnode && null && d > 1 && (n = bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1)))) > 1) {
 		int flagstore = flags;
 		int R = (10 + d + nullvariance(evallazy(c, mat) - alpha))/4; if (n <= 2) R--;
 		if (R > d) R = d;
@@ -1266,7 +1266,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		w = -search(0LL, c^1, d-R, ply+1, -beta, 1-beta, 0, 0);
 		flags = flagstore;
 		count -= 0x401;
-		if (d >= 6 && n <= 2 && w >= beta) w = search(ch, c, d-5, ply, beta-1, beta, pvnode, 0);
+		if (d >= 6 && n <= 2 && w >= beta) w = search(ch, c, d-5, ply, beta-1, beta, 0, 0);
 		if (!sabort && w >= beta) return beta;
 	}
 
