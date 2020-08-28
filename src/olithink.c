@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 23.Aug.2020, ob112@web.de, http://brausch.org */
-#define VER "5.6.6"
+#define VER "5.6.6d"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -1015,8 +1015,7 @@ Move spick(Move* ml, int mn, int s, int ply) {
 int evalc(int c) {
 	int t, f, mn = 0, katt = 0;
 	int oc = c^1;
-	u64 ocb = colorb[oc];
-	u64 m, b, a, cb;
+	u64 b, a, cb, ocb = colorb[oc];
 	u64 kn = kmoves[kingpos[oc]];
 	u64 pin = pinnedPieces(kingpos[c], oc);
 
@@ -1034,15 +1033,11 @@ int evalc(int c) {
 			ppos -= (openfile ? 2 : 1) << 4; // Open file
 		}
 
-		m = PMOVE(f, c);
 		a = POCC(f, c);
-		if (a & kn) katt += _bitcnt(a & kn) << 3;
-		if (BIT[f] & pin) {
-			if (!(getDir(f, kingpos[c]) & 16)) m = 0;
-		} else if (a) {
+		if (a) {
 			ppos += _bitcnt(a & pieceb[PAWN] & colorb[c]) << 2;
 		}
-		if (m) ppos += 8; else ppos -= 8;
+		if (a & kn) katt += _bitcnt(a & kn) << 4;
 
 		if (!(pawnhelp[t] & pieceb[PAWN] & colorb[c])) { // No support
 			a = ((BATT3(f) | BATT4(f)) & BQU) | ((RATT1(f) | RATT2(f)) & RQU);
@@ -1058,7 +1053,7 @@ int evalc(int c) {
 	while (b) {
 		f = pullLsb(&b);
 		a = nmoves[f];
-		if (a & kn) katt += _bitcnt(a & kn) << 3;
+		if (a & kn) katt += _bitcnt(a & kn) << 4;
 		mn += nmobil[f];
 	}
 
@@ -1066,7 +1061,7 @@ int evalc(int c) {
 	while (b) {
 		f = pullLsb(&b);
 		a = nmoves[f];
-		if (a & kn) katt += _bitcnt(a & kn) << 3;
+		if (a & kn) katt += _bitcnt(a & kn) << 4;
 	}
 
 	xorBit(kingpos[oc], colorb+oc); //Opposite King doesn't block mobility at all
@@ -1076,7 +1071,7 @@ int evalc(int c) {
 		f = pullLsb(&b);
 
 		a = BATT3(f) | BATT4(f) | RATT1(f) | RATT2(f);
-		if (a & kn) katt += _bitcnt(a & kn) << 3;
+		if (a & kn) katt += _bitcnt(a & kn) << 4;
 		mn += bitcnt(a);
 	}
 
@@ -1085,7 +1080,7 @@ int evalc(int c) {
 	while (b) {
 		f = pullLsb(&b);
 		a = BATT3(f) | BATT4(f);
-		if (a & kn) katt += _bitcnt(a & kn) << 3;
+		if (a & kn) katt += _bitcnt(a & kn) << 4;
 		mn += bitcnt(a) << 3;
 	}
 
@@ -1095,7 +1090,7 @@ int evalc(int c) {
 	while (b) {
 		f = pullLsb(&b);
 		a = RATT1(f) | RATT2(f);
-		if (a & kn) katt += _bitcnt(a & kn) << 3;
+		if (a & kn) katt += _bitcnt(a & kn) << 4;
 		mn += bitcnt(a) << 2;
 	}
 
@@ -1108,7 +1103,7 @@ int evalc(int c) {
 		else if (p == ROOK) a = RATT1(f) | RATT2(f);
 		else a = RATT1(f) | RATT2(f) | BATT3(f) | BATT4(f);
 
-		if (a & kn) katt += _bitcnt(a & kn) << 3;
+		if (a & kn) katt += _bitcnt(a & kn) << 4;
 		t = p | getDir(f, kingpos[c]);
 		if ((t & 10) == 10) mn += _bitcnt(RATT1(f));
 		if ((t & 18) == 18) mn += _bitcnt(RATT2(f));
@@ -1157,8 +1152,8 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 	if (ply == 127) return eval(c, mat);
 	if (!ch) do {
 		int cmat = evallazy(c, mat);
-		if (cmat - 140 >= beta) return beta;
-		if (cmat + 140 <= alpha) break;
+		if (cmat - 125 >= beta) return beta;
+		if (cmat + 125 <= alpha) break;
 		best = eval(c, mat);
 		if (best > alpha) {
 			alpha = best;
@@ -1257,7 +1252,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	} 
 
 	//Null Move
-	if (!ch && null && d > 1 && (n = bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1)))) > 1) {
+	if (!ch && !pvnode && null && d > 1 && (n = bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1)))) > 1) {
 		int flagstore = flags;
 		int R = (10 + d + nullvariance(evallazy(c, mat) - alpha))/4; if (n <= 2) R--;
 		if (R > d) R = d;
@@ -1266,7 +1261,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		w = -search(0LL, c^1, d-R, ply+1, -beta, 1-beta, 0, 0);
 		flags = flagstore;
 		count -= 0x401;
-		if (d >= 6 && n <= 2 && w >= beta) w = search(ch, c, d-5, ply, beta-1, beta, pvnode, 0);
+		if (d >= 6 && n <= 2 && w >= beta) w = search(ch, c, d-5, ply, beta-1, beta, 0, 0);
 		if (!sabort && w >= beta) return beta;
 	}
 
