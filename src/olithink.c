@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 27.Aug.2020, ob112@web.de, http://brausch.org */
-#define VER "5.6.7"
+#define VER "5.6.7a"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -1016,7 +1016,7 @@ int evalc(int c) {
 	int t, f, mn = 0, katt = 0;
 	int oc = c^1;
 	u64 b, a, cb, ocb = colorb[oc];
-	u64 kn = kmoves[kingpos[oc]];
+	u64 kn = kmoves[kingpos[oc]] & (~pieceb[PAWN]);
 	u64 pin = pinnedPieces(kingpos[c], oc);
 
 	b = pieceb[PAWN] & colorb[c];
