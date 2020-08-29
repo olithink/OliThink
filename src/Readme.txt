@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 27.Aug.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 29.Aug.2020, ob112@web.de, http://brausch.org
 
-Version: 5.6.7
+Version: 5.6.8
 Protocol: Winboard 2
 HashSize: 128MB
 Ponder: Yes
@@ -12,6 +12,9 @@ Evaluation: Just mobility and a very simple pawnprogressing evaluation
 LinesOfCode: 1657
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
+
+v5.6.8: changes since 5.6.7:
+Pawns reduce attack bonus on king.
 
 v5.6.7: changes since 5.6.6:
 More bonus for attack on king's squares. No nullmove on pvnode. Quiesce puffer to 125. Simplify pawn evaluation.

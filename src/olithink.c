@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 27.Aug.2020, ob112@web.de, http://brausch.org */
-#define VER "5.6.7a"
+/* OliThink5 (c) Oliver Brausch 29.Aug.2020, ob112@web.de, http://brausch.org */
+#define VER "5.6.8"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
