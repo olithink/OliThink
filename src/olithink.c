@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 29.Aug.2020, ob112@web.de, http://brausch.org */
-#define VER "5.6.8"
+#define VER "5.6.8a"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,10 +10,12 @@
 #include <conio.h>
 #include <sys/timeb.h>
 struct _timeb tv;
+#define _bitcnt(x) __popcnt64(x)
 #else
 #include <sys/time.h>
 struct timeval tv;
 struct timezone tz;
+#define _bitcnt(x) __builtin_popcountll(x)
 #endif
 typedef unsigned long long u64;
 typedef unsigned long u32;
@@ -125,7 +127,6 @@ static int _knight[8] = {-17,-10,6,15,17,10,-6,-15};
 static int _king[8] = {-9,-1,7,8,9,1,-7,-8};
 static u64 BIT[64];
 static char LSB[0x10000];
-static char BITC[0x10000];      
 static int crevoke[64];
 static int nmobil[64];
 static int kmobil[64];
@@ -316,19 +317,6 @@ int pullLsb(u64* bit) {
 	return f;
 }
 
-char _bitcnt(u64 bit) {
-	char c = 0;
-	while (bit) { bit &= (bit - 1); c++; }
-	return c;
-}
-
-char bitcnt (u64 n) {    
-     return BITC[LOW16(n)]
-         +  BITC[LOW16(n >> 16)]
-         +  BITC[LOW16(n >> 32)]
-         +  BITC[LOW16(n >> 48)];
-}
-
 int identPiece(int f) {
 	if (TEST(f, pieceb[PAWN])) return PAWN;
 	if (TEST(f, pieceb[KNIGHT])) return KNIGHT;
@@ -452,7 +440,7 @@ void _init_rays(u64* rays, u64 (*rayFunc)(int, u64, int), int (*key)(u64, int)) 
 	u64 board, mmask, occ, move, xray;
 	for (f = 0; f < 64; f++) {
 		mmask = (*rayFunc)(f, 0LL, 0) | BIT[f];
-		iperm = 1 << (bc = bitcnt(mmask));
+		iperm = 1 << (bc = _bitcnt(mmask));
 		for (i = 0; i < iperm; i++) {
 			board = _occ_free_board(bc, i, mmask);
 			move = (*rayFunc)(f, board, 1);
@@ -1072,7 +1060,7 @@ int evalc(int c) {
 
 		a = BATT3(f) | BATT4(f) | RATT1(f) | RATT2(f);
 		if (a & kn) katt += _bitcnt(a & kn) << 4;
-		mn += bitcnt(a);
+		mn += _bitcnt(a);
 	}
 
 	colorb[oc] ^= RQU & ocb; //Opposite Queen & Rook doesn't block mobility for bishop
@@ -1081,7 +1069,7 @@ int evalc(int c) {
 		f = pullLsb(&b);
 		a = BATT3(f) | BATT4(f);
 		if (a & kn) katt += _bitcnt(a & kn) << 4;
-		mn += bitcnt(a) << 3;
+		mn += _bitcnt(a) << 3;
 	}
 
 	colorb[oc] ^= pieceb[ROOK] & ocb; //Opposite Queen doesn't block mobility for rook.
@@ -1091,7 +1079,7 @@ int evalc(int c) {
 		f = pullLsb(&b);
 		a = RATT1(f) | RATT2(f);
 		if (a & kn) katt += _bitcnt(a & kn) << 4;
-		mn += bitcnt(a) << 2;
+		mn += _bitcnt(a) << 2;
 	}
 
 	colorb[c] ^= RQU & cb; // Back
@@ -1252,7 +1240,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	} 
 
 	//Null Move
-	if (!ch && !pvnode && null && d > 1 && (n = bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1)))) > 1) {
+	if (!ch && !pvnode && null && d > 1 && (n = _bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1)))) > 1) {
 		int flagstore = flags;
 		int R = (10 + d + nullvariance(evallazy(c, mat) - alpha))/4; if (n <= 2) R--;
 		if (R > d) R = d;
@@ -1602,7 +1590,6 @@ int main(int argc, char **argv)
 	setbuf(stdin, NULL);
 	signal(SIGINT, SIG_IGN);
 	for (i = 0; i < 0x10000; i++) LSB[i] = _slow_lsb(i);
-	for (i = 0; i < 0x10000; i++) BITC[i] = _bitcnt(i);
 	for (i = 4096, n = 1, m = 6364136223846793005LL; i--; hashxor[4095-i] = n = n*m +1LL);
 	for (i = 0; i < 64; i++) BIT[i] = 1LL << i;
 	for (i = 0; i < 128; i++) pmoves[i] = pawnfree[i] = pawnfile[i] = pawnhelp[i] = 0LL;
@@ -1627,8 +1614,8 @@ int main(int argc, char **argv)
 	_init_pawns(pmoves + 64, pcaps + 64, pawnfree + 64, pawnfile + 64, pawnhelp + 64, 1);
 	newGame(3);
 
-	for (i = 0; i < 64; i++) nmobil[i] = (bitcnt(nmoves[i])-1)*6;
-	for (i = 0; i < 64; i++) kmobil[i] = (bitcnt(nmoves[i])/2);
+	for (i = 0; i < 64; i++) nmobil[i] = (_bitcnt(nmoves[i])-1)*6;
+	for (i = 0; i < 64; i++) kmobil[i] = (_bitcnt(nmoves[i])/2);
 	for (i = 0; i < 32; i++) bishcorn[i] = bishcorn[63-i] = (i&7) < 4 ? cornbase[(i&7) + i/8] : -cornbase[7 - (i&7) + i/8];
 
 	if (argc > 1 && !strncmp(argv[1],"-sd",3)) {
