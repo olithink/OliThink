@@ -1,6 +1,6 @@
 OliThink5 (c) Oliver Brausch 30.Aug.2020, ob112@web.de, http://brausch.org
 
-Version: 5.6.8a
+Version: 5.6.9
 Protocol: Winboard 2
 HashSize: 128MB
 Ponder: Yes
@@ -9,12 +9,12 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Reduction, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1644
+LinesOfCode: 1657
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
 
-v5.6.8a: changes since 5.6.8:
-Using of built-in popcnt method. Removal of BITC arrays.
+v5.6.9: changes since 5.6.8:
+Increase mobile eval of knights. Use built-in popcount.
 
 v5.6.8: changes since 5.6.7:
 Pawns reduce attack bonus on king.

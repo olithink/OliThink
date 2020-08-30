@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 29.Aug.2020, ob112@web.de, http://brausch.org */
-#define VER "5.6.8a"
+/* OliThink5 (c) Oliver Brausch 30.Aug.2020, ob112@web.de, http://brausch.org */
+#define VER "5.6.9"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -1614,7 +1614,7 @@ int main(int argc, char **argv)
 	_init_pawns(pmoves + 64, pcaps + 64, pawnfree + 64, pawnfile + 64, pawnhelp + 64, 1);
 	newGame(3);
 
-	for (i = 0; i < 64; i++) nmobil[i] = (_bitcnt(nmoves[i])-1)*6;
+	for (i = 0; i < 64; i++) nmobil[i] = (_bitcnt(nmoves[i]))*8;
 	for (i = 0; i < 64; i++) kmobil[i] = (_bitcnt(nmoves[i])/2);
 	for (i = 0; i < 32; i++) bishcorn[i] = bishcorn[63-i] = (i&7) < 4 ? cornbase[(i&7) + i/8] : -cornbase[7 - (i&7) + i/8];
 
