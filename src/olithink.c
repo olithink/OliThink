@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 30.Aug.2020, ob112@web.de, http://brausch.org */
-#define VER "5.6.9b"
+/* OliThink5 (c) Oliver Brausch 01.Sep.2020, ob112@web.de, http://brausch.org */
+#define VER "5.6.9c"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -262,8 +262,7 @@ void _readbook(char *bk) {
 						strcpy(s1, s2); s2[0] = 0;
 						sscanf(buf+i,"%s", s2);
 						i += (int)(strlen(s2) + 1);
-					} else 
-					sscanf(s0,"%*[^.].%[^.]", s1);
+					} else sscanf(s0,"%*[^.].%[^.]", s1);
 					parseMoveNExec(s1, 0, bkmove + n*32+ (j++));
 					if (s2[0] == 0 || s2[0] == '*') break;
 					parseMoveNExec(s2, 1, bkmove + n*32+ (j++));
@@ -318,12 +317,8 @@ int pullLsb(u64* bit) {
 }
 
 int identPiece(int f) {
-	if (TEST(f, pieceb[PAWN])) return PAWN;
-	if (TEST(f, pieceb[KNIGHT])) return KNIGHT;
-	if (TEST(f, pieceb[BISHOP])) return BISHOP;
-	if (TEST(f, pieceb[ROOK])) return ROOK;
-	if (TEST(f, pieceb[QUEEN])) return QUEEN;
-	if (TEST(f, pieceb[KING])) return KING;
+	int i;
+	for (i = PAWN; i <= QUEEN; i++) if (i != ENP && TEST(f, pieceb[i])) return i;
 	return ENP;
 }
 
@@ -487,12 +482,11 @@ u64 _bishop135(int f, u64 board, int t) {
 }
 
 void displaym(Move m) {
-	printf("%c%c%c%c", 'a' + FROM(m) % 8, '1' + FROM(m) / 8,
-		'a' + TO(m) % 8, '1' + TO(m) / 8);
+	printf("%c%c%c%c", 'a' + FROM(m) % 8, '1' + FROM(m) / 8, 'a' + TO(m) % 8, '1' + TO(m) / 8);
 	if (PROM(m)) printf("%c", pieceChar[PROM(m)]+32);
 }
 
-/* This one is the same as in OliThink 4. It's quite annoying code */
+/* This one is the same as in OliThink 4 */
 int bioskey() {
 #ifndef _WIN32
   fd_set readfds;
@@ -741,8 +735,8 @@ int generateNonCaps(u64 ch, int c, int f, u64 pin, int *ml, int *mn) {
 		if (m && RANK(f, c ? 0x30 : 0x08)) m |= PMOVE(c ? f-8 : f+8, c);
 		if (RANK(f, c ? 0x08 : 0x30)) {
 			u64 a = PCAP(f, c);
-			regPromotions(f, c, m, ml, mn, 0, 0);
 			if (a) regPromotions(f, c, a, ml, mn, 1, 0);
+			regPromotions(f, c, m, ml, mn, 0, 0);
 		} else {
 			regMoves(PREMOVE(f, PAWN), m, ml, mn, 0);
 		}
@@ -761,7 +755,6 @@ int generateNonCaps(u64 ch, int c, int f, u64 pin, int *ml, int *mn) {
 		if (RANK(f, c ? 0x08 : 0x30)) {
 			u64 a = (t & 32) ? PCA3(f, c) : ((t & 64) ? PCA4(f, c) : 0LL);
 			regPromotions(f, c, m, ml, mn, 0, 0);
-			if (a) regPromotions(f, c, a, ml, mn, 1, 0);
 		} else {
 			regMoves(PREMOVE(f, PAWN), m, ml, mn, 0);
 		}
@@ -1255,11 +1248,11 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	for (n = 1; n <= (ch ? 2 : 3); n++) {
  	    if (n == 1) {
 		if (hmove == 0) continue;
-		movenum[ply] = 1;
+			movenum[ply] = 1;
 	    } else if (n == 2) {
-		generate(ch, c, ply, 1, 0);
+			generate(ch, c, ply, 1, 0);
 	    } else {
-		generate(ch, c, ply, 0, 1);
+			generate(ch, c, ply, 0, 1);
 	    }
 	    for (i = 0; i < movenum[ply]; i++) {
 		Move m;
@@ -1321,7 +1314,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	if (sabort) return alpha;
 	if (first == 1) return ch ? -MAXSCORE+ply : 0;
 
-	char type = 1;
+	char type = 1; // 1 = upper bound
 	if (first == -1) { type = 0; hmove = pv[ply][ply]; } // Found a good move, lower bound
 	
 	hashDB[hp & HMASK] = (struct entry) {.key = hp, .move = hmove, .value = alpha, .depth = d, .type = type};
@@ -1382,7 +1375,7 @@ int ismove(Move m, int to, int from, int piece, int prom, int h) {
 
 int parseMove(char *s, int c, Move p) {
 	int i, to, from = -1, piece = PAWN, prom = 0;
-    	char h = 0, c1, c2;
+	char h = 0, c1, c2;
 	if (!strncmp(s, "O-O-O", 5)) strcpy(s, c ? "Kc8" : "Kc1");
 	else if (!strncmp(s, "O-O", 3)) strcpy(s, c ? "Kg8" : "Kg1");
 	if (s[0] >= 'A' && s[0] <= 'Z') if ((piece = _getpiece(*s++, &i)) < 1) return -1;
