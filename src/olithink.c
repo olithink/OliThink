@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 30.Aug.2020, ob112@web.de, http://brausch.org */
-#define VER "5.6.9"
+#define VER "5.6.9a"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -1109,10 +1109,10 @@ int kmobilf(int c) {
 	if (sf[c^1] >= 12) return 0;
 	int km = kmobil[kingpos[c]];
 	if (!sf[c] && sf[c^1] == 5 && pieceb[BISHOP] && !pieceb[PAWN]) { // BNK_vs_k
-		int bc = bishcorn[kingpos[c]] << 2;
+		int bc = bishcorn[kingpos[c]] << 3;
 		if (pieceb[BISHOP] & whitesq) km += bc; else km -= bc; 
 	}
-	return km * sf[c^1];
+	return km << 2;
 }
 
 int evallazy(int c, int matrl) {
@@ -1615,7 +1615,7 @@ int main(int argc, char **argv)
 	newGame(3);
 
 	for (i = 0; i < 64; i++) nmobil[i] = (_bitcnt(nmoves[i]))*8;
-	for (i = 0; i < 64; i++) kmobil[i] = (_bitcnt(nmoves[i])/2);
+	for (i = 0; i < 64; i++) kmobil[i] = (_bitcnt(nmoves[i]));
 	for (i = 0; i < 32; i++) bishcorn[i] = bishcorn[63-i] = (i&7) < 4 ? cornbase[(i&7) + i/8] : -cornbase[7 - (i&7) + i/8];
 
 	if (argc > 1 && !strncmp(argv[1],"-sd",3)) {
