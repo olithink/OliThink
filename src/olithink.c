@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 30.Aug.2020, ob112@web.de, http://brausch.org */
-#define VER "5.6.9a"
+#define VER "5.6.9b"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -1026,13 +1026,6 @@ int evalc(int c) {
 			ppos += _bitcnt(a & pieceb[PAWN] & colorb[c]) << 2;
 		}
 		if (a & kn) katt += _bitcnt(a & kn) << 4;
-
-		if (!(pawnhelp[t] & pieceb[PAWN] & colorb[c])) { // No support
-			a = ((BATT3(f) | BATT4(f)) & BQU) | ((RATT1(f) | RATT2(f)) & RQU);
-			a |= (nmoves[f] & pieceb[KNIGHT]) | (kmoves[f] & pieceb[KING]);
-			ppos -= (_bitcnt(a & ocb)) << 4;
-		}	
-
 		mn += ppos;
 	}
 
