@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 01.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.6.9c"
+#define VER "5.7.0"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -1136,7 +1136,7 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 	} while(0);
 
 	generate(ch, c, ply, 1, 0);
-	if (ch && movenum[ply] == 0) return -MAXSCORE + ply;
+	if (ch && movenum[ply] == 0) return -MAXSCORE+ply;
 	poff = ply << 8;
 
 	for (i = 0; i < movenum[ply]; i++) {
@@ -1211,6 +1211,11 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	if (ply && isDraw(hp, 1)) return 0;
 
 	if (d == 0 || ply > 100) return quiesce(ch, c, ply, alpha, beta);
+		
+	if (alpha < -MAXSCORE+ply) alpha = -MAXSCORE+ply;
+	if (beta > MAXSCORE-ply-1) beta = MAXSCORE-ply-1;
+	if (alpha >= beta) return alpha;
+		
 	hstack[COUNT] = hp;
 
 	Move hmove = ply ? 0 : retPVMove(c, 0);
@@ -1299,7 +1304,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 			for (j = ply +1; pv[ply +1][j]; j++) pv[ply][j] = pv[ply +1][j];
 			pv[ply][j] = 0;
 
-			if (w == MAXSCORE-1 - ply) { matekiller[ply] = m; n = 3; break; }
+			if (w == MAXSCORE-ply-1) { matekiller[ply] = m; n = 3; break; }
 			if (w >= beta) {
 				if (CAP(m) == 0) {
 					killer[ply] = m;
@@ -1312,7 +1317,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	    }
 	}
 	if (sabort) return alpha;
-	if (first == 1) return ch ? -MAXSCORE+ply : 0;
+	if (first == 1) alpha = ch ? -MAXSCORE+ply : 0;
 
 	char type = 1; // 1 = upper bound
 	if (first == -1) { type = 0; hmove = pv[ply][ply]; } // Found a good move, lower bound

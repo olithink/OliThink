@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 30.Aug.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 01.Sep.2020, ob112@web.de, http://brausch.org
 
-Version: 5.6.9
+Version: 5.7.0
 Protocol: Winboard 2
 HashSize: 128MB
 Ponder: Yes
@@ -9,9 +9,12 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Reduction, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1657
+LinesOfCode: 1635
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
+
+v5.7.0: changes since 5.6.9:
+Simplify pawn and king eval. Improve mate detection.
 
 v5.6.9: changes since 5.6.8:
 Increase mobile eval of knights. Use built-in popcount.
