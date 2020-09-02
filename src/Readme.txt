@@ -1,6 +1,6 @@
 OliThink5 (c) Oliver Brausch 02.Sep.2020, ob112@web.de, http://brausch.org
 
-Version: 5.7.0a
+Version: 5.7.1
 Protocol: Winboard 2
 HashSize: 128MB
 Ponder: Yes
@@ -9,12 +9,12 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Reduction, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1635
+LinesOfCode: 1636
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
 
-v5.7.0a: changes since 5.7.0:
-Fix pinnned-pawn-under-promotion bug.
+v5.7.1: changes since 5.7.0:
+Fix pinnned-pawn-under-promotion bug. Change in time management.
 
 v5.7.0: changes since 5.6.9:
 Simplify pawn and king eval. Improve mate detection.

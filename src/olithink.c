@@ -1,11 +1,10 @@
-/* OliThink5 (c) Oliver Brausch 01.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.7.0b"
+/* OliThink5 (c) Oliver Brausch 02.Sep.2020, ob112@web.de, http://brausch.org */
+#define VER "5.7.1"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
 #if defined(_WIN32) || defined(_WIN64)
-#define _CRT_SECURE_NO_DEPRECATE
 #include <windows.h>
 #include <conio.h>
 #include <sys/timeb.h>
