@@ -1,11 +1,11 @@
 /* OliThink5 (c) Oliver Brausch 01.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.7.0a"
-#define _CRT_SECURE_NO_DEPRECATE
+#define VER "5.7.0b"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
 #if defined(_WIN32) || defined(_WIN64)
+#define _CRT_SECURE_NO_DEPRECATE
 #include <windows.h>
 #include <conio.h>
 #include <sys/timeb.h>
@@ -251,7 +251,7 @@ void _readbook(char *bk) {
 					} else if (strncmp(s2, "\"1-0", 4)) bkflag[n] = 2;
 				}
 			} else if (buf[0] == '1' && buf[1] == '.' && bkflag[n] < 2) {
-				int i = 0, j = 0;
+				u32 i = 0, j = 0;
 				_parse_fen(sfen);
 				for (;;) {
 					if (strchr(buf+i, ' ') == NULL) break;
@@ -810,7 +810,7 @@ int generateNonCaps(u64 ch, int c, int f, u64 pin, int *ml, int *mn) {
 	return 0;
 }
 
-int generateCaps(u64 ch, int c, int f, u64 pin, int *ml, int *mn) {
+int generateCaps(int c, int f, u64 pin, int *ml, int *mn) {
 	u64 m, b, a, cb = colorb[c] & (~pin);
 
 	regKings(PREMOVE(f, KING), KCAP(f, c), ml, mn, c, 1);
@@ -898,7 +898,7 @@ int generate(u64 ch, int c, int ply, int cap, int noncap) {
 	int *ml = movelist + (ply << 8);
 	*mn = 0;
 	if (ch) return generateCheckEsc(ch, ~pin, c, f, ml, mn);
-	if (cap) generateCaps(ch, c, f, pin, ml, mn);
+	if (cap) generateCaps(c, f, pin, ml, mn);
 	if (noncap) generateNonCaps(ch, c, f, pin, ml, mn);
 	return *mn;
 }
@@ -1430,14 +1430,16 @@ void undo() {
 	pv[0][0] = m;
 }
 
+#define MIN(a,b) (((a)<(b))?(a):(b))
+#define MAX(a,b) (((a)>(b))?(a):(b))
 int calc(int sd, int tm) {
 	int i, j, t1 = 0, m2go = mps == 0 ? 32 : 1 + mps - ((COUNT/2) % mps);
-	u64 ch = attacked(kingpos[onmove], onmove); long tmsh = tm*8L-50-m2go*5; if (tmsh < 10) tmsh = 10;
-	long searchtime = tm*5L/m2go + inc*500L;
-	long extendtime = tm*24L/m2go + inc*1000L; if (extendtime > tmsh) extendtime = tmsh;
-	if (searchtime > tmsh) searchtime = tmsh;
+	long tmsh = MAX(tm*8L-50-m2go*5, 10);
+	long searchtime = MIN(tm*6L/m2go + inc*500L, tmsh);
+	long extendtime = MIN(tm*25L/m2go + inc*1000L, tmsh);
 	if (st > 0) maxtime = searchtime = st*1000LL;
 
+	u64 ch = attacked(kingpos[onmove], onmove); 
 	maxtime = extendtime;
 	starttime = getTime();
 
@@ -1465,8 +1467,8 @@ int calc(int sd, int tm) {
 		if (iter >= MAXSCORE-value[iter]) break;
 		if (t1 < searchtime || iter == 1) continue;
 
-		if (value[iter] - value[iter-1] < -40 && maxtime == extendtime && extendtime < tmsh) {
-			maxtime = extendtime*3L; if (maxtime > tmsh-1) maxtime = tmsh-1;
+		if (value[iter] - value[iter-1] < -40 && (long)maxtime == extendtime && extendtime < tmsh) {
+			maxtime = MIN(extendtime*3L, tmsh-1);
 			continue;
 		}
 		break;
