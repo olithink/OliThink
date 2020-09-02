@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 01.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.7.0"
+#define VER "5.7.0a"
 #define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #include <stdlib.h>
@@ -754,7 +754,7 @@ int generateNonCaps(u64 ch, int c, int f, u64 pin, int *ml, int *mn) {
 		}
 		if (RANK(f, c ? 0x08 : 0x30)) {
 			u64 a = (t & 32) ? PCA3(f, c) : ((t & 64) ? PCA4(f, c) : 0LL);
-			regPromotions(f, c, m, ml, mn, 0, 0);
+			if (a) regPromotions(f, c, a, ml, mn, 1, 0);
 		} else {
 			regMoves(PREMOVE(f, PAWN), m, ml, mn, 0);
 		}
