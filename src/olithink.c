@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 02.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.7.1"
+/* OliThink5 (c) Oliver Brausch 03.Sep.2020, ob112@web.de, http://brausch.org */
+#define VER "5.7.2"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,13 +8,16 @@
 #include <windows.h>
 #include <conio.h>
 #include <sys/timeb.h>
+#include <intrin.h>
 struct _timeb tv;
 #define _bitcnt(x) __popcnt64(x)
+#define getLsb(x) _tzcnt_u64(x)
 #else
 #include <sys/time.h>
 struct timeval tv;
 struct timezone tz;
 #define _bitcnt(x) __builtin_popcountll(x)
+#define getLsb(x) __builtin_ctzll(x)
 #endif
 typedef unsigned long long u64;
 typedef unsigned long u32;
@@ -125,7 +128,6 @@ static u64 kmoves[64];
 static int _knight[8] = {-17,-10,6,15,17,10,-6,-15};
 static int _king[8] = {-9,-1,7,8,9,1,-7,-8};
 static u64 BIT[64];
-static char LSB[0x10000];
 static int crevoke[64];
 static int nmobil[64];
 static int kmobil[64];
@@ -162,10 +164,6 @@ void setBit(int f, u64 *b) {
 
 void xorBit(int f, u64 *b) {
 	*b ^= BIT[f];
-}
-
-u64 getLowestBit(u64 bb) {
-	return bb & (-(long long)bb);
 }
 
 int _getpiece(char s, int *c) {
@@ -291,27 +289,9 @@ u64 getTime() {
 #endif
 }
 
-char getLsb(u64 bm) {
-	u32 n = (u32) LOW32(bm);
-	if (n) {
-		if LOW16(n) return LSB[LOW16(n)];
-		else return 16 | LSB[LOW16(n >> 16)];
-	} else {
-		n = (u32)(bm >> 32);
-		if LOW16(n) return 32 | LSB[LOW16(n)];
-		else return 48 | LSB[LOW16(n >> 16)];
-	}
-}
-
-char _slow_lsb(u64 bm) {
-	int k = -1;
-	while (bm) { k++; if (bm & 1) break; bm >>= 1; }
-	return (char)k;
-}
-
 int pullLsb(u64* bit) {
 	int f = getLsb(*bit);
-	*bit ^= BIT[f];
+	*bit &= *bit - 1;
 	return f;
 }
 
@@ -422,7 +402,7 @@ u64 _occ_free_board(int bc, int del, u64 free) {
 	int i;
 	u64 low, perm = free;
 	for (i = 0; i < bc; i++) {
-		low = getLowestBit(free);
+		low = free & (-free); // Lowest bit 
 		free &= (~low);
 		if (!TEST(i, del)) perm &= (~low);
 	}
@@ -1581,7 +1561,6 @@ int main(int argc, char **argv)
 	setbuf(stdout, NULL);
 	setbuf(stdin, NULL);
 	signal(SIGINT, SIG_IGN);
-	for (i = 0; i < 0x10000; i++) LSB[i] = _slow_lsb(i);
 	for (i = 4096, n = 1, m = 6364136223846793005LL; i--; hashxor[4095-i] = n = n*m +1LL);
 	for (i = 0; i < 64; i++) BIT[i] = 1LL << i;
 	for (i = 0; i < 128; i++) pmoves[i] = pawnfree[i] = pawnfile[i] = pawnhelp[i] = 0LL;
