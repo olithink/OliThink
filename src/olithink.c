@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 03.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.7.2"
+/* OliThink5 (c) Oliver Brausch 05.Sep.2020, ob112@web.de, http://brausch.org */
+#define VER "5.7.2a"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1025,7 +1025,7 @@ int evalc(int c) {
 
 		a = BATT3(f) | BATT4(f) | RATT1(f) | RATT2(f);
 		if (a & kn) katt += _bitcnt(a & kn) << 4;
-		mn += _bitcnt(a);
+		mn += _bitcnt(a) << 1;
 	}
 
 	colorb[oc] ^= RQU & ocb; //Opposite Queen & Rook doesn't block mobility for bishop
