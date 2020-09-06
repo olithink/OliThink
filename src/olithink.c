@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 06.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.7.3"
+#define VER "5.7.3a"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1212,7 +1212,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	//Null Move
 	if (!ch && !pvnode && null && d > 1 && (n = _bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1)))) > 1) {
 		int flagstore = flags;
-		int R = (10 + d + nullvariance(evallazy(c, mat) - alpha))/4; if (n <= 2) R--;
+		int R = (10 + d + nullvariance(evallazy(c, mat) - alpha))/4;
 		if (R > d) R = d;
 		flags &= 960;
 		count += 0x401;
@@ -1255,7 +1255,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		if (nch) ext++; // Check Extension
 		else if (n == 2 && !pvnode && d >= 2 && !ch && !PROM(m) && swap(m) < 0) ext--; //Reduce bad exchanges
 		else if (n == 3 && !pvnode) { //LMR
-			if (m == killer[ply] || m == matekiller[ply] || PROM(m)); //Don't reduce killers or promotions
+			if (m == killer[ply] || m == matekiller[ply]); //Don't reduce killers
 			else if (PIECE(m) == PAWN && !(pawnfree[TO(m) + (c << 6)] & pieceb[PAWN] & colorb[c^1])); //Don't reduce free pawns
 			else {
 				u32 his = history[m & 0xFFF];
@@ -1604,7 +1604,7 @@ int main(int argc, char **argv)
 
 		if (!ponder || book || engine == -1 || ex != 0) ex = input(onmove);
 		if (ex == -2) break;
-		if (ex == -3) newGame(analyze ?  3 : 2);
+		if (ex == -3) newGame(3);
 		if (ex == -4) { undo(); undo(); }
 		if (ex == -5) { analyze = pondering = 1; engine = -1; }
 		if (ex == -6) analyze = pondering = 0;
