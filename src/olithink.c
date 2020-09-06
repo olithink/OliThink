@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 05.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.7.2a"
+/* OliThink5 (c) Oliver Brausch 06.Sep.2020, ob112@web.de, http://brausch.org */
+#define VER "5.7.3"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -990,7 +990,7 @@ int evalc(int c) {
 
 		if (!(pawnhelp[t] & pieceb[PAWN] & colorb[c])) { // No support
 			int openfile = !(pawnfile[t] & pieceb[PAWN] & ocb);
-			ppos -= (openfile ? 2 : 1) << 4; // Open file
+			ppos -= (openfile ? 32 : 10); // Open file
 		}
 
 		a = POCC(f, c);
@@ -1504,8 +1504,9 @@ void newGame(int level) {
 }
 
 int protV2(char* buf, int parse) {
-		if (!strncmp(buf,"protover",8)) printf("feature setboard=1 myname=\"OliThink " VER "\" colors=0 analyze=1 done=1\n");
+		if (!strncmp(buf,"protover",8)) printf("feature setboard=1 myname=\"OliThink " VER "\" colors=0 analyze=1 ping=1 sigint=0 sigterm=0 done=1\n");
 		else if (!strncmp(buf,"xboard",6));
+		else if (!strncmp(buf,"ping",4)) { buf[1] = 'o'; printf("%s", buf); }
 		else if (!strncmp(buf,"quit",4)) return -2;
 		else if (!strncmp(buf,"new",3)) return -3; 
 		else if (!strncmp(buf,"remove",6)) return -4;
@@ -1531,7 +1532,7 @@ int protV2(char* buf, int parse) {
 		else if (!strncmp(buf,"bk",2));
 		else if (!strncmp(buf,"hint",4));
 		else if (!strncmp(buf,"computer",8));
-		else if (!strncmp(buf,"accepted",8));//accepted <feature>
+		else if (!strncmp(buf,"accepted",8) || !strncmp(buf,"rejected",8));//accepted/rejected <feature>
 		else if (!strncmp(buf,"random",6));
 		else if (!strncmp(buf,"rating",6)) ics = 1;//ICS: rating <myrat> <oprat>
 		else if (!strncmp(buf,"name",4));//ICS: name <opname>
@@ -1560,7 +1561,6 @@ int main(int argc, char **argv)
 
 	setbuf(stdout, NULL);
 	setbuf(stdin, NULL);
-	signal(SIGINT, SIG_IGN);
 	for (i = 4096, n = 1, m = 6364136223846793005LL; i--; hashxor[4095-i] = n = n*m +1LL);
 	for (i = 0; i < 64; i++) BIT[i] = 1LL << i;
 	for (i = 0; i < 128; i++) pmoves[i] = pawnfree[i] = pawnfile[i] = pawnhelp[i] = 0LL;
