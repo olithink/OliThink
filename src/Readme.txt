@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 06.Sep.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 07.Sep.2020, ob112@web.de, http://brausch.org
 
-Version: 5.7.3
+Version: 5.7.4
 Protocol: Winboard 2
 HashSize: 128MB
 Ponder: Yes
@@ -12,6 +12,9 @@ Evaluation: Just mobility and a very simple pawnprogressing evaluation
 LinesOfCode: 1615
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
+
+v5.7.4: changes since 5.7.3:
+Purge hash when new game. Exact Bound. End game factor.
 
 v5.7.3: changes since 5.7.2:
 Increase queen mobility, change pawn eval. Implement ping command.

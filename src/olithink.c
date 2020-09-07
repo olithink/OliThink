@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 06.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.7.3c"
+/* OliThink5 (c) Oliver Brausch 07.Sep.2020, ob112@web.de, http://brausch.org */
+#define VER "5.7.4"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1044,7 +1044,7 @@ int evalc(int c) {
 		f = pullLsb(&b);
 		a = RATT1(f) | RATT2(f);
 		if (a & kn) katt += _bitcnt(a & kn) << 4;
-		mn += _bitcnt(a) << 2;
+		mn += (_bitcnt(a) << 2) * egf / 75;
 	}
 
 	colorb[c] ^= RQU & cb; // Back
@@ -1308,7 +1308,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 
 void reseth(int level) {
 	int i, istart = level < 0 ? 1 : 0;
-	for (i = 0; i < 0x1000; i++) history[i] = 0LL;
+	memset(history, 0, sizeof(history));
 	for (i = istart; i < 127; i++) killer[i] = level <= 1 ? killer[i+level] : 0;
 	for (i = istart; i < 127; i++) matekiller[i] = level <= 1 ? matekiller[i+level] : 0;
 	for (i = istart; i < 127; i++) pv[0][i] = level <= 1 ? pv[0][i+level] : 0;
@@ -1496,9 +1496,9 @@ u64 perft(int c, int d, int div) {
 	return cnt;
 }
 
-void newGame(int level) {
+void newGame() {
 	_readbook("olibook.pgn");
-	reseth(level);
+	reseth(3);
 	engine = 1;
 	sd = 64;
 }
@@ -1583,11 +1583,11 @@ int main(int argc, char **argv)
 	_init_shorts(kmoves, _king);
 	_init_pawns(pmoves, pcaps, pawnfree, pawnfile, pawnhelp, 0);
 	_init_pawns(pmoves + 64, pcaps + 64, pawnfree + 64, pawnfile + 64, pawnhelp + 64, 1);
-	newGame(3);
 
 	for (i = 0; i < 64; i++) nmobil[i] = (_bitcnt(nmoves[i]))*8;
 	for (i = 0; i < 64; i++) kmobil[i] = (_bitcnt(nmoves[i]));
 	for (i = 0; i < 32; i++) bishcorn[i] = bishcorn[63-i] = (i&7) < 4 ? cornbase[(i&7) + i/8] : -cornbase[7 - (i&7) + i/8];
+	newGame();
 
 	if (argc > 1 && !strncmp(argv[1],"-sd",3)) {
 		ttime = 99999999;
@@ -1604,7 +1604,7 @@ int main(int argc, char **argv)
 
 		if (!ponder || book || engine == -1 || ex != 0) ex = input(onmove);
 		if (ex == -2) break;
-		if (ex == -3) newGame(3);
+		if (ex == -3) newGame();
 		if (ex == -4) { undo(); undo(); }
 		if (ex == -5) { analyze = pondering = 1; engine = -1; }
 		if (ex == -6) analyze = pondering = 0;
