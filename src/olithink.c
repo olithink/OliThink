@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <signal.h>
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
 #include <conio.h>
