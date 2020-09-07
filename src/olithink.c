@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 06.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.7.3b"
+#define VER "5.7.3c"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -973,7 +973,7 @@ Move spick(Move* ml, int mn, int s, int ply) {
 
 /* The evulation for Color c. It's almost only mobility stuff. Pinned pieces are still awarded for limiting opposite's king */
 int evalc(int c) {
-	int t, f, mn = 0, katt = 0;
+	int t, f, mn = 0, katt = 0, egf = 5200/(40 + sf[c]);
 	int oc = c^1;
 	u64 b, a, cb, ocb = colorb[oc];
 	u64 kn = kmoves[kingpos[oc]] & (~pieceb[PAWN]);
@@ -985,7 +985,7 @@ int evalc(int c) {
 		t = f + (c << 6);
 
 		/* The only non-mobility eval is the detection of free pawns/hanging pawns */
-		int ppos = pawnprg[t];
+		int ppos = pawnprg[t]* egf / 100;
 		if (!(pawnfree[t] & pieceb[PAWN] & ocb)) ppos <<= 1; //Free run?
 
 		if (!(pawnhelp[t] & pieceb[PAWN] & colorb[c])) { // No support
