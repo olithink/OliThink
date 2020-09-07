@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 06.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.7.3a"
+#define VER "5.7.3b"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1203,8 +1203,8 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	if (he.key == hp) {
 		w = he.value;
 		if (he.depth >= d) {
-			if (he.type && w <= alpha) return alpha;
-			if (!he.type && w >= beta) return beta;
+			if (he.type <= 1 && w >= beta) return beta;
+			if (he.type >= 1 && w <= alpha) return alpha;
 		}
 		if (!hmove) hmove = he.move;
 	} 
@@ -1298,8 +1298,8 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	if (sabort) return alpha;
 	if (first == 1) alpha = ch ? -MAXSCORE+ply : 0;
 
-	char type = 1; // 1 = upper bound
-	if (first == -1) { type = 0; hmove = pv[ply][ply]; } // Found a good move, lower bound
+	char type = 2; // 2 = upper bound
+	if (first == -1) { type = (alpha >= beta ? 0 : 1); hmove = pv[ply][ply]; } // Found a good move, lower/exact bound
 	
 	hashDB[hp & HMASK] = (struct entry) {.key = hp, .move = hmove, .value = alpha, .depth = d, .type = type};
 
