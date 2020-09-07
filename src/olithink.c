@@ -79,14 +79,11 @@ const int pawnrun[] = {0, 0, 1, 8, 16, 32, 64, 128};
 #define BCAP(f, c) (BOCC(f) & colorb[(c)^1])
 
 #define SHORTMOVE(x) ((x) & ((x)^BOARD))
-#define SHORTOCC(x) ((x) & BOARD)
 #define SHORTCAP(x, c) ((x) & colorb[(c)^1])
 
 #define NMOVE(x) (SHORTMOVE(nmoves[x]))
 #define KMOVE(x) (SHORTMOVE(kmoves[x]))
 #define PMOVE(x, c) (pmoves[(x) | ((c)<<6)] & (~BOARD))
-#define NOCC(x) (SHORTOCC(nmoves[x]))
-#define KOCC(x) (SHORTOCC(kmoves[x]))
 #define POCC(x, c) (pcaps[(x) | ((c)<<6)] & BOARD)
 #define NCAP(x, c) (SHORTCAP(nmoves[x], (c)))
 #define KCAP(x, c) (SHORTCAP(kmoves[x], (c)))
@@ -274,9 +271,6 @@ void _readbook(char *bk) {
 	_parse_fen(sfen);
 	if (bkcount[0] > 0 || bkcount[1] > 0) book = 1;
 }
-
-#define LOW16(x) ((x) & 0xFFFF)
-#define LOW32(x) ((x) & 0xFFFFFFFF)
 
 u64 getTime() {
 #ifdef _WIN32
