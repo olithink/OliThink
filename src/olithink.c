@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 07.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.7.4"
+/* OliThink5 (c) Oliver Brausch 09.Sep.2020, ob112@web.de, http://brausch.org */
+#define VER "5.7.4a"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -942,7 +942,7 @@ Move qpick(Move* ml, int mn, int s) {
 	return m;
 }
 
-Move killer[128], matekiller[128];
+Move killer[128];
 long long history[0x1000];
 /* In normal search some basic move ordering heuristics are used */
 Move spick(Move* ml, int mn, int s, int ply) {
@@ -1248,7 +1248,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		if (nch) ext++; // Check Extension
 		else if (n == 2 && !pvnode && d >= 2 && !ch && !PROM(m) && swap(m) < 0) ext--; //Reduce bad exchanges
 		else if (n == 3 && !pvnode) { //LMR
-			if (m == killer[ply] || m == matekiller[ply]); //Don't reduce killers
+			if (m == killer[ply]); //Don't reduce killers
 			else if (PIECE(m) == PAWN && !(pawnfree[TO(m) + (c << 6)] & pieceb[PAWN] & colorb[c^1])); //Don't reduce free pawns
 			else {
 				u32 his = history[m & 0xFFF];
@@ -1276,7 +1276,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 			for (j = ply +1; pv[ply +1][j]; j++) pv[ply][j] = pv[ply +1][j];
 			pv[ply][j] = 0;
 
-			if (w == MAXSCORE-ply-1) { matekiller[ply] = m; n = 3; break; }
+			if (w == MAXSCORE-ply-1) { n = 3; break; }
 			if (w >= beta) {
 				if (CAP(m) == 0) {
 					killer[ply] = m;
@@ -1303,7 +1303,6 @@ void reseth(int level) {
 	int i, istart = level < 0 ? 1 : 0;
 	memset(history, 0, sizeof(history));
 	for (i = istart; i < 127; i++) killer[i] = level <= 1 ? killer[i+level] : 0;
-	for (i = istart; i < 127; i++) matekiller[i] = level <= 1 ? matekiller[i+level] : 0;
 	for (i = istart; i < 127; i++) pv[0][i] = level <= 1 ? pv[0][i+level] : 0;
 	if (level <= 1) return; else pv[0][0] = 0;
 	if (level >= 3) memset(hashDB, 0, sizeof(hashDB));
