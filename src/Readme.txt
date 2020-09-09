@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 07.Sep.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 09.Sep.2020, ob112@web.de, http://brausch.org
 
-Version: 5.7.4
+Version: 5.7.5
 Protocol: Winboard 2
 HashSize: 128MB
 Ponder: Yes
@@ -9,9 +9,12 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Reduction, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1607
+LinesOfCode: 1603
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
+
+v5.7.5: changes since 5.7.4:
+Remove matekillers. Dynamic reduction depth.
 
 v5.7.4: changes since 5.7.3:
 Purge hash when new game. Exact Bound. End game factor.

@@ -1,7 +1,6 @@
 /* OliThink5 (c) Oliver Brausch 09.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.7.4a"
+#define VER "5.7.5"
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
@@ -142,7 +141,7 @@ int value[128];
 int iter;
 const char pieceChar[] = "*PNK.BRQ";
 u64 maxtime, starttime;
-int sabort, ics = 0, ponder = 0, pondering = 0, analyze = 0, lastw = 0;
+int sabort, ics = 0, ponder = 0, pondering = 0, analyze = 0;
 Move pon = 0;
 int count, flags, mat, onmove, engine =-1;
 int sd = 64;
@@ -771,7 +770,7 @@ int generateNonCaps(u64 ch, int c, int f, u64 pin, int *ml, int *mn) {
 
 	b = pin & (pieceb[ROOK] | pieceb[BISHOP] | pieceb[QUEEN]); 
 	while (b) {
-		int f = pullLsb(&b);
+		f = pullLsb(&b);
 		int p = identPiece(f);
 		int t = p | getDir(f, kingpos[c]);
 		if ((t & 10) == 10) regMoves(PREMOVE(f, p), RMOVE1(f), ml, mn, 0);
@@ -1093,7 +1092,7 @@ int eval(int c, int matrl) {
 u64 nodes;
 u64 qnodes;
 int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
-	int i, best = -MAXSCORE, poff;
+	int i, best = -MAXSCORE, poff = ply << 8;
 
 	if (ply == 127) return eval(c, mat);
 	if (!ch) do {
@@ -1109,7 +1108,6 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 
 	generate(ch, c, ply, 1, 0);
 	if (ch && movenum[ply] == 0) return -MAXSCORE+ply;
-	poff = ply << 8;
 
 	for (i = 0; i < movenum[ply]; i++) {
 		Move m = qpick(movelist + poff, movenum[ply], i);
@@ -1169,7 +1167,7 @@ static int nullvariance(int delta) {
 
 #define HASHP (hashb ^ hashxor[flags | 1024 | c << 11])
 int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int null) {
-	int i, j, n, w;
+	int i, j, n, w, poff = ply << 8;
 	u64 hp, hismax = 0LL;
 	
 	if (ply) pv[ply][ply] = 0;
@@ -1220,7 +1218,6 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		d--;
 	}
 
-	int poff = ply << 8;
 	int first = 1;
 	for (n = 1; n <= (ch ? 2 : 3); n++) {
  	    if (n == 1) {
@@ -1246,7 +1243,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		doMove(m, c);
 		nch = attacked(kingpos[c^1], c^1);
 		if (nch) ext++; // Check Extension
-		else if (n == 2 && !pvnode && d >= 2 && !ch && !PROM(m) && swap(m) < 0) ext--; //Reduce bad exchanges
+		else if (n == 2 && !pvnode && d >= 2 && !ch && !PROM(m) && swap(m) < 0) ext-= (d + 1)/3; //Reduce bad exchanges
 		else if (n == 3 && !pvnode) { //LMR
 			if (m == killer[ply]); //Don't reduce killers
 			else if (PIECE(m) == PAWN && !(pawnfree[TO(m) + (c << 6)] & pieceb[PAWN] & colorb[c^1])); //Don't reduce free pawns
@@ -1254,7 +1251,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 				u32 his = history[m & 0xFFF];
 				if (his > hismax) { hismax = his;} 
 				else if (d <= 5 && his*his < hismax) { undoMove(m, c); continue; }
-				else if (d >= 2) ext--;
+				else if (d >= 2) ext-= (d + 1)/3;
 			}
 	        }
 		if (PROM(m) == QUEEN) ext++;
@@ -1280,7 +1277,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 			if (w >= beta) {
 				if (CAP(m) == 0) {
 					killer[ply] = m;
-					history[m & 0xFFF]+=d*d;
+					history[m & 0xFFF]+=(d+ext)*(d+ext);
 				}
 				n = 3; break;
 			}
@@ -1419,8 +1416,7 @@ int calc(int sd, int tm) {
 	if (book) {
 		if (!bkcount[onmove]) book = 0;
 		else {
-			srand((u32)starttime);
-			j = rand() % bkcount[onmove];
+			j = hashxor[starttime % 4095] % bkcount[onmove];
 			for (i = 0; i < BKSIZE; i++) {
 				if (bkflag[i] == onmove && j == t1++) { pv[0][0] = bkmove[i*32 + COUNT]; break; }
 			}
@@ -1454,7 +1450,8 @@ int calc(int sd, int tm) {
 	}
 	printf("move "); displaym(pv[0][0]); printf("\n");
 
-	if (post && ics) printf("kibitz W: %d Nodes: %llu QNodes: %llu Evals: %llu cs: %d knps: %llu\n", MEVAL(value[iter > sd ? sd : iter]), nodes, qnodes, eval1, t1/10, (nodes+qnodes)/(t1+1));
+	if (post && ics) printf("kibitz W: %d Nodes: %llu QNodes: %llu Evals: %llu cs: %d knps: %llu\n",
+                         MEVAL(value[iter > sd ? sd : iter]), nodes, qnodes, eval1, t1/10, (nodes+qnodes)/(t1+1));
 
 	return execMove(pv[0][0]);
 }
