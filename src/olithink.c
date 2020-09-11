@@ -1,4 +1,4 @@
-/* OliThink5 (c) Oliver Brausch 11.Sep.2020, ob112@web.de, http://brausch.org */
+/* OliThink5 (c) Oliver Brausch 12.Sep.2020, ob112@web.de, http://brausch.org */
 #define VER "5.7.6"
 #include <stdio.h>
 #include <string.h>
@@ -87,8 +87,8 @@ const int pawnrun[] = {0, 0, 1, 8, 16, 32, 64, 128};
 #define NCAP(x, c) (SHORTCAP(nmoves[x], (c)))
 #define KCAP(x, c) (SHORTCAP(kmoves[x], (c)))
 #define PCAP(x, c) (pcaps[(x) | ((c)<<6)] & colorb[(c)^1])
-#define PCA3(x, c) (pcaps[(x) | ((c)<<6) | 128] & (colorb[(c)^1] | ((BIT[ENPASS]) & (c ? 0xFF0000LL : 0xFF0000000000LL))))
-#define PCA4(x, c) (pcaps[(x) | ((c)<<6) | 256] & (colorb[(c)^1] | ((BIT[ENPASS]) & (c ? 0xFF0000LL : 0xFF0000000000LL))))
+#define PCA3(x, c) (pcaps[(x) | ((c)<<6) | 128] & (colorb[(c)^1] | (BIT[ENPASS] & (c ? 0xFF0000LL : 0xFF0000000000LL))))
+#define PCA4(x, c) (pcaps[(x) | ((c)<<6) | 256] & (colorb[(c)^1] | (BIT[ENPASS] & (c ? 0xFF0000LL : 0xFF0000000000LL))))
 
 #define RANK(x, y) (((x) & 0x38) == (y))
 #define TEST(f, b) (BIT[f] & (b))
@@ -200,7 +200,7 @@ void _parse_fen(char *fen) {
 			else mat += changeMat(_CAP(p) | _TO(row*8 + col), c^1, -1);
 			hashb ^= hashxor[col | row << 3 | p << 6 | c << 9];
 			setBit(row*8 + col, pieceb + p);
-			setBit(row*8 + (col++), colorb + c);			
+			setBit(row*8 + (col++), colorb + c);
 		}
 	}
 	onmove = mv == 'b' ? 1 : 0;
@@ -211,7 +211,7 @@ void _parse_fen(char *fen) {
 		if (s == 'Q') flags |= BIT[8];
 		if (s == 'q') flags |= BIT[9];
 	}
-	if (enps[0] >= 'a' && enps[0] <= 'h' && enps[1] >= '1' && enps[1] <= '8') flags |= 8*(enps[1] - '1') + enps[0] - 'a'; 
+	if (enps[0] >= 'a' && enps[0] <= 'h' && enps[1] >= '1' && enps[1] <= '8') flags |= 8*(enps[1] -'1') + enps[0] -'a';
 	count = (fullm - 1)*2 + onmove + (halfm << 10);
 	for (i = 0; i < COUNT; i++) hstack[i] = 0LL;
 	reseth(fen == sfen ? 2 : 3);
@@ -311,11 +311,11 @@ int keyDiag(u64 _b) {
 }
 
 int key045(u64 b, int f) {
-   return keyDiag(b & bmask45[f]);
+	return keyDiag(b & bmask45[f]);
 }
 
 int key135(u64 b, int f) {
-   return keyDiag(b & bmask135[f]);
+	return keyDiag(b & bmask135[f]);
 }
 
 #define DUALATT(x, y, c) (battacked(x, c, pieceb[QUEEN]) || battacked(y, c, pieceb[QUEEN]))
@@ -326,7 +326,7 @@ int battacked(int f, int c, u64 q) {
 	if (RCAP1(f, c) & (pieceb[ROOK] | q)) return 1;
 	if (RCAP2(f, c) & (pieceb[ROOK] | q)) return 1;
 	if (BCAP3(f, c) & (pieceb[BISHOP] | q)) return 1;
-	if (BCAP4(f, c) & (pieceb[BISHOP ]| q)) return 1;
+	if (BCAP4(f, c) & (pieceb[BISHOP] | q)) return 1;
 	return 0;
 }
 
@@ -419,7 +419,8 @@ void _init_rays(u64* rays, u64 (*rayFunc)(int, u64, int), int (*key)(u64, int)) 
 	}
 }
 
-#define RAYMACRO {if (TEST(i, board)) { if (b) { setBit(i, &xray); break; } else { setBit(i, &occ); b = 1; } } if (!b) setBit(i, &free);}
+#define RAYMACRO { if (TEST(i, board)) \
+	{ if (b) {setBit(i, &xray); break; } else { setBit(i, &occ); b = 1; }} if (!b) setBit(i, &free); }
 u64 _rook0(int f, u64 board, int t) {
 	u64 free = 0LL, occ = 0LL, xray = 0LL;
 	int i, b;
@@ -460,34 +461,34 @@ void displaym(Move m) {
 /* This one is the same as in OliThink 4 */
 int bioskey() {
 #ifndef _WIN32
-  fd_set readfds;
+	fd_set readfds;
 
-  FD_ZERO (&readfds);
-  FD_SET (fileno(stdin), &readfds);
-  tv.tv_sec=0; tv.tv_usec=0;
-  select(16, &readfds, 0, 0, &tv);
+	FD_ZERO (&readfds);
+	FD_SET (fileno(stdin), &readfds);
+	tv.tv_sec=0; tv.tv_usec=0;
+	select(16, &readfds, 0, 0, &tv);
 
-  return (FD_ISSET(fileno(stdin), &readfds));
+	return (FD_ISSET(fileno(stdin), &readfds));
 #else
-   static int init = 0, pipe;
-   static HANDLE inh;
-   DWORD dw;
+	static int init = 0, pipe;
+	static HANDLE inh;
+	DWORD dw;
 
-   if (!init) {
-     init = 1;
-     inh = GetStdHandle(STD_INPUT_HANDLE);
-     pipe = !GetConsoleMode(inh, &dw);
-     if (!pipe) {
-        SetConsoleMode(inh, dw & ~(ENABLE_MOUSE_INPUT|ENABLE_WINDOW_INPUT));
-        FlushConsoleInputBuffer(inh);
-      }
-    }
-    if (pipe) {
-      if (!PeekNamedPipe(inh, NULL, 0, NULL, &dw, NULL)) return 1;
-      return dw;
-    } else {
-      GetNumberOfConsoleInputEvents(inh, &dw);
-      return dw <= 1 ? 0 : dw;
+	if (!init) {
+		init = 1;
+		inh = GetStdHandle(STD_INPUT_HANDLE);
+		pipe = !GetConsoleMode(inh, &dw);
+		if (!pipe) {
+			SetConsoleMode(inh, dw & ~(ENABLE_MOUSE_INPUT|ENABLE_WINDOW_INPUT));
+			FlushConsoleInputBuffer(inh);
+		}
+	}
+	if (pipe) {
+		if (!PeekNamedPipe(inh, NULL, 0, NULL, &dw, NULL)) return 1;
+		return dw;
+	} else {
+		GetNumberOfConsoleInputEvents(inh, &dw);
+		return dw <= 1 ? 0 : dw;
 	}
 #endif
 }
@@ -535,7 +536,7 @@ char getDir(int f, int t) {
 }
 
 #define XORHASH(f, p, c) hashb ^= hashxor[(f) | (p) << 6 | (c) << 9]
-/* move is for both doMove and undoMove, only for unmakeMove the globalflags have to be restored (counter, castle, enpass...) */
+/* move is for both doMove and undoMove, only for undo the globalflags have to be restored (counter, castle, enpass..)*/
 void move(Move m, int c, int d) {
 	int f = FROM(m);
 	int t = TO(m);
@@ -688,7 +689,7 @@ int generateCheckEsc(u64 ch, u64 apin, int c, int k, int *ml, int *mn) {
 			else
 				regMovesCaps(PREMOVE(bf, PAWN), 0LL, BIT[f], ml, mn);
 		}
-		if (RANK(f, c ? 0x20 : 0x18) && (BOARD & BIT[bf]) == 0 && (BIT[c ? f+16 : f-16] & pieceb[PAWN] & colorb[c] & apin))
+		if (RANK(f, c ? 0x20 : 0x18) && !(BOARD & BIT[bf]) && (BIT[c ? f+16 : f-16] & pieceb[PAWN] & colorb[c] & apin))
 			regMovesCaps(PREMOVE(c ? f+16 : f-16, PAWN), 0LL, BIT[f], ml, mn);
 	}
 	return 1;
@@ -874,54 +875,48 @@ int generate(u64 ch, int c, int ply, int cap, int noncap) {
 	return *mn;
 }
 
-int swap(Move m) //SEE Stuff
-{
-  int s_list[32];
-  int f = FROM(m), t = TO(m), onmv = ONMV(m);
-  int a_piece = pval[CAP(m)], piece = PIECE(m), c = onmv^1, nc = 1;
-  u64 attacks, temp = 0, colstore0 = colorb[0], colstore1 = colorb[1];
+int swap(Move m) { //SEE
+	int s_list[32];
+	int f = FROM(m), t = TO(m), onmv = ONMV(m);
+	int a_piece = pval[CAP(m)], piece = PIECE(m), c = onmv^1, nc = 1;
+	u64 temp = 0, colstore0 = colorb[0], colstore1 = colorb[1];
 
-  attacks = attacked(t, 0) | attacked(t, 1);
-  s_list[0] = a_piece;
-  a_piece = pval[piece];
-  colorb[onmv] ^= BIT[f];
-  if (piece & 4 || piece == 1) {
-	int d = getDir(f, t);
-    if (d == 32 || d == 64) attacks |= BOCC(t) & BQU;
-	if (d == 8 || d == 16) attacks |= ROCC(t) & RQU;
-  }
-  attacks &= BOARD;
-
-  while (attacks) {
-      if ((temp = pieceb[PAWN] & colorb[c] & attacks)) piece = PAWN;
-      else if ((temp = pieceb[KNIGHT] & colorb[c] & attacks)) piece = KNIGHT;
-      else if ((temp = pieceb[BISHOP] & colorb[c] & attacks)) piece = BISHOP;
-      else if ((temp = pieceb[ROOK] & colorb[c] & attacks)) piece = ROOK;
-      else if ((temp = pieceb[QUEEN] & colorb[c] & attacks)) piece = QUEEN;
-      else if ((temp = pieceb[KING] & colorb[c] & attacks)) piece = KING;
-      else break;
- 
-	temp &= -(long long)temp;
-	colorb[c] ^= temp;
-	if (piece & 4 || piece == 1) {
-	  if (piece & 1) attacks |= BOCC(t) & BQU;
-	  if (piece & 2) attacks |= ROCC(t) & RQU;
-	}
-	attacks &= BOARD;
-
-	s_list[nc] = -s_list[nc - 1] + a_piece;
+	u64 attacks = attacked(t, 0) | attacked(t, 1);
+	s_list[0] = a_piece;
 	a_piece = pval[piece];
-	nc++;
-	c ^= 1;
-  }
+	colorb[onmv] ^= BIT[f];
 
-  while (--nc)
-    if (s_list[nc] > -s_list[nc - 1])
-      s_list[nc - 1] = -s_list[nc];
+	do {
+		if (piece & 4 || piece == 1) {
+			if (piece & 1) attacks |= BOCC(t) & BQU;
+			if (piece & 2) attacks |= ROCC(t) & RQU;
+		}
+		attacks &= BOARD;
 
-  colorb[0] = colstore0;
-  colorb[1] = colstore1;
-  return s_list[0];
+		if ((temp = pieceb[PAWN] & colorb[c] & attacks)) piece = PAWN;
+		else if ((temp = pieceb[KNIGHT] & colorb[c] & attacks)) piece = KNIGHT;
+		else if ((temp = pieceb[BISHOP] & colorb[c] & attacks)) piece = BISHOP;
+		else if ((temp = pieceb[ROOK] & colorb[c] & attacks)) piece = ROOK;
+		else if ((temp = pieceb[QUEEN] & colorb[c] & attacks)) piece = QUEEN;
+		else if ((temp = pieceb[KING] & colorb[c] & attacks)) piece = KING;
+		else break;
+
+		temp &= -(long long)temp;
+		colorb[c] ^= temp;
+
+		s_list[nc] = -s_list[nc - 1] + a_piece;
+		a_piece = pval[piece];
+		nc++;
+		c ^= 1;
+	} while (attacks);
+
+	while (--nc)
+		if (s_list[nc] > -s_list[nc - 1])
+			s_list[nc - 1] = -s_list[nc];
+
+	colorb[0] = colstore0;
+	colorb[1] = colstore1;
+	return s_list[0];
 }
 
 /* In quiesce the moves are ordered just for the value of the captured piece */
@@ -963,7 +958,7 @@ Move spick(Move* ml, int mn, int s, int ply) {
 	return m;
 }
 
-/* The evulation for Color c. It's almost only mobility stuff. Pinned pieces are still awarded for limiting opposite's king */
+/* The eval for Color c. It's almost only mobility. Pinned pieces are still awarded for limiting opposite's king */
 int evalc(int c) {
 	int t, f, mn = 0, katt = 0, egf = 5200/(40 + sf[c]);
 	int oc = c^1;
@@ -1073,12 +1068,12 @@ int kmobilf(int c) {
 }
 
 int evallazy(int c, int matrl) {
-        int ev = kmobilf(c) - kmobilf(c^1);
+		int ev = kmobilf(c) - kmobilf(c^1);
 
-        if ((matrl < 0 && NOMATEMAT(1)) || (matrl > 0 && NOMATEMAT(0)))
-                matrl = 0;
+		if ((matrl < 0 && NOMATEMAT(1)) || (matrl > 0 && NOMATEMAT(0)))
+				matrl = 0;
 
-        return ev + (c ? -matrl : matrl);
+		return ev + (c ? -matrl : matrl);
 }
 
 u64 eval1 = 0;
@@ -1089,8 +1084,7 @@ int eval(int c, int matrl) {
 	return ev + evallazy(c, matrl);
 }
 
-u64 nodes;
-u64 qnodes;
+u64 nodes, qnodes;
 int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 	int i, best = -MAXSCORE, poff = ply << 8;
 
@@ -1160,16 +1154,16 @@ int inputSearch() {
 
 const int nullvar[] = {13, 43, 149, 519, 1809, 6311, 22027};
 static int nullvariance(int delta) {
-      int r = 0;
-      if (delta >= 4) for (r = 1; r <= 7; r++) if (delta < nullvar[r - 1]) break;
-      return r;
+	int r = 0;
+	if (delta >= 4) for (r = 1; r <= 7; r++) if (delta < nullvar[r - 1]) break;
+	return r;
 }
 
 #define HASHP (hashb ^ hashxor[flags | 1024 | c << 11])
 int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int null) {
 	int i, j, n, w, poff = ply << 8;
 	u64 hp, hismax = 0LL;
-	
+
 	if (ply) pv[ply][ply] = 0;
 	if ((++nodes & CNODES) == 0) {
 		while (bioskey() && !sabort) sabort = inputSearch();
@@ -1185,9 +1179,8 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	if (alpha < -MAXSCORE+ply) alpha = -MAXSCORE+ply;
 	if (beta > MAXSCORE-ply-1) beta = MAXSCORE-ply-1;
 	if (alpha >= beta) return alpha;
-		
-	hstack[COUNT] = hp;
 
+	hstack[COUNT] = hp;
 	Move hmove = ply ? 0 : retPVMove(c, 0);
 
 	struct entry he = hashDB[hp & HMASK];
@@ -1201,7 +1194,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	} 
 
 	//Null Move
-	if (!ch && !pvnode && null && d > 1 && (n = _bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1)))) > 1) {
+	if (!ch && null && d > 1 && (n = _bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1)))) > 1) {
 		int flagstore = flags;
 		int R = (10 + d + nullvariance(evallazy(c, mat) - alpha))/4;
 		if (R > d) R = d;
@@ -1219,76 +1212,76 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	}
 
 	int evilqueen = 0;
-    if (pieceb[QUEEN] & colorb[c^1]) evilqueen = getLsb(pieceb[QUEEN] & colorb[c^1]);
-    if (evilqueen && battacked(evilqueen, c^1, 0)) evilqueen = 0;
+	if (pieceb[QUEEN] & colorb[c^1]) evilqueen = getLsb(pieceb[QUEEN] & colorb[c^1]);
+	if (evilqueen && battacked(evilqueen, c^1, 0)) evilqueen = 0;
 
-    int first = 1;
+	int first = 1;
 	for (n = 1; n <= (ch ? 2 : 3); n++) {
- 	    if (n == 1) {
+		if (n == 1) {
 		if (hmove == 0) continue;
 			movenum[ply] = 1;
-	    } else if (n == 2) {
+		} else if (n == 2) {
 			generate(ch, c, ply, 1, 0);
-	    } else {
+		} else {
 			generate(ch, c, ply, 0, 1);
-	    }
-	    for (i = 0; i < movenum[ply]; i++) {
-		Move m;
-		u64 nch;
-		int ext = 0;
-		if (n == 1) {
-			m = hmove;
-		} else {
-			if (n == 2) m = qpick(movelist + poff, movenum[ply], i);
-			else m = spick(movelist + poff, movenum[ply], i, ply);
-			if (m == hmove) continue;
 		}
-
-		doMove(m, c);
-		nch = attacked(kingpos[c^1], c^1);
-		if (nch) ext++; // Check Extension
-        else if (pvnode || ch);
-		else if (n == 2 && d >= 2 && !PROM(m) && swap(m) < 0) ext-= (d + 1)/3; //Reduce bad exchanges
-		else if (n == 3) { //LMR
-			if (m == killer[ply]); //Don't reduce killers
-			else if (PIECE(m) == PAWN && !(pawnfree[TO(m) + (c << 6)] & pieceb[PAWN] & colorb[c^1])); //Don't reduce free pawns
-            else if (evilqueen && battacked(evilqueen, c^1, 0) && swap(m) >= 0); //Don't reduce queen attacks
-			else {
-				u32 his = history[m & 0xFFF];
-				if (his > hismax) { hismax = his;}
-				else if (d <= 5 && his*his < hismax) { undoMove(m, c); continue; }
-				else if (d >= 2) ext-= (d + 1)/3;
+		for (i = 0; i < movenum[ply]; i++) {
+			Move m;
+			u64 nch;
+			int ext = 0;
+			if (n == 1) {
+				m = hmove;
+			} else {
+				if (n == 2) m = qpick(movelist + poff, movenum[ply], i);
+				else m = spick(movelist + poff, movenum[ply], i, ply);
+				if (m == hmove) continue;
 			}
-		}
-		if (PROM(m) == QUEEN) ext++;
 
-		if (first == 1 && pvnode) {
-			w = -search(nch, c^1, d-1+ext, ply+1, -beta, -alpha, 1, 1);
-		} else {
-			w = -search(nch, c^1, d-1+ext, ply+1, -alpha-1, -alpha, 0, 1);
-			if (w > alpha && ext < 0) w = -search(nch, c^1, d-1, ply+1, -alpha-1, -alpha, 0, 1);
-			if (w > alpha && w < beta && pvnode) w = -search(nch, c^1, d-1+ext, ply+1, -beta, -alpha, 1, 1);
-		}
-		undoMove(m, c);
-		if (sabort) return alpha;
-
-		if (w > alpha) {
-			alpha = w;
-			first = -1;
-			pv[ply][ply] = m;
-			for (j = ply +1; pv[ply +1][j]; j++) pv[ply][j] = pv[ply +1][j];
-			pv[ply][j] = 0;
-
-			if (w == MAXSCORE-ply-1) { n = 3; break; }
-			if (w >= beta) {
-				if (CAP(m) == 0) {
-					killer[ply] = m;
-					history[m & 0xFFF]+=(d+ext)*(d+ext);
+			doMove(m, c);
+			nch = attacked(kingpos[c^1], c^1);
+			if (nch) ext++; // Check Extension
+			else if (pvnode || ch);
+			else if (n == 2 && d >= 2 && !PROM(m) && swap(m) < 0) ext-= (d + 1)/3; //Reduce bad exchanges
+			else if (n == 3) { //LMR
+				if (m == killer[ply]); //Don't reduce killers
+				else if (PIECE(m) == PAWN && !(pawnfree[TO(m) + (c << 6)] & pieceb[PAWN] & colorb[c^1])); //Free pawns
+				else if (evilqueen && battacked(evilqueen, c^1, 0) && swap(m) >= 0); //Don't reduce queen attacks
+				else {
+					u32 his = history[m & 0xFFF];
+					if (his > hismax) { hismax = his;}
+					else if (d <= 5 && his*his < hismax) { undoMove(m, c); continue; }
+					else if (d >= 2) ext-= (d + 1)/3;
 				}
-				n = 3; break;
 			}
-		}
-		if (first == 1) first = 0;
+			if (PROM(m) == QUEEN) ext++;
+
+			if (first == 1 && pvnode) {
+				w = -search(nch, c^1, d-1+ext, ply+1, -beta, -alpha, 1, 0);
+			} else {
+				w = -search(nch, c^1, d-1+ext, ply+1, -alpha-1, -alpha, 0, 1);
+				if (w > alpha && ext < 0) w = -search(nch, c^1, d-1, ply+1, -alpha-1, -alpha, 0, 1);
+				if (w > alpha && w < beta) w = -search(nch, c^1, d-1+ext, ply+1, -beta, -alpha, 1, 0);
+			}
+			undoMove(m, c);
+			if (sabort) return alpha;
+
+			if (w > alpha) {
+				alpha = w;
+				first = -1;
+				pv[ply][ply] = m;
+				for (j = ply +1; pv[ply +1][j]; j++) pv[ply][j] = pv[ply +1][j];
+				pv[ply][j] = 0;
+
+				if (w == MAXSCORE-ply-1) { n = 3; break; }
+				if (w >= beta) {
+					if (CAP(m) == 0) {
+						killer[ply] = m;
+						history[m & 0xFFF]+=(d+ext)*(d+ext);
+					}
+					n = 3; break;
+				}
+			}
+			if (first == 1) first = 0;
 	    }
 	}
 	if (sabort) return alpha;
@@ -1450,14 +1443,14 @@ int calc(int sd, int tm) {
 	pondering = 0;
 	if (sabort < -1) { pon = 0; return sabort; }
 	if (pon) {
-	 	undo();	
+		undo();
 		pon = 0;
 		return engine != onmove;
 	}
 	printf("move "); displaym(pv[0][0]); printf("\n");
 
 	if (post && ics) printf("kibitz W: %d Nodes: %llu QNodes: %llu Evals: %llu cs: %d knps: %llu\n",
-                         MEVAL(value[iter > sd ? sd : iter]), nodes, qnodes, eval1, t1/10, (nodes+qnodes)/(t1+1));
+						MEVAL(value[iter > sd ? sd : iter]), nodes, qnodes, eval1, t1/10, (nodes+qnodes)/(t1+1));
 
 	return execMove(pv[0][0]);
 }
@@ -1499,59 +1492,61 @@ void newGame() {
 }
 
 int protV2(char* buf, int parse) {
-		if (!strncmp(buf,"protover",8)) printf("feature setboard=1 myname=\"OliThink " VER "\" colors=0 analyze=1 ping=1 sigint=0 sigterm=0 done=1\n");
-		else if (!strncmp(buf,"xboard",6));
-		else if (!strncmp(buf,"ping",4)) { buf[1] = 'o'; printf("%s", buf); }
-		else if (!strncmp(buf,"quit",4)) return -2;
-		else if (!strncmp(buf,"new",3)) return -3; 
-		else if (!strncmp(buf,"remove",6)) return -4;
-		else if (!strncmp(buf,"force",5)) return -7;
-		else if (!strncmp(buf,"go",2)) engine = pondering ? onmove^1 : onmove;
-		else if (!strncmp(buf,"setboard",8)) if (parse) _parse_fen(buf+9); else return -9;
-		else if (!strncmp(buf,"undo",4)) return -8;
-		else if (!strncmp(buf,"easy",4)) ponder = 0;
-		else if (!strncmp(buf,"hard",4)) ponder = 1;
-		else if (!strncmp(buf,"analyze",7)) return -5;
-		else if (!strncmp(buf,"exit",4)) return -6;
-		else if (!strncmp(buf,"sd",2)) sscanf(buf+3,"%d",&sd);
-		else if (!strncmp(buf,"time",4)) sscanf(buf+5,"%d",&ttime);
-		else if (!strncmp(buf,"level",4)) sscanf(buf+6,"%d %s %d",&mps, base, &inc);
-		else if (!strncmp(buf,"post",4)) post = 1;
-		else if (!strncmp(buf,"nopost",6)) post = 0;
-		else if (!strncmp(buf,"result",6)) return -6; //result 0-1 {Black mates}
-		else if (!strncmp(buf,"otim",4));//otim <optime>
-		else if (!strncmp(buf,"draw",4));//draw offer 
-		else if (!strncmp(buf,"st",2)) sscanf(buf+3,"%d",&st);
-		else if (!strncmp(buf,"?",1)) return 1;
-		else if (!strncmp(buf,".",1));
-		else if (!strncmp(buf,"bk",2));
-		else if (!strncmp(buf,"hint",4));
-		else if (!strncmp(buf,"computer",8));
-		else if (!strncmp(buf,"accepted",8) || !strncmp(buf,"rejected",8));//accepted/rejected <feature>
-		else if (!strncmp(buf,"random",6));
-		else if (!strncmp(buf,"rating",6)) ics = 1;//ICS: rating <myrat> <oprat>
-		else if (!strncmp(buf,"name",4));//ICS: name <opname>
-		else if (!strncmp(buf,"perft",5)) {int i; for (i = 1; i <= sd && !bioskey(); i++) printf("Depth: %d Nodes: %lld%c\n", i, perft(onmove, i, 0), bioskey() ? '+' : ' ');}
-		else if (!strncmp(buf,"divide",5)) perft(onmove, sd, 1);
-		else if (strchr(buf, '/') != NULL && strlen(buf)>16) { engine = -1; analyze = pondering = 1; if (parse) _parse_fen(buf); else return -9; }
-		else if (strlen(buf) == 0);
-		else return -1;
-		return 0;
+	if (!strncmp(buf,"protover",8))
+		printf("feature setboard=1 myname=\"OliThink " VER "\" colors=0 analyze=1 ping=1 sigint=0 sigterm=0 done=1\n");
+	else if (!strncmp(buf,"xboard",6));
+	else if (!strncmp(buf,"ping",4)) { buf[1] = 'o'; printf("%s", buf); }
+	else if (!strncmp(buf,"quit",4)) return -2;
+	else if (!strncmp(buf,"new",3)) return -3;
+	else if (!strncmp(buf,"remove",6)) return -4;
+	else if (!strncmp(buf,"force",5)) return -7;
+	else if (!strncmp(buf,"go",2)) engine = pondering ? onmove^1 : onmove;
+	else if (!strncmp(buf,"setboard",8)) if (parse) _parse_fen(buf+9); else return -9;
+	else if (!strncmp(buf,"undo",4)) return -8;
+	else if (!strncmp(buf,"easy",4)) ponder = 0;
+	else if (!strncmp(buf,"hard",4)) ponder = 1;
+	else if (!strncmp(buf,"analyze",7)) return -5;
+	else if (!strncmp(buf,"exit",4)) return -6;
+	else if (!strncmp(buf,"sd",2)) sscanf(buf+3,"%d",&sd);
+	else if (!strncmp(buf,"time",4)) sscanf(buf+5,"%d",&ttime);
+	else if (!strncmp(buf,"level",4)) sscanf(buf+6,"%d %s %d",&mps, base, &inc);
+	else if (!strncmp(buf,"post",4)) post = 1;
+	else if (!strncmp(buf,"nopost",6)) post = 0;
+	else if (!strncmp(buf,"result",6)) return -6; //result 0-1 {Black mates}
+	else if (!strncmp(buf,"otim",4));//otim <optime>
+	else if (!strncmp(buf,"draw",4));//draw offer
+	else if (!strncmp(buf,"st",2)) sscanf(buf+3,"%d",&st);
+	else if (!strncmp(buf,"?",1)) return 1;
+	else if (!strncmp(buf,".",1));
+	else if (!strncmp(buf,"bk",2));
+	else if (!strncmp(buf,"hint",4));
+	else if (!strncmp(buf,"computer",8));
+	else if (!strncmp(buf,"accepted",8) || !strncmp(buf,"rejected",8));//accepted/rejected <feature>
+	else if (!strncmp(buf,"random",6));
+	else if (!strncmp(buf,"rating",6)) ics = 1;//ICS: rating <myrat> <oprat>
+	else if (!strncmp(buf,"name",4));//ICS: name <opname>
+	else if (!strncmp(buf,"perft",5)) { int i; for (i = 1; i <= sd && !bioskey(); i++)
+		printf("Depth: %d Nodes: %lld%c\n", i, perft(onmove, i, 0), bioskey() ? '+' : ' '); }
+	else if (!strncmp(buf,"divide",5)) perft(onmove, sd, 1);
+	else if (strchr(buf, '/') != NULL && strlen(buf)>16) {
+		engine = -1; analyze = pondering = 1; if (parse) _parse_fen(buf); else return -9; }
+	else if (strlen(buf) == 0);
+	else return -1;
+	return 0;
 }
 
 int input(int c) {
-		Move m;
-		int ex;
-		char buf[256];
-		if (irbuf[0]) strcpy(buf,irbuf); else fgets(buf,255,stdin);
-		irbuf[0] = 0;
-		ex = protV2(buf, 1);	
-		if (ex == -1) return parseMoveNExec(buf, c, &m);
-		return ex;
+	Move m;
+	int ex;
+	char buf[256];
+	if (irbuf[0]) strcpy(buf,irbuf); else fgets(buf,255,stdin);
+	irbuf[0] = 0;
+	ex = protV2(buf, 1);
+	if (ex == -1) return parseMoveNExec(buf, c, &m);
+	return ex;
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
 	int i, ex = -1; u64 m, n;
 
 	setbuf(stdout, NULL);
@@ -1581,7 +1576,7 @@ int main(int argc, char **argv)
 
 	for (i = 0; i < 64; i++) nmobil[i] = (_bitcnt(nmoves[i]))*8;
 	for (i = 0; i < 64; i++) kmobil[i] = (_bitcnt(nmoves[i]));
-	for (i = 0; i < 32; i++) bishcorn[i] = bishcorn[63-i] = (i&7) < 4 ? cornbase[(i&7) + i/8] : -cornbase[7 - (i&7) + i/8];
+	for (i = 0; i < 32; i++) bishcorn[i] = bishcorn[63-i] = (i&7) < 4 ? cornbase[(i&7) +i/8] : -cornbase[7 -(i&7) +i/8];
 	newGame();
 
 	if (argc > 1 && !strncmp(argv[1],"-sd",3)) {

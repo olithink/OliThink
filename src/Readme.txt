@@ -1,4 +1,4 @@
-OliThink5 (c) Oliver Brausch 11.Sep.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 12.Sep.2020, ob112@web.de, http://brausch.org
 
 Version: 5.7.6
 Protocol: Winboard 2
@@ -9,7 +9,7 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Reduction, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1609
+LinesOfCode: 1604
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
 
