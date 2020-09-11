@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 09.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.7.5"
+/* OliThink5 (c) Oliver Brausch 11.Sep.2020, ob112@web.de, http://brausch.org */
+#define VER "5.7.6"
 #include <stdio.h>
 #include <string.h>
 #if defined(_WIN32) || defined(_WIN64)
@@ -318,15 +318,15 @@ int key135(u64 b, int f) {
    return keyDiag(b & bmask135[f]);
 }
 
-#define DUALATT(x, y, c) (battacked(x, c) || battacked(y, c))
-int battacked(int f, int c) {
+#define DUALATT(x, y, c) (battacked(x, c, pieceb[QUEEN]) || battacked(y, c, pieceb[QUEEN]))
+int battacked(int f, int c, u64 q) {
 	if (PCAP(f, c) & pieceb[PAWN]) return 1;
 	if (NCAP(f, c) & pieceb[KNIGHT]) return 1;
 	if (KCAP(f, c) & pieceb[KING]) return 1;
-	if (RCAP1(f, c) & RQU) return 1; 
-	if (RCAP2(f, c) & RQU) return 1; 
-	if (BCAP3(f, c) & BQU) return 1;
-	if (BCAP4(f, c) & BQU) return 1;
+	if (RCAP1(f, c) & (pieceb[ROOK] | q)) return 1;
+	if (RCAP2(f, c) & (pieceb[ROOK] | q)) return 1;
+	if (BCAP3(f, c) & (pieceb[BISHOP] | q)) return 1;
+	if (BCAP4(f, c) & (pieceb[BISHOP ]| q)) return 1;
 	return 0;
 }
 
@@ -633,7 +633,7 @@ void regPromotions(int f, int c, u64 bt, int* mlist, int* mn, int cap, int queen
 void regKings(Move m, u64 bt, int* mlist, int* mn, int c, int cap) {
 	while (bt) {
 		int t = pullLsb(&bt);
-		if (battacked(t, c)) continue;
+		if (battacked(t, c, pieceb[QUEEN])) continue;
 		mlist[(*mn)++] = m | _TO(t) | (cap ? _CAP(identPiece(t)) : 0LL);
 	}
 }
@@ -1017,7 +1017,7 @@ int evalc(int c) {
 
 		a = BATT3(f) | BATT4(f) | RATT1(f) | RATT2(f);
 		if (a & kn) katt += _bitcnt(a & kn) << 4;
-		mn += _bitcnt(a) << 1;
+		mn += (_bitcnt(a) << 1) * egf / 75;
 	}
 
 	colorb[oc] ^= RQU & ocb; //Opposite Queen & Rook doesn't block mobility for bishop
@@ -1218,7 +1218,11 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		d--;
 	}
 
-	int first = 1;
+	int evilqueen = 0;
+    if (pieceb[QUEEN] & colorb[c^1]) evilqueen = getLsb(pieceb[QUEEN] & colorb[c^1]);
+    if (evilqueen && battacked(evilqueen, c^1, 0)) evilqueen = 0;
+
+    int first = 1;
 	for (n = 1; n <= (ch ? 2 : 3); n++) {
  	    if (n == 1) {
 		if (hmove == 0) continue;
@@ -1243,17 +1247,19 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		doMove(m, c);
 		nch = attacked(kingpos[c^1], c^1);
 		if (nch) ext++; // Check Extension
-		else if (n == 2 && !pvnode && d >= 2 && !ch && !PROM(m) && swap(m) < 0) ext-= (d + 1)/3; //Reduce bad exchanges
-		else if (n == 3 && !pvnode) { //LMR
+        else if (pvnode || ch);
+		else if (n == 2 && d >= 2 && !PROM(m) && swap(m) < 0) ext-= (d + 1)/3; //Reduce bad exchanges
+		else if (n == 3) { //LMR
 			if (m == killer[ply]); //Don't reduce killers
 			else if (PIECE(m) == PAWN && !(pawnfree[TO(m) + (c << 6)] & pieceb[PAWN] & colorb[c^1])); //Don't reduce free pawns
+            else if (evilqueen && battacked(evilqueen, c^1, 0) && swap(m) >= 0); //Don't reduce queen attacks
 			else {
 				u32 his = history[m & 0xFFF];
-				if (his > hismax) { hismax = his;} 
+				if (his > hismax) { hismax = his;}
 				else if (d <= 5 && his*his < hismax) { undoMove(m, c); continue; }
 				else if (d >= 2) ext-= (d + 1)/3;
 			}
-	        }
+		}
 		if (PROM(m) == QUEEN) ext++;
 
 		if (first == 1 && pvnode) {
