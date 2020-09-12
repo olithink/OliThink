@@ -217,7 +217,7 @@ void _parse_fen(char *fen) {
 	reseth(fen == sfen ? 2 : 3);
 }
 
-int parseMoveNExec(char*, int, Move*);
+void doMove(Move, int c);
 int parseMove(char*, int, Move);
 int protV2(char*,int);
 #define BKSIZE 8192
@@ -255,9 +255,9 @@ void _readbook(char *bk) {
 						sscanf(buf+i,"%s", s2);
 						i += (int)(strlen(s2) + 1);
 					} else sscanf(s0,"%*[^.].%[^.]", s1);
-					parseMoveNExec(s1, 0, bkmove + n*32+ (j++));
+					doMove(bkmove[n*32+ (j++)] = parseMove(s1, 0, 0), 0);
 					if (s2[0] == 0 || s2[0] == '*') break;
-					parseMoveNExec(s2, 1, bkmove + n*32+ (j++));
+					doMove(bkmove[n*32+ (j++)] = parseMove(s2, 1, 0), 1);
 					if (j > 30 || i >= strlen(buf)) break;
 				}
 				bkmove[n*32 + j] = 0;
@@ -1379,11 +1379,11 @@ int parseMove(char *s, int c, Move p) {
 	return 0;
 }
 
-int parseMoveNExec(char *s, int c, Move *m) {
-	*m = parseMove(s, c, 0);
-	if (*m == -1) printf("UNKNOWN COMMAND: %s\n", s);
-	else if (*m == 0) fprintf(stderr,"Illegal move: %s\n",s);
-	else return execMove(*m);
+int parseMoveNExec(char *s, int c) {
+	Move m = parseMove(s, c, 0);
+	if (m == -1) printf("UNKNOWN COMMAND: %s\n", s);
+	else if (m == 0) fprintf(stderr,"Illegal move: %s\n",s);
+	else return execMove(m);
 	return -1;
 }
 
@@ -1536,13 +1536,12 @@ int protV2(char* buf, int parse) {
 }
 
 int input(int c) {
-	Move m;
 	int ex;
 	char buf[256];
 	if (irbuf[0]) strcpy(buf,irbuf); else fgets(buf,255,stdin);
 	irbuf[0] = 0;
 	ex = protV2(buf, 1);
-	if (ex == -1) return parseMoveNExec(buf, c, &m);
+	if (ex == -1) return parseMoveNExec(buf, c);
 	return ex;
 }
 
