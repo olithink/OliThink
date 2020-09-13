@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 12.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.7.6"
+/* OliThink5 (c) Oliver Brausch 13.Sep.2020, ob112@web.de, http://brausch.org */
+#define VER "5.7.7"
 #include <stdio.h>
 #include <string.h>
 #if defined(_WIN32) || defined(_WIN64)
@@ -876,21 +876,19 @@ int generate(u64 ch, int c, int ply, int cap, int noncap) {
 }
 
 int swap(Move m) { //SEE
-	int s_list[32];
-	int f = FROM(m), t = TO(m), onmv = ONMV(m);
-	int a_piece = pval[CAP(m)], piece = PIECE(m), c = onmv^1, nc = 1;
+	int s_list[32], f = FROM(m), t = TO(m), c = ONMV(m);
+	int a_piece = pval[CAP(m)], piece = PIECE(m), nc = 1;
 	u64 temp = 0, colstore0 = colorb[0], colstore1 = colorb[1];
 
-	u64 attacks = attacked(t, 0) | attacked(t, 1);
+	u64 attacks = ((PCAP(t, 0) | PCAP(t, 1)) & pieceb[PAWN])
+		| (nmoves[t] & pieceb[KNIGHT]) | (kmoves[t] & pieceb[KING]);
 	s_list[0] = a_piece;
 	a_piece = pval[piece];
-	colorb[onmv] ^= BIT[f];
+	colorb[c] &= ~BIT[f];
 
 	do {
-		if (piece & 4 || piece == 1) {
-			if (piece & 1) attacks |= BOCC(t) & BQU;
-			if (piece & 2) attacks |= ROCC(t) & RQU;
-		}
+		c ^= 1;
+		attacks |= (BOCC(t) & BQU) | (ROCC(t) & RQU);
 		attacks &= BOARD;
 
 		if ((temp = pieceb[PAWN] & colorb[c] & attacks)) piece = PAWN;
@@ -898,7 +896,7 @@ int swap(Move m) { //SEE
 		else if ((temp = pieceb[BISHOP] & colorb[c] & attacks)) piece = BISHOP;
 		else if ((temp = pieceb[ROOK] & colorb[c] & attacks)) piece = ROOK;
 		else if ((temp = pieceb[QUEEN] & colorb[c] & attacks)) piece = QUEEN;
-		else if ((temp = pieceb[KING] & colorb[c] & attacks)) piece = KING;
+		else if ((temp = pieceb[KING] & colorb[c] & attacks)) { piece = KING; if (colorb[c^1] & attacks) break; }
 		else break;
 
 		temp &= -(long long)temp;
@@ -906,9 +904,8 @@ int swap(Move m) { //SEE
 
 		s_list[nc] = -s_list[nc - 1] + a_piece;
 		a_piece = pval[piece];
-		nc++;
-		c ^= 1;
-	} while (attacks);
+		if (a_piece < s_list[++nc - 1]) break;
+	} while (1);
 
 	while (--nc)
 		if (s_list[nc] > -s_list[nc - 1])
