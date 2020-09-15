@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 13.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.7.7"
+/* OliThink5 (c) Oliver Brausch 15.Sep.2020, ob112@web.de, http://brausch.org */
+#define VER "5.7.8"
 #include <stdio.h>
 #include <string.h>
 #if defined(_WIN32) || defined(_WIN64)
@@ -1089,7 +1089,7 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 	if (!ch) do {
 		int cmat = evallazy(c, mat);
 		if (cmat - 125 >= beta) return beta;
-		if (cmat + 125 <= alpha) break;
+		if (cmat + 85 <= alpha) break;
 		best = eval(c, mat);
 		if (best > alpha) {
 			alpha = best;
@@ -1156,6 +1156,9 @@ static int nullvariance(int delta) {
 	return r;
 }
 
+#define NO_MOVE 0
+#define ANY_MOVE 1
+#define GOOD_MOVE 2
 #define HASHP (hashb ^ hashxor[flags | 1024 | c << 11])
 int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int null) {
 	int i, j, n, w, poff = ply << 8;
@@ -1182,15 +1185,19 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 
 	struct entry he = hashDB[hp & HMASK];
 	if (he.key == hp) {
-		w = he.value;
 		if (he.depth >= d) {
-			if (he.type <= 1 && w >= beta) return beta;
-			if (he.type >= 1 && w <= alpha) return alpha;
+			if (he.type <= 1 && he.value >= beta) return beta;
+			if (he.type >= 1 && he.value <= alpha) return alpha;
 		}
 		if (!hmove) hmove = he.move;
 	} 
 
-	//Null Move
+	if (!ch && !pvnode && d <= 8) {
+		w = evallazy(c, mat);
+		if (w > beta + 85*d) return w;
+	}
+
+	//Null Move - pvnode => null == 0
 	if (!ch && null && d > 1 && (n = _bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1)))) > 1) {
 		int flagstore = flags;
 		int R = (10 + d + nullvariance(evallazy(c, mat) - alpha))/4;
@@ -1212,7 +1219,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	if (pieceb[QUEEN] & colorb[c^1]) evilqueen = getLsb(pieceb[QUEEN] & colorb[c^1]);
 	if (evilqueen && battacked(evilqueen, c^1, 0)) evilqueen = 0;
 
-	int first = 1;
+	int first = NO_MOVE;
 	for (n = 1; n <= (ch ? 2 : 3); n++) {
 		if (n == 1) {
 		if (hmove == 0) continue;
@@ -1252,7 +1259,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 			}
 			if (PROM(m) == QUEEN) ext++;
 
-			if (first == 1 && pvnode) {
+			if (first == NO_MOVE && pvnode) {
 				w = -search(nch, c^1, d-1+ext, ply+1, -beta, -alpha, 1, 0);
 			} else {
 				w = -search(nch, c^1, d-1+ext, ply+1, -alpha-1, -alpha, 0, 1);
@@ -1264,7 +1271,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 
 			if (w > alpha) {
 				alpha = w;
-				first = -1;
+				first = GOOD_MOVE;
 				pv[ply][ply] = m;
 				for (j = ply +1; pv[ply +1][j]; j++) pv[ply][j] = pv[ply +1][j];
 				pv[ply][j] = 0;
@@ -1277,15 +1284,14 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 					}
 					n = 3; break;
 				}
-			}
-			if (first == 1) first = 0;
+			} else if (first == NO_MOVE) first = ANY_MOVE;
 	    }
 	}
 	if (sabort) return alpha;
-	if (first == 1) alpha = ch ? -MAXSCORE+ply : 0;
+	if (first == NO_MOVE) alpha = ch ? -MAXSCORE+ply : 0;
 
-	char type = 2; // 2 = upper bound
-	if (first == -1) { type = (alpha >= beta ? 0 : 1); hmove = pv[ply][ply]; } // Found a good move, lower/exact bound
+	char type = 2; // 2 = upper bound               lower = 0 : 1 = exact bound
+	if (first == GOOD_MOVE) { type = (char)(alpha >= beta ? 0 : 1); hmove = pv[ply][ply]; } // Found a good move
 	
 	hashDB[hp & HMASK] = (struct entry) {.key = hp, .move = hmove, .value = alpha, .depth = d, .type = type};
 
