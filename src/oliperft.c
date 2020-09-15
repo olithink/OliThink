@@ -1,21 +1,23 @@
-/* OliPerft 1.0.3 - Bitboard Magic Move (c) Oliver Brausch 20.Aug.2020, ob112@web.de */
+/* OliPerft 1.0.4 - Bitboard Magic Move (c) Oliver Brausch 15.Sep.2020, ob112@web.de */
 /* oliperft 6 "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
-Nodes: 8229523927 cs: 1565 knps: 525747 (gcc4 64bit AMD Ryzen Threadripper 2950X 1/16-Core Processor)
-Nodes: 8229523927 cs: 1601 knps: 513831 (gcc4 64bit AMD EPYC 7502P 1/32-Core Processor)
-Nodes: 8229523927 cs: 1917 knps: 429135 (gcc OSX i7 8850H 2.6 GHz)
-Nodes: 8229523927 ms: 40610 knps: 202647 (VS2005 64bit AMD64 4600+)
-Nodes: 8229523927 ms: 64860 knps: 126881 (VS2005 32bit AMD64 4600+)
-Nodes: 8229523927 ms: 97251 knps: 84621 (gcc4 32bit AMD Opteron 1210HE)
+Nodes: 8229523927 cs: 1156 knps: 711527 (gcc8 64bit AMD EPYC 7502P 1/32-Core Processor)
+Nodes: 8229523927 cs: 1526 knps: 539145 (gcc4 OSX i7 8850H 2.6 GHz)
+Nodes: 8229523927 ms: 40610 knps: 202647 (VS2005 64bit AMD64 4600+) (1.0.2)
+Nodes: 8229523927 ms: 64860 knps: 126881 (VS2005 32bit AMD64 4600+) (1.0.2)
+Nodes: 8229523927 ms: 97251 knps: 84621 (gcc4 32bit AMD Opteron 1210HE) (1.0.2)
 */
-#define _CRT_SECURE_NO_DEPRECATE
 #include <stdio.h>
 #ifdef _WIN32
 #include <sys/timeb.h>
 struct _timeb tv;
+#define _bitcount(x) __popcnt64(x)
+#define getLsb(x) _tzcnt_u64(x)
 #else
 #include <sys/time.h>
 struct timeval tv;
 struct timezone tz;
+#define _bitcount(x) __builtin_popcountll(x)
+#define getLsb(x) __builtin_ctzll(x)
 #endif
 
 #define PAWN 1
@@ -106,8 +108,6 @@ u64 board;
 u64 hashb;
 static u64 BIT[64];
 static u64 hashxor[0x10000];
-static char LSB[0x10000];
-static char BITC[0x10000] ;      
 int flags;
 int crevoke[64];
 int onmove;
@@ -123,10 +123,6 @@ void setBit(int f, u64 *board) {
 
 void xorBit(int f, u64 *board) {
 	*board ^= BIT[f];
-}
-
-u64 getLowestBit(u64 bb) {
-	return bb & (-(long long)bb);
 }
 
 void _parse_fen(char *fen) {
@@ -173,22 +169,6 @@ void _parse_fen(char *fen) {
 	board = colorb[0] | colorb[1];
 }
 
-static u32 r_x = 30903, r_y = 30903, r_z = 30903, r_w = 30903, r_carry = 0;
-u32 _rand_32() {
-	u32 t;
-	r_x = r_x * 69069 + 1;
-	r_y ^= r_y << 13;
-	r_y ^= r_y >> 17;
-	r_y ^= r_y << 5;
-	t = (r_w << 1) + r_z + r_carry;
-	r_carry = ((r_z >> 2) + (r_w >> 3) + (r_carry >> 2)) >> 30;
-	r_z = r_w;
-	r_w = t;
-	return r_x + r_y + r_w;
-}
-
-u64 _rand_64() { u64 c = _rand_32(); return _rand_32() | (c << 32); }
-
 u64 getTime()
 {
 #ifdef _WIN32
@@ -200,57 +180,20 @@ u64 getTime()
 #endif
 }
 
-char getLsb(u64 bm) {
-	u32 n = (u32) (bm & 0xFFFFFFFF);
-	if (n) {
-		if (n & 0xFFFF) return LSB[n & 0xFFFF];
-		else return 16 | LSB[(n >> 16) & 0xFFFF];
-	} else {
-		n = (u32)(bm >> 32);
-		if (n & 0xFFFF) return 32 | LSB[n & 0xFFFF];
-		else return 48 | LSB[(n >> 16) & 0xFFFF];
-	}
-}
-
-char _slow_lsb(u64 bm) {
-	int k = -1;
-	while (bm) { k++; if (bm & 1) break; bm >>= 1; }
-	return (char)k;
-}
-
 int pullLsb(u64* bit) {
 	int f = getLsb(*bit);
-	*bit ^= BIT[f];
+	*bit &= *bit - 1;
 	return f;
 }
 
-int _bitcount(u64 bit) {
-	int count=0;
-	while (bit) { bit &= (bit-1); count++; }
-	return count;
-}
-
-int bitcount (u64 n)
-{    
-     return BITC[n         & 0xFFFF]
-         +  BITC[(n >> 16) & 0xFFFF]
-         +  BITC[(n >> 32) & 0xFFFF]
-         +  BITC[(n >> 48) & 0xFFFF];
-}
-
 int identPiece(int f) {
-	if (TEST(f, pieceb[PAWN])) return PAWN;
-	if (TEST(f, pieceb[KNIGHT])) return KNIGHT;
-	if (TEST(f, pieceb[BISHOP])) return BISHOP;
-	if (TEST(f, pieceb[ROOK])) return ROOK;
-	if (TEST(f, pieceb[QUEEN])) return QUEEN;
-	if (TEST(f, pieceb[KING])) return KING;
+	int i;
+	for (i = PAWN; i <= QUEEN; i++) if (i != ENP && TEST(f, pieceb[i])) return i;
 	return ENP;
 }
 
 int identColor(int f) {
-	if (TEST(f, colorb[1])) return 1;
-	return 0;
+	return (TEST(f, colorb[1])) ? 1 : 0;
 }
 
 u64 bmask45[64];
@@ -260,7 +203,6 @@ int key000(u64 b, int f) {
 	return (int) ((b >> (f & 56)) & 0x7E);
 }
 
-#if defined(_WIN64) || defined(_LP64)
 int key090(u64 b, int f) {
 	u64 _b = (b >> (f&7)) & 0x0101010101010101LL;
 	_b = _b * 0x0080402010080400LL;
@@ -271,22 +213,6 @@ int keyDiag(u64 _b) {
 	_b = _b * 0x0202020202020202LL;
 	return (int)(_b >> 57);
 }
-#else
-int key090(u64 b, int f) {
-	int h;
-	b = b >> (f&7);
-	h = (int)((b & 0x1010101) | ((b >> 31) & 0x2020202));
-	h = (h & 0x303) | ((h >> 14) & 0xC0C);
-	return (h & 0xE) | ((h >> 4) & 0x70);
-}
-
-int keyDiag(u64 _b) {
-   int h = (int)(_b | _b >> 32);
-   h |= h >> 16;
-   h |= h >>  8;
-   return h & 0x7E;
-}
-#endif
 
 int key045(u64 b, int f) {
    return keyDiag(b & bmask45[f]);
@@ -360,7 +286,7 @@ u64 _occ_free_board(int bc, int del, u64 free) {
 	u64 low, perm = free;
 	int i;
 	for (i = 0; i < bc; i++) {
-		low = getLowestBit(free);
+		low = free & (-free); // Lowest bit
 		free &= (~low);
 		if (!TEST(i, del)) perm &= (~low);
 	}
@@ -372,7 +298,7 @@ void _init_rays(u64* rays, u64 (*rayFunc) (int, u64, int), int (*key)(u64, int))
 	u64 board, mmask, occ, move, xray;
 	for (f = 0; f < 64; f++) {
 		mmask = (*rayFunc)(f, 0LL, 0) | BIT[f];
-		iperm = 1 << (bc = bitcount(mmask));
+		iperm = 1 << (bc = _bitcount(mmask));
 		for (i = 0; i < iperm; i++) {
 			board = _occ_free_board(bc, i, mmask);
 			move = (*rayFunc)(f, board, 1);
@@ -804,19 +730,19 @@ int countMoves(int c, int ply) {
 	b = pieceb[KNIGHT] & cb;
 	while (b) {
 		f = pullLsb(&b);
-		*mn += bitcount(NCAP(f, c) | NMOVE(f));
+		*mn += _bitcount(NCAP(f, c) | NMOVE(f));
 	}
 
 	b = pieceb[BISHOP] & cb;
 	while (b) {
 		f = pullLsb(&b);
-		*mn += bitcount(BCAP(f,c) | BMOVE(f));
+		*mn += _bitcount(BCAP(f,c) | BMOVE(f));
 	}
 
 	b = pieceb[ROOK] & cb;
 	while (b) {
 		f = pullLsb(&b);
-		*mn += bitcount(RCAP(f,c) | RMOVE(f));
+		*mn += _bitcount(RCAP(f,c) | RMOVE(f));
 		if (CASTLE && !ch) {
 			if (c) {
 				if ((flags & 128) && (f == 63) && (RMOVE1(63) & BIT[61]))
@@ -835,7 +761,7 @@ int countMoves(int c, int ply) {
 	b = pieceb[QUEEN] & cb;
 	while (b) {
 		f = pullLsb(&b);
-		*mn += bitcount(RCAP(f, c) | BCAP(f, c) | RMOVE(f) | BMOVE(f));
+		*mn += _bitcount(RCAP(f, c) | BCAP(f, c) | RMOVE(f) | BMOVE(f));
 	}
 
 	b = pin & (pieceb[ROOK] | pieceb[BISHOP] | pieceb[QUEEN]); 
@@ -883,8 +809,7 @@ void perft(int c, int d, int ply) {
 	generateMoves(c, ply);
 	poff = ply << 8;
 	for (i = 0; i < movenum[ply]; i++) {
-		Move m = movelist[poff + i];			
-//		movestack[ply] = m;
+		Move m = movelist[poff + i];
 		doMove(m, c);
 
 		num[ply+1]++;
@@ -899,10 +824,9 @@ void perft(int c, int d, int ply) {
 	}
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
 	int i, divide = 0, sd = 6;
-	u64 t1, n = 0;
+	u64 t1, m, p, n = 0;
 	char *sfen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 	if (argc > 1) sscanf(argv[1], "%d", &sd);
 	if (argc > 2) sfen = argv[2];
@@ -910,9 +834,7 @@ int main(int argc, char **argv)
 		sd = -sd;
 		divide = 1;
 	}
-	for (i = 0; i < 0x10000; i++) LSB[i] = _slow_lsb(i);
-	for (i = 0; i < 0x10000; i++) hashxor[i] = _rand_64();
-	for (i = 0; i < 0x10000; i++) BITC[i] = _bitcount(i);
+	for (i = 0x10000, p = 1, m = 6364136223846793005LL; i--; hashxor[0xFFFF-i] = p = p*m +1LL);
 	for (i = 0; i < HSIZE; i++) hashDB[i] = 0LL;
 	for (i = 0; i < 64; i++) BIT[i] = 1LL << i;
 	for (i = 0; i < 64; i++) crevoke[i] = 0x3FF;
