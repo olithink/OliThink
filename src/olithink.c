@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 15.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.7.8a"
+/* OliThink5 (c) Oliver Brausch 17.Sep.2020, ob112@web.de, http://brausch.org */
+#define VER "5.7.9"
 #include <stdio.h>
 #include <string.h>
 #if defined(_WIN32) || defined(_WIN64)
@@ -36,16 +36,16 @@ const int pawnrun[] = {0, 0, 1, 8, 16, 32, 64, 128};
 
 #define FROM(x) ((x) & 63)
 #define TO(x) (((x) >> 6) & 63)
-#define PROM(x) (((x) >> 12) & 7)
-#define PIECE(x) (((x) >> 15) & 7)  
-#define ONMV(x) (((x) >> 18) & 1)
+#define ONMV(x) (((x) >> 12) & 1)
+#define PROM(x) (((x) >> 13) & 7)
+#define PIECE(x) (((x) >> 16) & 7)
 #define CAP(x) (((x) >> 19) & 7)
 #define MAXSCORE 16384
 
 #define _TO(x) ((x) << 6)
-#define _PROM(x) ((x) << 12)
-#define _PIECE(x) ((x) << 15)
-#define _ONMV(x) ((x) << 18)
+#define _ONMV(x) ((x) << 12)
+#define _PROM(x) ((x) << 13)
+#define _PIECE(x) ((x) << 16)
 #define _CAP(x) ((x) << 19)
 #define PREMOVE(f, p) ((f) | _ONMV(c) | _PIECE(p))
 
@@ -933,7 +933,7 @@ Move qpick(Movep* mp, int s) {
 }
 
 Move killer[128];
-long long history[0x1000];
+long long history[0x2000];
 /* In normal search some basic move ordering heuristics are used */
 Move spick(Movep* mp, int s, int ply) {
 	Move m;
@@ -944,8 +944,8 @@ Move spick(Movep* mp, int s, int ply) {
 			pi = i;
 			break;
 		}
-		if (vmax < history[m & 0xFFF]) {
-			vmax = history[m & 0xFFF];
+		if (vmax < history[m & 0x1FFF]) {
+			vmax = history[m & 0x1FFF];
 			pi = i;
 		}
 	}
@@ -1251,7 +1251,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 				else if (PIECE(m) == PAWN && !(pawnfree[TO(m) + (c << 6)] & pieceb[PAWN] & colorb[c^1])); //Free pawns
 				else if (evilqueen && battacked(evilqueen, c^1, 0) && swap(m) >= 0); //Don't reduce queen attacks
 				else {
-					u32 his = history[m & 0xFFF];
+					u32 his = history[m & 0x1FFF];
 					if (his > hismax) { hismax = his;}
 					else if (d <= 5 && his*his < hismax) { undoMove(m, c); continue; }
 					else if (d >= 2) ext-= (d + 1)/3;
@@ -1280,7 +1280,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 				if (w >= beta) {
 					if (CAP(m) == 0) {
 						killer[ply] = m;
-						history[m & 0xFFF]+=(d+ext)*(d+ext);
+						history[m & 0x1FFF]+=(d+ext)*(d+ext);
 					}
 					n = 3; break;
 				}

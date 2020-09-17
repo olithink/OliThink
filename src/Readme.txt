@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 15.Sep.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 17.Sep.2020, ob112@web.de, http://brausch.org
 
-Version: 5.7.8
+Version: 5.7.9
 Protocol: Winboard 2
 HashSize: 128MB
 Ponder: Yes
@@ -12,6 +12,9 @@ Evaluation: Just mobility and a very simple pawnprogressing evaluation
 LinesOfCode: 1606
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
+
+v5.7.9: changes since 5.7.8:
+Refactor movelist in generate. History heuristics color dependent.
 
 v5.7.8: changes since 5.7.7:
 Reverse futility pruning. Quiesce alpha buffer to 85.
