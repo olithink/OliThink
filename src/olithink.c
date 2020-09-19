@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 17.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.7.9"
+/* OliThink5 (c) Oliver Brausch 18.Sep.2020, ob112@web.de, http://brausch.org */
+#define VER "5.7.9a"
 #include <stdio.h>
 #include <string.h>
 #if defined(_WIN32) || defined(_WIN64)
@@ -554,8 +554,6 @@ void move(Move m, int c, int d) {
 	XORHASH(f, p, c);
 	XORHASH(t, p, c);
 
-	flags &= 960;
-	count += 0x401;
 	if (a) {
 		if (a == ENP) { // Enpassant Capture
 			t = (t&7) | (f&56);
@@ -601,12 +599,14 @@ void move(Move m, int c, int d) {
 
 void doMove(Move m, int c) {
 	mstack[COUNT] = count | (flags << 17) | (((u64)m) << 27);
-	move(m, c, 1);
+	flags &= 960; // reset en-passant flags
+	count += 0x401; // counter++
+	if (m) move(m, c, 1);
 }
 
 void undoMove(Move m, int c) {
 	u64 u = mstack[COUNT - 1];
-	move(m, c, -1);
+	if (m) move(m, c, -1);
 	count = u & 0x1FFFF;
 	flags = (u >> 17L) & 0x3FF;
 }
@@ -1173,13 +1173,12 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	hp = HASHP;
 	if (ply && isDraw(hp, 1)) return 0;
 
-	if (d == 0 || ply > 100) return quiesce(ch, c, ply, alpha, beta);
+	if (d <= 0 || ply > 100) return quiesce(ch, c, ply, alpha, beta);
 		
 	if (alpha < -MAXSCORE+ply) alpha = -MAXSCORE+ply;
 	if (beta > MAXSCORE-ply-1) beta = MAXSCORE-ply-1;
 	if (alpha >= beta) return alpha;
 
-	hstack[COUNT] = hp;
 	Move hmove = ply ? 0 : retPVMove(c, 0);
 
 	struct entry he = hashDB[hp & HMASK];
@@ -1196,16 +1195,14 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 		if (w > beta + 85*d) return w;
 	}
 
+	hstack[COUNT] = hp;
 	//Null Move - pvnode => null == 0
-	if (!ch && null && d > 1 && (n = _bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1)))) > 1) {
-		int flagstore = flags;
+	null = null && !ch && d > 1 && (ply < 2 || (mstack[COUNT-2] >> 27));
+	if (null && (n = _bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1)))) > 1) {
 		int R = (10 + d + nullvariance(evallazy(c, mat) - alpha))/4;
-		if (R > d) R = d;
-		flags &= 960;
-		count += 0x401;
+		doMove(0, c);
 		w = -search(0LL, c^1, d-R, ply+1, -beta, 1-beta, 0, 0);
-		flags = flagstore;
-		count -= 0x401;
+		undoMove(0, c);
 		if (d >= 6 && n <= 2 && w >= beta) w = search(ch, c, d-5, ply, beta-1, beta, 0, 0);
 		if (!sabort && w >= beta) return beta;
 	}
