@@ -1469,7 +1469,7 @@ int doponder(int c) {
 }
 
 u64 perft(int c, int d, int div) {
-	int i, ply = 63 - d;
+	int i;
 	u64 n, cnt = 0LL;
 	Movep mp; generate(attacked(kingpos[c], c), c, &mp, 1, 1);
 	if (d == 1 || bioskey()) return (u64)mp.n;
