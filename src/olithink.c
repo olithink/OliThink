@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 19.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.8.0"
+/* OliThink5 (c) Oliver Brausch 24.Sep.2020, ob112@web.de, http://brausch.org */
+#define VER "5.8.1"
 #include <stdio.h>
 #include <string.h>
 #if defined(_WIN32) || defined(_WIN64)
@@ -1008,7 +1008,7 @@ int evalc(int c) {
 
 		a = BATT3(f) | BATT4(f) | RATT1(f) | RATT2(f);
 		if (a & kn) katt += _bitcnt(a & kn) << 4;
-		mn += (_bitcnt(a) << 1) * egf * egf / 76 / 76;
+		mn += (_bitcnt(a) << 1) * egf * egf / 78 / 78;
 	}
 
 	colorb[oc] ^= RQU & ocb; //Opposite Queen & Rook doesn't block mobility for bishop
@@ -1236,6 +1236,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 				if (n == 2) m = qpick(&mp, i);
 				else m = spick(&mp, i, ply);
 				if (m == hmove) continue;
+				if (first != NO_MOVE && d <= 8 && swap(m) < -d*60) continue;
 			}
 
 			doMove(m, c);

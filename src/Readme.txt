@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 19.Sep.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 24.Sep.2020, ob112@web.de, http://brausch.org
 
-Version: 5.8.0
+Version: 5.8.1
 Protocol: Winboard 2
 HashSize: 128MB
 Ponder: Yes
@@ -9,9 +9,12 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Reduction, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1603
+LinesOfCode: 1604
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
+
+v5.8.1: changes since 5.8.9:
+SEE pruning.
 
 v5.8.0: changes since 5.7.9:
 Refactor null move pruning. Adapt queen mobility.
