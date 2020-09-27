@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 24.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.8.1"
+#define VER "5.8.1a"
 #include <stdio.h>
 #include <string.h>
 #if defined(_WIN32) || defined(_WIN64)
@@ -954,11 +954,24 @@ Move spick(Movep* mp, int s, int ply) {
 	return m;
 }
 
+u64 rankb[8]; u64 fileb[8];
+
+static u64 pawnAttack(int c) {
+	u64 p = colorb[c] & pieceb[PAWN];
+	return c == 0 ? (p &~ fileb[0]) << 7 | (p &~ fileb[7]) << 9 : (p &~ fileb[7]) >> 7 | (p &~ fileb[0]) >> 9;
+}
+
+static u64 mobilityb(int c) {
+	u64 b = c == 0 ? rankb[1] | (BOARD >> 8) : rankb[6] | (BOARD << 8);
+	b &= b & colorb[c] & pieceb[PAWN];
+	return ~(b | pawnAttack(c^1));
+}
+
 /* The eval for Color c. It's almost only mobility. Pinned pieces are still awarded for limiting opposite's king */
 int evalc(int c) {
 	int t, f, mn = 0, katt = 0, egf = 5200/(40 + sf[c]);
 	int oc = c^1;
-	u64 b, a, cb, ocb = colorb[oc];
+	u64 b, a, cb, ocb = colorb[oc], mb = sf[c] ? mobilityb(c) : 0LL;
 	u64 kn = kmoves[kingpos[oc]] & (~pieceb[PAWN]);
 	u64 pin = pinnedPieces(kingpos[c], oc);
 
@@ -990,7 +1003,7 @@ int evalc(int c) {
 		f = pullLsb(&b);
 		a = nmoves[f];
 		if (a & kn) katt += _bitcnt(a & kn) << 4;
-		mn += nmobil[f];
+		mn += (_bitcnt(a & mb)) << 3;
 	}
 
 	b = pieceb[KNIGHT] & pin;
@@ -1008,7 +1021,7 @@ int evalc(int c) {
 
 		a = BATT3(f) | BATT4(f) | RATT1(f) | RATT2(f);
 		if (a & kn) katt += _bitcnt(a & kn) << 4;
-		mn += (_bitcnt(a) << 1) * egf * egf / 78 / 78;
+		mn += (_bitcnt(a & mb) << 1) * egf * egf / 78 / 78;
 	}
 
 	colorb[oc] ^= RQU & ocb; //Opposite Queen & Rook doesn't block mobility for bishop
@@ -1017,7 +1030,7 @@ int evalc(int c) {
 		f = pullLsb(&b);
 		a = BATT3(f) | BATT4(f);
 		if (a & kn) katt += _bitcnt(a & kn) << 4;
-		mn += _bitcnt(a) << 3;
+		mn += _bitcnt(a & mb) << 3;
 	}
 
 	colorb[oc] ^= pieceb[ROOK] & ocb; //Opposite Queen doesn't block mobility for rook.
@@ -1027,7 +1040,7 @@ int evalc(int c) {
 		f = pullLsb(&b);
 		a = RATT1(f) | RATT2(f);
 		if (a & kn) katt += _bitcnt(a & kn) << 4;
-		mn += (_bitcnt(a) << 2) * egf / 75;
+		mn += (_bitcnt(a & mb) << 2) * egf / 75;
 	}
 
 	colorb[c] ^= RQU & cb; // Back
@@ -1558,7 +1571,7 @@ int main(int argc, char **argv) {
 	for (i = 0; i < 64; i++) bmask135[i] = _bishop135(i, 0LL, 0) | BIT[i];
 	for (i = 0; i < 64; i++) crevoke[i] = 0x3FF;
 	for (i = 0; i < 64; i++) kmoves[i] = nmoves[i] = 0LL;
-	for (i = 0; i < 64; i++) if ((i/8)%2 != (i&7)%2) whitesq |= BIT[i];
+	for (i = 0; i < 64; i++) { if ((i/8)%2 != (i&7)%2) whitesq |= BIT[i]; rankb[i/8] |= BIT[i]; fileb[i&7] |= BIT[i]; }
 	crevoke[7] ^= BIT[6];
 	crevoke[63] ^= BIT[7];
 	crevoke[0] ^= BIT[8];
