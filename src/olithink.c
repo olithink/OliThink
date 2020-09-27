@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 24.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.8.1a"
+#define VER "5.8.1b"
 #include <stdio.h>
 #include <string.h>
 #if defined(_WIN32) || defined(_WIN64)
@@ -956,12 +956,12 @@ Move spick(Movep* mp, int s, int ply) {
 
 u64 rankb[8]; u64 fileb[8];
 
-static u64 pawnAttack(int c) {
+u64 pawnAttack(int c) {
 	u64 p = colorb[c] & pieceb[PAWN];
 	return c == 0 ? (p &~ fileb[0]) << 7 | (p &~ fileb[7]) << 9 : (p &~ fileb[7]) >> 7 | (p &~ fileb[0]) >> 9;
 }
 
-static u64 mobilityb(int c) {
+u64 mobilityb(int c) {
 	u64 b = c == 0 ? rankb[1] | (BOARD >> 8) : rankb[6] | (BOARD << 8);
 	b &= b & colorb[c] & pieceb[PAWN];
 	return ~(b | pawnAttack(c^1));
@@ -1003,7 +1003,7 @@ int evalc(int c) {
 		f = pullLsb(&b);
 		a = nmoves[f];
 		if (a & kn) katt += _bitcnt(a & kn) << 4;
-		mn += (_bitcnt(a & mb)) << 3;
+		mn += (_bitcnt(a) + _bitcnt(a & mb)) << 2;
 	}
 
 	b = pieceb[KNIGHT] & pin;
@@ -1021,7 +1021,7 @@ int evalc(int c) {
 
 		a = BATT3(f) | BATT4(f) | RATT1(f) | RATT2(f);
 		if (a & kn) katt += _bitcnt(a & kn) << 4;
-		mn += (_bitcnt(a & mb) << 1) * egf * egf / 78 / 78;
+		mn += (_bitcnt(a)  + _bitcnt(a & mb)) * egf * egf / 78 / 78 ;
 	}
 
 	colorb[oc] ^= RQU & ocb; //Opposite Queen & Rook doesn't block mobility for bishop
@@ -1030,7 +1030,7 @@ int evalc(int c) {
 		f = pullLsb(&b);
 		a = BATT3(f) | BATT4(f);
 		if (a & kn) katt += _bitcnt(a & kn) << 4;
-		mn += _bitcnt(a & mb) << 3;
+		mn += (_bitcnt(a) + _bitcnt(a & mb)) << 2;
 	}
 
 	colorb[oc] ^= pieceb[ROOK] & ocb; //Opposite Queen doesn't block mobility for rook.
@@ -1040,7 +1040,7 @@ int evalc(int c) {
 		f = pullLsb(&b);
 		a = RATT1(f) | RATT2(f);
 		if (a & kn) katt += _bitcnt(a & kn) << 4;
-		mn += (_bitcnt(a & mb) << 2) * egf / 75;
+		mn += ((_bitcnt(a) + _bitcnt(a & mb)) << 1) * egf / 75;
 	}
 
 	colorb[c] ^= RQU & cb; // Back
