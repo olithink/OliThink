@@ -1,7 +1,7 @@
-OliThink5 (c) Oliver Brausch 24.Sep.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 29.Sep.2020, ob112@web.de, http://brausch.org
 
-Version: 5.8.1
-Protocol: Winboard 2
+Version: 5.8.2
+Protocol: CECP v2 (winboard/xboard)
 HashSize: 128MB
 Ponder: Yes
 OpeningBook: Small
@@ -9,11 +9,14 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Reduction, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1604
+LinesOfCode: 1612
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
 
-v5.8.1: changes since 5.8.9:
+v5.8.2: changes since 5.8.1:
+Mobility mask reducing special squares. Aspiration Window.
+
+v5.8.1: changes since 5.8.0:
 SEE pruning.
 
 v5.8.0: changes since 5.7.9:
