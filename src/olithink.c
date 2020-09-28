@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 24.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.8.1b"
+#define VER "5.8.1c"
 #include <stdio.h>
 #include <string.h>
 #if defined(_WIN32) || defined(_WIN64)
@@ -967,6 +967,7 @@ u64 mobilityb(int c) {
 	return ~(b | pawnAttack(c^1));
 }
 
+#define MOBILITY(a, mb) (_bitcnt(a) + _bitcnt(a & mb))
 /* The eval for Color c. It's almost only mobility. Pinned pieces are still awarded for limiting opposite's king */
 int evalc(int c) {
 	int t, f, mn = 0, katt = 0, egf = 5200/(40 + sf[c]);
@@ -993,7 +994,7 @@ int evalc(int c) {
 		if (a) {
 			ppos += _bitcnt(a & pieceb[PAWN] & colorb[c]) << 2;
 		}
-		if (a & kn) katt += _bitcnt(a & kn) << 4;
+		if (a & kn) katt += MOBILITY(a & kn, mb) << 3;
 		mn += ppos;
 	}
 
@@ -1002,15 +1003,15 @@ int evalc(int c) {
 	while (b) {
 		f = pullLsb(&b);
 		a = nmoves[f];
-		if (a & kn) katt += _bitcnt(a & kn) << 4;
-		mn += (_bitcnt(a) + _bitcnt(a & mb)) << 2;
+		if (a & kn) katt += MOBILITY(a & kn, mb) << 3;
+		mn += MOBILITY(a, mb) << 2;
 	}
 
 	b = pieceb[KNIGHT] & pin;
 	while (b) {
 		f = pullLsb(&b);
 		a = nmoves[f];
-		if (a & kn) katt += _bitcnt(a & kn) << 4;
+		if (a & kn) katt += MOBILITY(a & kn, mb) << 3;
 	}
 
 	xorBit(kingpos[oc], colorb+oc); //Opposite King doesn't block mobility at all
@@ -1020,8 +1021,8 @@ int evalc(int c) {
 		f = pullLsb(&b);
 
 		a = BATT3(f) | BATT4(f) | RATT1(f) | RATT2(f);
-		if (a & kn) katt += _bitcnt(a & kn) << 4;
-		mn += (_bitcnt(a)  + _bitcnt(a & mb)) * egf * egf / 78 / 78 ;
+		if (a & kn) katt += MOBILITY(a & kn, mb) << 3;
+		mn += MOBILITY(a, mb) * egf * egf / 78 / 78 ;
 	}
 
 	colorb[oc] ^= RQU & ocb; //Opposite Queen & Rook doesn't block mobility for bishop
@@ -1029,8 +1030,8 @@ int evalc(int c) {
 	while (b) {
 		f = pullLsb(&b);
 		a = BATT3(f) | BATT4(f);
-		if (a & kn) katt += _bitcnt(a & kn) << 4;
-		mn += (_bitcnt(a) + _bitcnt(a & mb)) << 2;
+		if (a & kn) katt += MOBILITY(a & kn, mb) << 3;
+		mn += MOBILITY(a, mb) << 2;
 	}
 
 	colorb[oc] ^= pieceb[ROOK] & ocb; //Opposite Queen doesn't block mobility for rook.
@@ -1039,8 +1040,8 @@ int evalc(int c) {
 	while (b) {
 		f = pullLsb(&b);
 		a = RATT1(f) | RATT2(f);
-		if (a & kn) katt += _bitcnt(a & kn) << 4;
-		mn += ((_bitcnt(a) + _bitcnt(a & mb)) << 1) * egf / 75;
+		if (a & kn) katt += MOBILITY(a & kn, mb) << 3;
+		mn += (MOBILITY(a, mb) << 1) * egf / 75;
 	}
 
 	colorb[c] ^= RQU & cb; // Back
@@ -1052,7 +1053,7 @@ int evalc(int c) {
 		else if (p == ROOK) a = RATT1(f) | RATT2(f);
 		else a = RATT1(f) | RATT2(f) | BATT3(f) | BATT4(f);
 
-		if (a & kn) katt += _bitcnt(a & kn) << 4;
+		if (a & kn) katt += MOBILITY(a & kn, mb) << 3;
 		t = p | getDir(f, kingpos[c]);
 		if ((t & 10) == 10) mn += _bitcnt(RATT1(f));
 		if ((t & 18) == 18) mn += _bitcnt(RATT2(f));
@@ -1063,7 +1064,7 @@ int evalc(int c) {
 	colorb[oc] ^= pieceb[QUEEN] & ocb; //Back
 	xorBit(kingpos[oc], colorb+oc); //Back
 	if (sf[c] < 14) katt = katt * sf[c] / 14; //Reduce the bonus for attacking king squares
-	return mn + katt;
+	return mn + 3*katt/2;
 }
 
 int kmobilf(int c) {
