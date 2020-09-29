@@ -1,6 +1,6 @@
 OliThink5 (c) Oliver Brausch 29.Sep.2020, ob112@web.de, http://brausch.org
 
-Version: 5.8.2
+Version: 5.8.3
 Protocol: CECP v2 (winboard/xboard)
 HashSize: 128MB
 Ponder: Yes
@@ -9,9 +9,12 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Reduction, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1612
+LinesOfCode: 1611
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
+
+v5.8.3: changes since 5.8.2:
+Adapt King mobility.
 
 v5.8.2: changes since 5.8.1:
 Mobility mask reducing special squares. Aspiration Window.

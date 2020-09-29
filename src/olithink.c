@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 29.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.8.2"
+#define VER "5.8.3"
 #include <stdio.h>
 #include <string.h>
 #if defined(_WIN32) || defined(_WIN64)
@@ -1050,13 +1050,12 @@ int evalc(int c) {
 }
 
 int kmobilf(int c) {
-	if (sf[c^1] >= 12) return 0;
-	int km = kmobil[kingpos[c]];
-	if (!sf[c] && sf[c^1] == 5 && pieceb[BISHOP] && !pieceb[PAWN]) { // BNK_vs_k
-		int bc = bishcorn[kingpos[c]] << 3;
+	int km = kmobil[kingpos[c]] << 2, sfo = sf[c^1];
+	if (!sf[c] && sfo == 5 && pieceb[BISHOP] && !pieceb[PAWN]) { // BNK_vs_k
+		int bc = bishcorn[kingpos[c]] << 5;
 		if (pieceb[BISHOP] & whitesq) km += bc; else km -= bc; 
 	}
-	return km << 2;
+	return sfo < 14 ? km : km * (16 - sfo) /4;
 }
 
 int evallazy(int c, int matrl) {
