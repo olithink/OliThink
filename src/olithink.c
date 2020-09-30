@@ -1,4 +1,4 @@
-/* OliThink5 (c) Oliver Brausch 29.Sep.2020, ob112@web.de, http://brausch.org */
+/* OliThink5 (c) Oliver Brausch 30.Sep.2020, ob112@web.de, http://brausch.org */
 #define VER "5.8.3"
 #include <stdio.h>
 #include <string.h>
@@ -1398,11 +1398,10 @@ int calc(int sd, int tm) {
 	int i, j, w, d, t1, m2go = mps == 0 ? 32 : 1 + mps - ((COUNT/2) % mps);
 	long tmsh = MAX(tm*8L-50-m2go*5, 10);
 	long searchtime = MIN(tm*6L/m2go + inc*500L, tmsh);
-	long extendtime = MIN(tm*25L/m2go + inc*1000L, tmsh);
+	maxtime = MIN(searchtime*5L, tmsh);
 	if (st > 0) maxtime = searchtime = st*1000LL;
 
 	u64 ch = attacked(kingpos[onmove], onmove); 
-	maxtime = extendtime;
 	starttime = getTime();
 
 	sabort = w = t1 = 0;
@@ -1417,7 +1416,8 @@ int calc(int sd, int tm) {
 		}
 	}
 	if (!book || analyze) for (d = 1; d <= sd; d++) {
-		int alpha = d > 6 ? w - 13 : -MAXSCORE, beta = d > 6 ? w + 13: MAXSCORE, delta = 18, wsave= w;
+		int alpha = d > 6 ? w - 13 : -MAXSCORE, beta = d > 6 ? w + 13: MAXSCORE, delta = 18;
+		Move bestm = pv[0][0];
 
 		for(;;) {
 			if (alpha < -pval[QUEEN]*2) alpha = -MAXSCORE;
@@ -1441,12 +1441,7 @@ int calc(int sd, int tm) {
 		if (pondering) continue;
 		if (d >= MAXSCORE - w) break;
 		if (t1 < searchtime || d == 1) continue;
-
-		if (w - wsave < -40 && (long)maxtime == extendtime && extendtime < tmsh) {
-			maxtime = MIN(extendtime*3L, tmsh-1);
-			continue;
-		}
-		break;
+		if (bestm == pv[0][0] || t1 > searchtime*2) break;
 	}
 	if (analyze) return 1;
 	pondering = 0;
