@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 30.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.8.3"
+#define VER "5.8.3a"
 #include <stdio.h>
 #include <string.h>
 #if defined(_WIN32) || defined(_WIN64)
@@ -1045,8 +1045,8 @@ int evalc(int c) {
 
 	colorb[oc] ^= pieceb[QUEEN] & ocb; //Back
 	xorBit(kingpos[oc], colorb+oc); //Back
-	if (sf[c] < 14) katt = katt * sf[c] / 14; //Reduce the bonus for attacking king squares
-	return mn + 3*katt/2;
+	katt = katt * sf[c] / 16; //Reduce the bonus for attacking king squares
+	return mn + katt;
 }
 
 int kmobilf(int c) {
