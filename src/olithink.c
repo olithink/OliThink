@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 30.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.8.3a"
+#define VER "5.8.3b"
 #include <stdio.h>
 #include <string.h>
 #if defined(_WIN32) || defined(_WIN64)
@@ -1045,8 +1045,7 @@ int evalc(int c) {
 
 	colorb[oc] ^= pieceb[QUEEN] & ocb; //Back
 	xorBit(kingpos[oc], colorb+oc); //Back
-	katt = katt * sf[c] / 16; //Reduce the bonus for attacking king squares
-	return mn + katt;
+	return mn + katt * sf[c] / 17; //Adapt the bonus for attacking king squares;
 }
 
 int kmobilf(int c) {
@@ -1156,7 +1155,6 @@ static int nullvariance(int delta) {
 #define HASHP (hashb ^ hashxor[flags | 1024 | c << 11])
 int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int null) {
 	int i, j, n, w;
-	u64 hp, hismax = 0LL;
 
 	if (ply) pv[ply][ply] = 0;
 	if ((++nodes & CNODES) == 0) {
@@ -1165,7 +1163,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	}
 	if (sabort) return alpha;
 
-	hp = HASHP;
+	u64 hp = HASHP;
 	if (ply && isDraw(hp, 1)) return 0;
 
 	if (d <= 0 || ply > 100) return quiesce(ch, c, ply, alpha, beta);
@@ -1243,12 +1241,8 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 				if (m == killer[ply]); //Don't reduce killers
 				else if (PIECE(m) == PAWN && !(pawnfree[TO(m) + (c << 6)] & pieceb[PAWN] & colorb[c^1])); //Free pawns
 				else if (evilqueen && battacked(evilqueen, c^1, 0) && swap(m) >= 0); //Don't reduce queen attacks
-				else {
-					u32 his = history[m & 0x1FFF];
-					if (his > hismax) { hismax = his;}
-					else if (d <= 5 && his*his < hismax) { undoMove(m, c); continue; }
-					else if (d >= 2) ext-= (d + 1)/3;
-				}
+				else if (first != NO_MOVE && i >= 4 + 3*d*d/2) { undoMove(m, c); continue; } // LMP
+				else if (d >= 2) ext-= (d + 1)/3;
 			}
 			if (PROM(m) == QUEEN) ext++;
 
