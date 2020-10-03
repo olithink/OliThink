@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 30.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.8.3c"
+#define VER "5.8.3d"
 #include <stdio.h>
 #include <string.h>
 #if defined(_WIN32) || defined(_WIN64)
@@ -1004,7 +1004,7 @@ int evalc(int c) {
 		f = pullLsb(&b);
 		a = BATT3(f) | BATT4(f) | RATT1(f) | RATT2(f);
 		if (a & kn) katt += MOBILITY(a & kn, mb) << 3;
-		mn += MOBILITY(a, mb) * egf * egf / 78 / 78 ;
+		mn += MOBILITY(a, mb) * egf * egf / 78 / 78;
 	}
 
 	colorb[oc] ^= RQU & ocb; //Opposite Queen & Rook doesn't block mobility for bishop
@@ -1045,8 +1045,7 @@ int evalc(int c) {
 
 	colorb[oc] ^= pieceb[QUEEN] & ocb; //Back
 	xorBit(kingpos[oc], colorb+oc); //Back
-	katt = katt * sf[c] / 17; //Reduce the bonus for attacking king squares
-	return mn + katt;
+	return mn + katt * sf[c] / 17; //Reduce the bonus for attacking king squares
 }
 
 int kmobilf(int c) {
@@ -1184,23 +1183,23 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 			if (he.type >= EXACT && he.value <= alpha) return alpha;
 		}
 		if (!hmove) hmove = he.move;
-	} 
+	}
 
-	if (!ch && !pvnode && d <= 8) {
-		w = evallazy(c, mat);
-		if (w > beta + 85*d) return w;
+	if (!ch && !pvnode) {
+		w = d < 2 ? evallazy(c, mat) : eval(c, mat);
+		if (d < 2 && w + 500 < alpha) return quiesce(ch, c, ply, alpha, beta);
+		if (d <= 8 && w - 85*d > beta) return w;
 	}
 
 	hstack[COUNT] = hp;
 	//Null Move - pvnode => null == 0
-	null = null && !ch && d > 1 && (ply < 2 || (mstack[COUNT-2] >> 27));
-	if (null && (n = _bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1)))) > 1) {
-		int R = (10 + d + nullvariance(evallazy(c, mat) - alpha))/4;
+	null = null && !ch && d > 1 && w > alpha && (ply < 2 || (mstack[COUNT-2] >> 27));
+	if (null && _bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], c^1))) > 1) {
+		int R = (10 + d + nullvariance(w - alpha))/4;
 		doMove(0, c);
 		w = -search(0LL, c^1, d-R, ply+1, -beta, 1-beta, 0, 0);
 		undoMove(0, c);
-		if (d >= 6 && n <= 2 && w >= beta) w = search(ch, c, d-5, ply, beta-1, beta, 0, 0);
-		if (!sabort && w >= beta) return beta;
+		if (!sabort && w >= beta) return w >= MAXSCORE-500 ? beta : w;
 	}
 
 	if (d >= 5 && !hmove) { // Internal Iterative Reduction (IIR)
