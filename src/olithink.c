@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 30.Sep.2020, ob112@web.de, http://brausch.org */
-#define VER "5.8.3a"
+#define VER "5.8.3c"
 #include <stdio.h>
 #include <string.h>
 #if defined(_WIN32) || defined(_WIN64)
@@ -1045,7 +1045,7 @@ int evalc(int c) {
 
 	colorb[oc] ^= pieceb[QUEEN] & ocb; //Back
 	xorBit(kingpos[oc], colorb+oc); //Back
-	katt = katt * sf[c] / 16; //Reduce the bonus for attacking king squares
+	katt = katt * sf[c] / 17; //Reduce the bonus for attacking king squares
 	return mn + katt;
 }
 
@@ -1168,6 +1168,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 	hp = HASHP;
 	if (ply && isDraw(hp, 1)) return 0;
 
+	if (ch) d++;
 	if (d <= 0 || ply > 100) return quiesce(ch, c, ply, alpha, beta);
 		
 	if (alpha < -MAXSCORE+ply) alpha = -MAXSCORE+ply;
@@ -1236,8 +1237,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int pvnode, int n
 
 			doMove(m, c);
 			nch = attacked(kingpos[c^1], c^1);
-			if (nch) ext++; // Check Extension
-			else if (pvnode || ch);
+			if (nch || pvnode || ch);
 			else if (n == 2 && d >= 2 && !PROM(m) && swap(m) < 0) ext-= (d + 1)/3; //Reduce bad exchanges
 			else if (n == 3) { //LMR
 				if (m == killer[ply]); //Don't reduce killers
