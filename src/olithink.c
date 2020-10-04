@@ -381,7 +381,7 @@ u64 getTime() {
 #endif
 }
 
-/* This one is the same as in OliThink 4 */
+/* The unix part is the same as in OliThink 4 */
 int bioskey() {
 #ifndef _WIN32
 	fd_set readfds;
@@ -393,26 +393,7 @@ int bioskey() {
 
 	return (FD_ISSET(fileno(stdin), &readfds));
 #else
-	static int init = 0, pipe;
-	static HANDLE inh;
-	DWORD dw;
-
-	if (!init) {
-		init = 1;
-		inh = GetStdHandle(STD_INPUT_HANDLE);
-		pipe = !GetConsoleMode(inh, &dw);
-		if (!pipe) {
-			SetConsoleMode(inh, dw & ~(ENABLE_MOUSE_INPUT|ENABLE_WINDOW_INPUT));
-			FlushConsoleInputBuffer(inh);
-		}
-	}
-	if (pipe) {
-		if (!PeekNamedPipe(inh, NULL, 0, NULL, &dw, NULL)) return 1;
-		return dw;
-	} else {
-		GetNumberOfConsoleInputEvents(inh, &dw);
-		return dw <= 1 ? 0 : dw;
-	}
+	return _kbhit();
 #endif
 }
 
