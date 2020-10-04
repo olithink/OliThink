@@ -371,19 +371,22 @@ u64 _bishop135(int f, u64 board, int t) {
 	return (t < 2) ? free : (t == 2 ? occ : xray);
 }
 
-u64 getTime() {
 #ifdef _WIN32
+u64 getTime() {
 	_ftime(&tv);
 	return(tv.time * 1000LL + tv.millitm);
-#else
-	gettimeofday (&tv, &tz);
-	return(tv.tv_sec * 1000LL + (tv.tv_usec / 1000));
-#endif
 }
 
-/* The unix part is the same as in OliThink 4 */
 int bioskey() {
-#ifndef _WIN32
+	return _kbhit();
+}
+#else
+u64 getTime() {
+	gettimeofday (&tv, &tz);
+	return(tv.tv_sec * 1000LL + (tv.tv_usec / 1000));
+}
+
+int bioskey() {
 	fd_set readfds;
 
 	FD_ZERO (&readfds);
@@ -392,10 +395,8 @@ int bioskey() {
 	select(16, &readfds, 0, 0, &tv);
 
 	return (FD_ISSET(fileno(stdin), &readfds));
-#else
-	return _kbhit();
-#endif
 }
+#endif
 
 void setBit(int f, u64 *b) {
 	*b |= BIT[f];
