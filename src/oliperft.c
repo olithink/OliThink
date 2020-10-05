@@ -1,4 +1,4 @@
-/* OliPerft 1.0.5 - Bitboard Magic Move (c) Oliver Brausch 16.Sep.2020, ob112@web.de */
+/* OliPerft 1.0.6 - Bitboard Magic Move (c) Oliver Brausch 05.Oct.2020, ob112@web.de */
 /* oliperft 6 "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
 Nodes: 8229523927 cs: 1156 knps: 711527 (gcc8 64bit AMD EPYC 7502P 1/32-Core Processor)
 Nodes: 8229523927 cs: 1526 knps: 539145 (gcc4 OSX i7 8850H 2.6 GHz)
@@ -115,51 +115,38 @@ int kingpos[2];
 
 const char pieceChar[] = "*PNK.BRQ";
 
-void setBit(int f, u64 *board) {
-	*board |= BIT[f];
-}
-
-void xorBit(int f, u64 *board) {
-	*board ^= BIT[f];
-}
-
 void _parse_fen(char *fen) {
-	char c, mv, pos[128], cas[5], enps[3];
+	char s, mv, pos[128], cas[5], enps[3];
 	int i, j = 0, halfm = 0, fullm = 1, col = 0, row = 7;
 	for (i = 0; i < 8; i++) {
 		pieceb[i] = 0LL;
 	}
 	colorb[0] = colorb[1] = hashb = 0LL;
 	sscanf(fen, "%s %c %s %s %d %d", pos, &mv, cas, enps, &halfm, &fullm);
-	while ((c = pos[j++])) {
-		if (c == '/') {
+	while ((s = pos[j++])) {
+		if (s == '/') {
 			row--;
 			col = 0;
-		} else if (c >= '1' && c <= '8') {
-			col += c - '0';
+		} else if (s >= '1' && s <= '8') {
+			col += s - '0';
 		} else for (i = 1; i < 8; i++) {
-			if (pieceChar[i] == c) {
-				if (i == KING) kingpos[0] = row*8 + col;
-				hashb ^= hashxor[0 | (row << 1) | (i << 4) | (col << 7)];
-				setBit(row*8 + col, pieceb+i);
-				setBit(row*8 + (col++), colorb);
-				break;
-			} else if (pieceChar[i] == c - 32) {
-				if (i == KING) kingpos[1] = row*8 + col;
-				hashb ^= hashxor[1 | (row << 1) | (i << 4) | (col << 7)];
-				setBit(row*8 + col, pieceb+i);
-				setBit(row*8 + (col++), colorb+1);
+			if (pieceChar[i] == s || pieceChar[i] == s - 32) {
+				int c = pieceChar[i] != s;
+				if (i == KING) kingpos[c] = row*8 + col;
+				hashb ^= hashxor[c | (row << 1) | (i << 4) | (col << 7)];
+				pieceb[i] |= BIT[row*8 + col];
+				colorb[c] |= BIT[row*8 + (col++)];
 				break;
 			}
 		}
 	}
 	onmove = mv == 'b' ? 1 : 0;
 	flags = j = 0;
-	while ((c = cas[j++])) {
-		if (c == 'K') flags |= BIT[6];
-		if (c == 'k') flags |= BIT[7];
-		if (c == 'Q') flags |= BIT[8];
-		if (c == 'q') flags |= BIT[9];
+	while ((s = cas[j++])) {
+		if (s == 'K') flags |= BIT[6];
+		if (s == 'k') flags |= BIT[7];
+		if (s == 'Q') flags |= BIT[8];
+		if (s == 'q') flags |= BIT[9];
 	}
 	if (enps[0] != '-') {
 		flags |= 8*(enps[1] - '1') + enps[0] - 'a'; 
@@ -252,18 +239,18 @@ void _init_pawns(u64* moves, u64* caps, int c) {
 	for (i = 0; i < 64; i++) {
 		int m = i + (c ? -8 : 8);
 		if (m < 0 || m > 63) continue;
-		setBit(m, moves + i);
+		moves[i] |= BIT[m];
 		if ((i&7) > 0) {
 			m = i + (c ? -9 : 7);
 			if (m < 0 || m > 63) continue;
-			setBit(m, caps + i);
-			setBit(m, caps + i + 128*(2 - c));
+			caps[i] |= BIT[m];
+			caps[i + 128*(2 - c)] |= BIT[m];
 		}
 		if ((i&7) < 7) {
 			m = i + (c ? -7 : 9);
 			if (m < 0 || m > 63) continue;
-			setBit(m, caps + i);
-			setBit(m, caps + i + 128*(c + 1));
+			caps[i] |= BIT[m];
+			caps[i + 128*(c + 1)] |= BIT[m];
 		}
 	}
 }
@@ -274,7 +261,7 @@ void _init_shorts(u64* moves, int* m) {
 		for (j = 0; j < 8; j++) {
 			n = i + m[j];
 			if (n < 64 && n >= 0 && ((n & 7)-(i & 7))*((n & 7)-(i & 7)) <= 4) {
-				setBit(n, moves+i);
+				moves[i] |= BIT[n];
 			}
 		}
 	}
@@ -309,7 +296,7 @@ void _init_rays(u64* rays, u64 (*rayFunc) (int, u64, int), int (*key)(u64, int))
 	}
 }
 
-#define RAYMACRO {if (TEST(i, board)) { if (b) { setBit(i, &xray); break; } else { setBit(i, &occ); b = 1; } } if (!b) setBit(i, &free);}
+#define RAYMACRO {if (TEST(i, board)) { if (b) { xray |= BIT[i]; break; } else { occ |= BIT[i];; b = 1; } } if (!b) free |= BIT[i];}
 u64 _rook0(int f, u64 board, int t) {
 	u64 free = 0LL, occ = 0LL, xray = 0LL;
 	int i, b;
@@ -377,11 +364,11 @@ void doMove(Move m, int c) {
 	int p = PIECE(m);
 	int a = CAP(m);
 
-	xorBit(f, colorb+c);
-	xorBit(f, pieceb+p);
+	colorb[c] ^= BIT[f];
+	pieceb[p] ^= BIT[f];
 
-	xorBit(t, colorb+c);
-	xorBit(t, pieceb+p);
+	colorb[c] ^= BIT[t];
+	pieceb[p] ^= BIT[t];
 	flags &= 960;
 	if (a) {
 		if (a == ENP) { // Enpassant Capture
@@ -390,14 +377,14 @@ void doMove(Move m, int c) {
 		} else if (a == ROOK && CASTLE) { //Revoke castling rights.
 			flags &= crevoke[t];
 		}
-		xorBit(t, pieceb+a);
-		xorBit(t, colorb+(c^1));
+		pieceb[a] ^= BIT[t];
+		colorb[c^1] ^= BIT[t];
 	}
 	if (p == PAWN) {
 		if (((f^t)&8) == 0) flags |= f^24; //Enpassant
 		else if ((t&56) == 0 || (t&56) == 56) {
-			xorBit(t, pieceb+PAWN);
-			xorBit(t, pieceb+PROM(m));
+			pieceb[PAWN] ^= BIT[t];
+			pieceb[PROM(m)] ^= BIT[t];
 		}
 	} else if (p == KING) {
 		if (kingpos[c] == f) kingpos[c] = t; else kingpos[c] = f;
@@ -407,10 +394,10 @@ void doMove(Move m, int c) {
 			else if (t == 2) { f = 0; t = 3; }
 			else if (t == 62) { f = 63; t = 61; }
 			else { f = 56; t = 59; }
-			xorBit(f, colorb+c);
-			xorBit(f, pieceb+ROOK);
-			xorBit(t, colorb+c);
-			xorBit(t, pieceb+ROOK);
+			colorb[c] ^= BIT[f];
+			pieceb[ROOK] ^= BIT[f];
+			colorb[c] ^= BIT[t];
+			pieceb[ROOK] ^= BIT[t];
 			hashb ^= hashxor[f | c << 12 | ROOK << 13];
 			hashb ^= hashxor[t | c << 12 | ROOK << 13];
 		}
@@ -573,14 +560,12 @@ int generateMoves(int c, Movep *mp) {
 			registerProms(f, c, a, m, mp);
 		} else {
 			if (ENPASS && (BIT[ENPASS] & pcaps[(f) | ((c)<<6)])) {
-				u64 hh;
-				int clbd = ENPASS^8;
-				board ^= BIT[clbd];
-				hh = ROCC1(f);
+				board ^= BIT[ENPASS^8];
+				u64 hh = ROCC1(f);
 				if (!(hh & BIT[kingpos[c]]) || !(hh & colorb[c^1] & RQU)) {
-					a = a | BIT[ENPASS];
+					a |= BIT[ENPASS];
 				}
-				board ^= BIT[clbd];
+				board ^= BIT[ENPASS^8];
 			}
 			registerMoves(PREMOVE(f, PAWN), a, m, mp);
 		}
@@ -684,14 +669,12 @@ int countMoves(int c, Movep *mp) {
 			mp->n += _bitcount(a | m) << 2;
 		} else {
 			if (ENPASS && (BIT[ENPASS] & pcaps[(f) | ((c)<<6)])) {
-				u64 hh;
-				int clbd = ENPASS^8;
-				board ^= BIT[clbd];
-				hh = ROCC1(f);
+				board ^= BIT[ENPASS^8];
+				u64 hh = ROCC1(f);
 				if (!(hh & BIT[kingpos[c]]) || !(hh & colorb[c^1] & RQU)) {
-					a = a | BIT[ENPASS];
+					a |= BIT[ENPASS];
 				}
-				board ^= BIT[clbd];
+				board ^= BIT[ENPASS^8];
 			}
 			mp->n += _bitcount(a | m);
 		}
