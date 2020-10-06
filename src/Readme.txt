@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 04.Oct.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 06.Oct.2020, ob112@web.de, http://brausch.org
 
-Version: 5.8.4
+Version: 5.8.5
 Protocol: CECP v2 (winboard/xboard)
 HashSize: 128MB
 Ponder: Yes
@@ -9,9 +9,12 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Reduction, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1585
+LinesOfCode: 1573
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
+
+v5.8.5: changes since 5.8.4:
+MvvLva. Refactoring. Alignment in makefile.
 
 v5.8.4: changes since 5.8.3:
 Adapt King attack and null move pruning.

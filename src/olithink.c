@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 04.Oct.2020, ob112@web.de, http://brausch.org */
-#define VER "5.8.4"
+/* OliThink5 (c) Oliver Brausch 06.Oct.2020, ob112@web.de, http://brausch.org */
+#define VER "5.8.5"
 #include <stdio.h>
 #include <string.h>
 #if defined(_WIN32) || defined(_WIN64)
@@ -24,6 +24,7 @@ typedef int Move;
 enum { EMPTY, PAWN, KNIGHT, KING, ENP, BISHOP, ROOK, QUEEN };
 enum { LOWER, EXACT, UPPER };
 enum { NO_MOVE, ANY_MOVE, GOOD_MOVE };
+enum { NOPE, HASH, NOISY, QUIET, EXIT };
 
 #define CNODES 0x3FFF
 const int pval[] = {0, 100, 290, 0, 100, 310, 500, 980};
@@ -91,8 +92,8 @@ const int pawnrun[] = {0, 0, 1, 8, 16, 32, 64, 128};
 #define ENPASS (flags & 63)
 #define CASTLE (flags & 960)
 #define COUNT (count & 0x3FF)
-#define MEVAL(w) (w > MAXSCORE-500 ? (200000+MAXSCORE+1-w)/2 : (w < 500-MAXSCORE ? (-200000-MAXSCORE-w)/2 : w))
-#define NOMATEMAT(c) ((sf[c] <= 4 || (sf[c] <= 8 && sf[c] <= sf[c^1] + 3)) && (pieceb[PAWN] & colorb[c]) == 0)
+#define MEVAL(w) ((w) > MAXSCORE-500 ? (200001+MAXSCORE-(w))/2 : ((w) < 500-MAXSCORE ? (-200000-MAXSCORE-(w))/2 : (w)))
+#define NOMATEMAT(c) ((sf[c] <= 4 || (sf[c] <= 8 && sf[c] <= sf[(c)^1] + 3)) && (pieceb[PAWN] & colorb[c]) == 0)
 
 #define HSIZE 0x800000LL
 #define HMASK (HSIZE-1)
@@ -110,6 +111,7 @@ u64 hashb;
 u64 hstack[0x800];
 u64 mstack[0x800];
 
+static u64 BIT[64];
 static u64 hashxor[4096];
 static u64 rays[0x10000];
 static u64 pmoves[128];
@@ -118,43 +120,39 @@ static u64 nmoves[64];
 static u64 kmoves[64];
 static int _knight[8] = {-17,-10,6,15,17,10,-6,-15};
 static int _king[8] = {-9,-1,7,8,9,1,-7,-8};
-static u64 BIT[64];
-static int crevoke[64];
 static int nmobil[64];
 static int kmobil[64];
 static int pawnprg[128];
+static u32 crevoke[64];
 static u64 pawnfree[128];
 static u64 pawnfile[128];
 static u64 pawnhelp[128];
-static int cornbase[] = {4, 4, 2, 1, 0, 0 ,0};
+const int cornbase[] = {4, 4, 2, 1, 0, 0 ,0};
 static int bishcorn[64];
-u64 whitesq;
+static u64 whitesq;
 
 struct Movep {
 	int n;
 	Move list[128];
 };
 typedef struct Movep Movep;
-Move pv[128][128];
+Move pv[128][128], pon = 0;;
 const char pieceChar[] = "*PNK.BRQ";
 u64 maxtime, starttime;
-int sabort, ics = 0, ponder = 0, pondering = 0, analyze = 0;
-int count, flags, mat, onmove, engine =-1, sd = 64;
-Move pon = 0;
-int kingpos[2];
-u64 pieceb[8];
-u64 colorb[2];
+u64 pieceb[8], colorb[2];
+int kingpos[2], sf[2];
+int sabort, mat, onmove, engine =-1;
+u32 count, flags, sd = 64, ics = 0, ponder = 0, pondering = 0, analyze = 0;
 char irbuf[256];
 #define BOARD (colorb[0] | colorb[1])
 #define RQU (pieceb[QUEEN] | pieceb[ROOK])
 #define BQU (pieceb[QUEEN] | pieceb[BISHOP])
 
-void reseth(int level);
+int changeMat(int, int, int);
 void doMove(Move, int c);
+void reseth(int level);
 int parseMove(char*, int, Move);
 int protV2(char*,int);
-void setBit(int, u64*);
-void xorBit(int, u64*);
 
 int _getpiece(char s, int *c) {
 	int i;
@@ -162,15 +160,6 @@ int _getpiece(char s, int *c) {
 		if (pieceChar[i] == s) { *c = 0; return i; } 
 		else if (pieceChar[i] == s-32) { *c = 1; return i; }
 	return 0;
-}
-
-int sf[2];
-int changeMat(int m, int c, int d) {
-	int dm = pval[CAP(m)];
-	if (PROM(m)) dm += -pval[PAWN] + pval[PROM(m)];
-	sf[c] += d*fval[PROM(m)];
-	sf[c^1] -= d*fval[CAP(m)];
-	return c ? -d*dm : d*dm;
 }
 
 char *sfen = "rnbqkbnr/pppppppp/////PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -192,8 +181,8 @@ void _parse_fen(char *fen) {
 			if (p == KING) kingpos[c] = row*8 + col;
 			else mat += changeMat(_CAP(p) | _TO(row*8 + col), c^1, -1);
 			hashb ^= hashxor[col | row << 3 | p << 6 | c << 9];
-			setBit(row*8 + col, pieceb + p);
-			setBit(row*8 + (col++), colorb + c);
+			pieceb[p] |= BIT[row*8 + col];
+			colorb[c] |= BIT[row*8 + (col++)];
 		}
 	}
 	onmove = mv == 'b' ? 1 : 0;
@@ -273,25 +262,25 @@ void _init_pawns(u64* moves, u64* caps, u64* freep, u64* filep, u64* helpp, int 
 			int dfile = (jfile - file)*(jfile - file);
 			if (dfile > 1) continue;
 			if ((c && jrank < rank) || (!c && jrank > rank)) {//The not touched part of the board
-				if (dfile == 0) setBit(j, filep + i);
-				setBit(j, freep + i);
+				if (dfile == 0) filep[i] |= BIT[j];
+				freep[i] |= BIT[j];
 			} else if (dfile != 0 && (jrank - rank)*(jrank - rank) <= 1) {
-				setBit(j, helpp + i);
+				helpp[i] |= BIT[j];
 			}
 		}
 		if (m < 0 || m > 63) continue;
-		setBit(m, moves + i);
+		moves[i] |= BIT[m];
 		if (file > 0) {
 			m = i + (c ? -9 : 7);
 			if (m < 0 || m > 63) continue;
-			setBit(m, caps + i);
-			setBit(m, caps + i + 128*(2 - c));
+			caps[i] |= BIT[m];
+			caps[i + 128*(2 - c)] |= BIT[m];
 		}
 		if (file < 7) {
 			m = i + (c ? -7 : 9);
 			if (m < 0 || m > 63) continue;
-			setBit(m, caps + i);
-			setBit(m, caps + i + 128*(c + 1));
+			caps[i] |= BIT[m];
+			caps[i + 128*(c + 1)] |= BIT[m];
 		}
 	}
 }
@@ -302,7 +291,7 @@ void _init_shorts(u64* moves, int* m) {
 		for (j = 0; j < 8; j++) {
 			n = i + m[j];
 			if (n < 64 && n >= 0 && ((n & 7)-(i & 7))*((n & 7)-(i & 7)) <= 4) {
-				setBit(n, moves+i);
+				moves[i] |= BIT[n];
 			}
 		}
 	}
@@ -338,7 +327,7 @@ void _init_rays(u64* rays, u64 (*rayFunc)(int, u64, int), int (*key)(u64, int)) 
 }
 
 #define RAYMACRO { if (TEST(i, board)) \
-	{ if (b) {setBit(i, &xray); break; } else { setBit(i, &occ); b = 1; }} if (!b) setBit(i, &free); }
+	{ if (b) { xray |= BIT[i]; break; } else { occ |= BIT[i]; b = 1; }} if (!b) free |= BIT[i]; }
 u64 _rook0(int f, u64 board, int t) {
 	u64 free = 0LL, occ = 0LL, xray = 0LL;
 	int i, b;
@@ -397,14 +386,6 @@ int bioskey() {
 	return (FD_ISSET(fileno(stdin), &readfds));
 }
 #endif
-
-void setBit(int f, u64 *b) {
-	*b |= BIT[f];
-}
-
-void xorBit(int f, u64 *b) {
-	*b ^= BIT[f];
-}
 
 int pullLsb(u64* bit) {
 	int f = getLsb(*bit);
@@ -466,31 +447,6 @@ u64 attacked(int f, int c) {
 	return (PCAP(f, c) & pieceb[PAWN]) | reach(f, c);
 }
 
-void displaym(Move m) {
-	printf("%c%c%c%c", 'a' + FROM(m) % 8, '1' + FROM(m) / 8, 'a' + TO(m) % 8, '1' + TO(m) / 8);
-	if (PROM(m)) printf("%c", pieceChar[PROM(m)]+32);
-}
-
-void displaypv() {
-	int i;
-	if (pon && pondering) { printf("("); displaym(pon); printf(") "); }
-	for (i = 0; pv[0][i]; i++) {
-		displaym(pv[0][i]); printf(" ");
-	}
-}
-
-int isDraw(u64 hp, int nrep) {
-	if (count > 0xFFF) { //fifty > 3
-		int i, c = 0, n = COUNT - (count >> 10);
-		if (count >= 0x400*100) return 2; //100 plies
-		for (i = COUNT - 2; i >= n; i--) 
-			if (hstack[i] == hp && ++c == nrep) return 1; 
-	} else if (!(pieceb[PAWN] | RQU)) { //Check for mating material
-		if (bitcnt(BOARD) <= 3) return 3;
-	}
-	return 0;
-}
-
 u64 pinnedPieces(int f, int oc) {
 	u64 pin = 0LL;
 	u64 b = ((RXRAY1(f) | RXRAY2(f)) & colorb[oc]) & RQU;
@@ -513,6 +469,14 @@ char getDir(int f, int t) {
 	return (!((f - t) % 9)) ? 32 : 64;
 }
 
+int changeMat(int m, int c, int d) {
+	int dm = pval[CAP(m)];
+	if (PROM(m)) dm += -pval[PAWN] + pval[PROM(m)];
+	sf[c] += d*fval[PROM(m)];
+	sf[c^1] -= d*fval[CAP(m)];
+	return c ? -d*dm : d*dm;
+}
+
 #define XORHASH(f, p, c) hashb ^= hashxor[(f) | (p) << 6 | (c) << 9]
 /* move is for both doMove and undoMove, only for undo the globalflags have to be restored (counter, castle, enpass..)*/
 void move(Move m, int c, int d) {
@@ -521,11 +485,11 @@ void move(Move m, int c, int d) {
 	int p = PIECE(m);
 	int a = CAP(m);
 
-	xorBit(f, colorb+c);
-	xorBit(f, pieceb+p);
+	colorb[c] ^= BIT[f];
+	pieceb[p] ^= BIT[f];
 
-	xorBit(t, colorb+c);
-	xorBit(t, pieceb+p);
+	colorb[c] ^= BIT[t];
+	pieceb[p] ^= BIT[t];
 	XORHASH(f, p, c);
 	XORHASH(t, p, c);
 
@@ -535,8 +499,8 @@ void move(Move m, int c, int d) {
 		} else if (a == ROOK && CASTLE) { //Revoke castling rights.
 			flags &= crevoke[t];
 		}
-		xorBit(t, pieceb+a);
-		xorBit(t, colorb+(c^1));
+		pieceb[a] ^= BIT[t];
+		colorb[c^1] ^= BIT[t];
 		XORHASH(t, a, c^1);
 		count &= 0x3FF; //Reset Fifty Counter
 		mat += changeMat(m, c, d);
@@ -544,8 +508,8 @@ void move(Move m, int c, int d) {
 	if (p == PAWN) {
 		if (((f^t)&8) == 0) flags |= f^24; //Enpassant
 		else if ((t&56) == 0 || (t&56) == 56) {
-			xorBit(t, pieceb+PAWN);
-			xorBit(t, pieceb+PROM(m));
+			pieceb[PAWN] ^= BIT[t];
+			pieceb[PROM(m)] ^= BIT[t];
 			XORHASH(t, PAWN, c);
 			XORHASH(t, PROM(m), c);
 			if (!a) mat += changeMat(m, c, d);
@@ -559,10 +523,10 @@ void move(Move m, int c, int d) {
 			else if (t == 2) { f = 0; t = 3; }
 			else if (t == 62) { f = 63; t = 61; }
 			else { f = 56; t = 59; }
-			xorBit(f, colorb+c);
-			xorBit(f, pieceb+ROOK);
-			xorBit(t, colorb+c);
-			xorBit(t, pieceb+ROOK);
+			colorb[c] ^= BIT[f];
+			pieceb[ROOK] ^= BIT[f];
+			colorb[c] ^= BIT[t];
+			pieceb[ROOK] ^= BIT[t];
 			XORHASH(f, ROOK, c);
 			XORHASH(t, ROOK, c);
 		}
@@ -619,10 +583,10 @@ void regKings(Move m, u64 bt, Movep* mp, int c, int cap) {
 int generateCheckEsc(u64 ch, u64 apin, int c, int k, Movep *mp) {
 	u64 cc, fl;
 	int d, bf = bitcnt(ch);
-	xorBit(k, colorb+c);
+	colorb[c] ^= BIT[k];
 	regKings(PREMOVE(k, KING), KCAP(k, c), mp, c, 1);
 	regKings(PREMOVE(k, KING), KMOVE(k), mp, c, 0);
-	xorBit(k, colorb+c);
+	colorb[c] ^= BIT[k];
 	if (bf > 1) return bf; //Doublecheck
 	bf = getLsb(ch);
 
@@ -771,11 +735,11 @@ void generateCaps(int c, int f, u64 pin, Movep *mp) {
 			regMovesCaps(PREMOVE(f, PAWN) | _PROM(QUEEN), a, PMOVE(f, c), mp);
 		} else {
 			if (ENPASS && (BIT[ENPASS] & pcaps[(f) | ((c)<<6)])) {
-				xorBit(ENPASS^8, colorb+(c^1));
+				colorb[c^1] ^= BIT[ENPASS^8];
 				if (!(ROCC1(f) & BIT[kingpos[c]]) || !(ROCC1(f) & colorb[c^1] & RQU)) {
 					a = a | BIT[ENPASS];
 				}
-				xorBit(ENPASS^8, colorb+(c^1));
+				colorb[c^1] ^= BIT[ENPASS^8];
 			}
 			regMoves(PREMOVE(f, PAWN), a, mp, 1);
 		}
@@ -895,7 +859,7 @@ Move qpick(Movep* mp, int s) {
 	int i, t, pi = 0, vmax = -9999;
 	for (i = s; i < mp->n; i++) {
 		m = mp->list[i];
-		t = pval[CAP(m)];
+		t = pval[CAP(m)] - fval[PIECE(m)];
 		if (t > vmax) vmax = t, pi = i;
 	}
 	m = mp->list[pi];
@@ -980,7 +944,7 @@ int evalc(int c) {
 		if (a & kn) katt += MOBILITY(a & kn, mb) << 3;
 	}
 
-	xorBit(kingpos[oc], colorb+oc); //Opposite King doesn't block mobility at all
+	colorb[oc] ^= BIT[kingpos[oc]]; //Opposite King doesn't block mobility at all
 	colorb[c] ^= pieceb[QUEEN] & cb; //Own non-pinned Queen doesn't block mobility for anybody.
 	b = pieceb[QUEEN] & cb;
 	while (b) {
@@ -1027,7 +991,7 @@ int evalc(int c) {
 	}
 
 	colorb[oc] ^= pieceb[QUEEN] & ocb; //Back
-	xorBit(kingpos[oc], colorb+oc); //Back
+	colorb[oc] ^= BIT[kingpos[oc]]; //Back
 	return mn + katt * sf[c] / 17; //Reduce the bonus for attacking king squares
 }
 
@@ -1125,6 +1089,18 @@ int inputSearch() {
 	return -(ttime < 50);
 }
 
+int isDraw(u64 hp, int nrep) {
+	if (count > 0xFFF) { //fifty > 3
+		int i, c = 0, n = COUNT - (count >> 10);
+		if (count >= 0x400*100) return 2; //100 plies
+		for (i = COUNT - 2; i >= n; i--) 
+			if (hstack[i] == hp && ++c == nrep) return 1; 
+	} else if (!(pieceb[PAWN] | RQU)) { //Check for mating material
+		if (bitcnt(BOARD) <= 3) return 3;
+	}
+	return 0;
+}
+
 const int nullvar[] = {13, 43, 149, 519, 1809, 6311, 22027};
 static int nullvariance(int delta) {
 	int r = 0;
@@ -1191,11 +1167,11 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 
 	Movep mp;
 	int first = NO_MOVE;
-	for (n = 1; n <= (ch ? 2 : 3); n++) {
-		if (n == 1) {
+	for (n = HASH; n <= (ch ? NOISY : QUIET); n++) {
+		if (n == HASH) {
 			if (hmove == 0) continue;
 			mp.n = 1;
-		} else if (n == 2) {
+		} else if (n == NOISY) {
 			generate(ch, c, &mp, 1, 0);
 		} else {
 			generate(ch, c, &mp, 0, 1);
@@ -1204,10 +1180,10 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 			Move m;
 			u64 nch;
 			int ext = 0;
-			if (n == 1) {
+			if (n == HASH) {
 				m = hmove;
 			} else {
-				if (n == 2) m = qpick(&mp, i);
+				if (n == NOISY) m = qpick(&mp, i);
 				else m = spick(&mp, i, ply);
 				if (m == hmove) continue;
 				if (first != NO_MOVE && d <= 8 && swap(m) < -d*60) continue;
@@ -1216,8 +1192,8 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 			doMove(m, c);
 			nch = attacked(kingpos[oc], oc);
 			if (nch || pvnode || ch);
-			else if (n == 2 && d >= 2 && !PROM(m) && swap(m) < 0) ext-= (d + 1)/3; //Reduce bad exchanges
-			else if (n == 3) { //LMR
+			else if (n == NOISY && d >= 2 && !PROM(m) && swap(m) < 0) ext-= (d + 1)/3; //Reduce bad exchanges
+			else if (n == QUIET) { //LMR
 				if (m == killer[ply]); //Don't reduce killers
 				else if (PIECE(m) == PAWN && !(pawnfree[TO(m) + (c << 6)] & pieceb[PAWN] & colorb[oc])); //Free pawns
 				else if (evilqueen && battacked(evilqueen, oc, 0) && swap(m) >= 0); //Don't reduce queen attacks
@@ -1246,13 +1222,12 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 				for (j = ply +1; pv[ply +1][j]; j++) pv[ply][j] = pv[ply +1][j];
 				pv[ply][j] = 0;
 
-				if (w == MAXSCORE-ply-1) { n = 3; break; }
 				if (w >= beta) {
-					if (CAP(m) == 0) {
+					if (n == QUIET) {
 						killer[ply] = m;
 						history[m & 0x1FFF] += (d+ext)*(d+ext);
 					}
-					n = 3; break;
+					n = EXIT; break;
 				}
 			} else if (first == NO_MOVE) first = ANY_MOVE;
 	    }
@@ -1370,10 +1345,24 @@ void undo() {
 	pv[0][0] = m;
 }
 
+void displaym(Move m) {
+	printf("%c%c%c%c", 'a' + FROM(m) % 8, '1' + FROM(m) / 8, 'a' + TO(m) % 8, '1' + TO(m) / 8);
+	if (PROM(m)) printf("%c", pieceChar[PROM(m)]+32);
+}
+
+void displaypv() {
+	int i;
+	if (pon && pondering) { printf("("); displaym(pon); printf(") "); }
+	for (i = 0; pv[0][i]; i++) {
+		displaym(pv[0][i]); printf(" ");
+	}
+}
+
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
-int calc(int sd, int tm) {
-	int i, j, w, d, t1, m2go = mps == 0 ? 32 : 1 + mps - ((COUNT/2) % mps);
+int calc(int tm) {
+	int i, j, w, d, t1;
+	u32 m2go = mps == 0 ? 32 : 1 + mps - ((COUNT/2) % mps);
 	long tmsh = MAX(tm*8L-50-m2go*5, 10);
 	long searchtime = MIN(tm*6L/m2go + inc*500L, tmsh);
 	maxtime = MIN(searchtime*5L, tmsh);
@@ -1387,7 +1376,7 @@ int calc(int sd, int tm) {
 	if (book) {
 		if (!bkcount[onmove]) book = 0;
 		else {
-			j = hashxor[starttime % 4095] % bkcount[onmove];
+			j = (int)hashxor[starttime % 4095] % bkcount[onmove];
 			for (i = 0; i < BKSIZE; i++) {
 				if (bkflag[i] == onmove && j == t1++) { pv[0][0] = bkmove[i*32 + COUNT]; break; }
 			}
@@ -1488,7 +1477,7 @@ int protV2(char* buf, int parse) {
 	else if (!strncmp(buf,"hard",4)) ponder = 1;
 	else if (!strncmp(buf,"analyze",7)) return -5;
 	else if (!strncmp(buf,"exit",4)) return -6;
-	else if (!strncmp(buf,"sd",2)) sscanf(buf+3,"%d",&sd);
+	else if (!strncmp(buf,"sd",2)) sscanf(buf+3,"%lu",&sd);
 	else if (!strncmp(buf,"time",4)) sscanf(buf+5,"%d",&ttime);
 	else if (!strncmp(buf,"level",4)) sscanf(buf+6,"%d %s %d",&mps, base, &inc);
 	else if (!strncmp(buf,"post",4)) post = 1;
@@ -1562,14 +1551,14 @@ int main(int argc, char **argv) {
 	if (argc > 1 && !strncmp(argv[1],"-sd",3)) {
 		ttime = 99999999;
 		if (argc > 2) {
-			sscanf(argv[2], "%d", &sd);
-			if (argc > 3) { _parse_fen(argv[3]); calc(sd, ttime); return 0; }
+			sscanf(argv[2], "%lu", &sd);
+			if (argc > 3) { _parse_fen(argv[3]); calc(ttime); return 0; }
 		}
 	}
 	irbuf[0] = 0;
 
 	for (;;) {
-		if (engine == onmove || analyze) ex = calc(sd, ttime);
+		if (engine == onmove || analyze) ex = calc(ttime);
 		else if (ex == 0 && ponder && engine != -1 && !book) ex = doponder(onmove);
 
 		if (!ponder || book || engine == -1 || ex != 0) ex = input(onmove);
