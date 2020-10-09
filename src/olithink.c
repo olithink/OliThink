@@ -1,19 +1,16 @@
-/* OliThink5 (c) Oliver Brausch 06.Oct.2020, ob112@web.de, http://brausch.org */
-#define VER "5.8.5"
+/* OliThink5 (c) Oliver Brausch 09.Oct.2020, ob112@web.de, http://brausch.org */
+#define VER "5.8.6"
 #include <stdio.h>
 #include <string.h>
 #if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
 #include <conio.h>
-#include <sys/timeb.h>
 #include <intrin.h>
-struct _timeb tv;
 #define bitcnt(x) __popcnt64(x)
 #define getLsb(x) _tzcnt_u64(x)
 #else
 #include <sys/time.h>
 struct timeval tv;
-struct timezone tz;
 #define bitcnt(x) __builtin_popcountll(x)
 #define getLsb(x) __builtin_ctzll(x)
 #endif
@@ -104,6 +101,7 @@ struct entry {
 	short value;
 	char depth;
 	char type;
+	short valstat;
 };
 
 struct entry hashDB[HSIZE];
@@ -362,8 +360,7 @@ u64 _bishop135(int f, u64 board, int t) {
 
 #ifdef _WIN32
 u64 getTime() {
-	_ftime(&tv);
-	return(tv.time * 1000LL + tv.millitm);
+	return GetTickCount();
 }
 
 int bioskey() {
@@ -371,7 +368,7 @@ int bioskey() {
 }
 #else
 u64 getTime() {
-	gettimeofday (&tv, &tz);
+	gettimeofday (&tv, NULL);
 	return(tv.tv_sec * 1000LL + (tv.tv_usec / 1000));
 }
 
@@ -1140,17 +1137,17 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 		if (!hmove) hmove = he.move;
 	}
 
-	if (!ch && !pvnode) {
-		w = d < 2 ? evallazy(c, mat) : eval(c, mat);
-		if (d < 2 && w + 500 < alpha) return quiesce(ch, c, ply, alpha, beta);
-		if (d <= 8 && w - 85*d > beta) return w;
+	int wstat = ch ? -MAXSCORE+ply : he.key == hp ? he.valstat : eval(c, mat);
+	if (!ch && !pvnode && beta > -MAXSCORE+500) {
+		if (d <= 3 && wstat + 400 < beta) { w = quiesce(ch, c, ply, alpha, beta); if (w < beta) return w; }
+		if (d <= 8 && wstat - 85*d > beta) return wstat;
 	}
 
 	hstack[COUNT] = hp;
 	//Null Move - pvnode => null == 0
-	null = null && !ch && d > 1 && w > alpha && (ply < 2 || (mstack[COUNT-2] >> 27));
+	null = null && !ch && beta > -MAXSCORE+500 && d > 1 && wstat > alpha && (ply < 2 || (mstack[COUNT-2] >> 27));
 	if (null && bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], oc))) > 1) {
-		int R = (10 + d + nullvariance(w - alpha))/4;
+		int R = (10 + d + nullvariance(wstat - alpha))/4;
 		doMove(0, c);
 		w = -search(0LL, oc, d-R, ply+1, -beta, 1-beta, 0);
 		undoMove(0, c);
@@ -1238,7 +1235,8 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 	char type = UPPER;
 	if (first == GOOD_MOVE) type = (char)(alpha >= beta ? LOWER : EXACT), hmove = pv[ply][ply]; // Found good move
 	
-	hashDB[hp & HMASK] = (struct entry) {.key = hp, .move = hmove, .value = alpha, .depth = d, .type = type};
+	hashDB[hp & HMASK]
+		= (struct entry) {.key = hp, .move = hmove, .value = alpha, .depth = d, .type = type, .valstat = wstat};
 
 	return alpha;
 }
@@ -1376,7 +1374,7 @@ int calc(int tm) {
 	if (book) {
 		if (!bkcount[onmove]) book = 0;
 		else {
-			j = (int)hashxor[starttime % 4095] % bkcount[onmove];
+			j = (int)(hashxor[starttime & 4095] & 0xFFFFFF) % bkcount[onmove];
 			for (i = 0; i < BKSIZE; i++) {
 				if (bkflag[i] == onmove && j == t1++) { pv[0][0] = bkmove[i*32 + COUNT]; break; }
 			}
@@ -1544,7 +1542,7 @@ int main(int argc, char **argv) {
 	_init_pawns(pmoves + 64, pcaps + 64, pawnfree + 64, pawnfile + 64, pawnhelp + 64, 1);
 
 	for (i = 0; i < 64; i++) nmobil[i] = (bitcnt(nmoves[i]))*8;
-	for (i = 0; i < 64; i++) kmobil[i] = (bitcnt(nmoves[i]));
+	for (i = 0; i < 64; i++) kmobil[i] = MAX(bitcnt(nmoves[i]), 3);
 	for (i = 0; i < 32; i++) bishcorn[i] = bishcorn[63-i] = (i&7) < 4 ? cornbase[(i&7) +i/8] : -cornbase[7 -(i&7) +i/8];
 	newGame();
 
