@@ -1355,7 +1355,7 @@ void displaypv() {
 int calc(int tm) {
 	int i, j, w, d;
 	u32 m2go = mps == 0 ? 32 : 1 + mps - ((COUNT/2) % mps);
-	u32 t1, tmsh = MAX(tm*8L-50-m2go*5, 10);
+	u32 t1 = 0, tmsh = MAX(tm*8L-50-m2go*5, 10);
 	u32 searchtime = MIN(tm*6L/m2go + inc*500L, tmsh);
 	maxtime = MIN(searchtime*5L, tmsh);
 	if (st > 0) maxtime = searchtime = st*1000LL;
