@@ -1,4 +1,4 @@
-OliThink5 (c) Oliver Brausch 16.Oct.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 17.Oct.2020, ob112@web.de, http://brausch.org
 
 Version: 5.8.7
 Protocol: CECP v2 (winboard/xboard)
@@ -9,12 +9,12 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Reduction, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1566
+LinesOfCode: 1578
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
 
 v5.8.7: changes since 5.8.6:
-Remove evil Queen. Negative history heuristics.
+Remove evil Queen. Negative history heuristics. Win64 peek stdin fix.
 
 v5.8.6: changes since 5.8.5:
 King mobil corner eval. Razoring change. Static eval into hash. Fix opening bug.
