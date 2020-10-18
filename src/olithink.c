@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 16.Oct.2020, ob112@web.de, http://brausch.org */
-#define VER "5.8.7"
+/* OliThink5 (c) Oliver Brausch 18.Oct.2020, ob112@web.de, http://brausch.org */
+#define VER "5.8.8"
 #include <stdio.h>
 #include <string.h>
 #if defined(_WIN32) || defined(_WIN64)
@@ -84,7 +84,10 @@ const int pawnrun[] = {0, 0, 1, 8, 16, 32, 64, 128};
 #define PCA3(x, c) (pcaps[(x) | ((c)<<6) | 128] & (colorb[(c)^1] | (BIT[ENPASS] & (c ? 0xFF0000LL : 0xFF0000000000LL))))
 #define PCA4(x, c) (pcaps[(x) | ((c)<<6) | 256] & (colorb[(c)^1] | (BIT[ENPASS] & (c ? 0xFF0000LL : 0xFF0000000000LL))))
 
-#define RANK(x, y) (((x) & 0x38) == (y))
+#define RANK7(f, c) (((f) & 0x38) == ((c) ? 0x08 : 0x30))
+#define RANK6(f, c) (((f) & 0x38) == ((c) ? 0x10 : 0x28))
+#define RANK4(f, c) (((f) & 0x38) == ((c) ? 0x20 : 0x18))
+#define RANK2(f, c) (((f) & 0x38) == ((c) ? 0x30 : 0x08))
 #define TEST(f, b) (BIT[f] & (b))
 #define ENPASS (flags & 63)
 #define CASTLE (flags & 960)
@@ -438,10 +441,10 @@ int battacked(int f, int c) {
 	if (PCAP(f, c) & pieceb[PAWN]) return 1;
 	if (NCAP(f, c) & pieceb[KNIGHT]) return 1;
 	if (KCAP(f, c) & pieceb[KING]) return 1;
-	if (RCAP1(f, c) & (RQU)) return 1;
-	if (RCAP2(f, c) & (RQU)) return 1;
-	if (BCAP3(f, c) & (BQU)) return 1;
-	if (BCAP4(f, c) & (BQU)) return 1;
+	if (RCAP1(f, c) & RQU) return 1;
+	if (RCAP2(f, c) & RQU) return 1;
+	if (BCAP3(f, c) & BQU) return 1;
+	if (BCAP4(f, c) & BQU) return 1;
 	return 0;
 }
 
@@ -473,7 +476,7 @@ u64 pinnedPieces(int f, int oc) {
 }
 
 /* precondition: f and t are on common rank (8), file (16), diagonal (32) or antidiagonal (64) */
-char getDir(int f, int t) {
+int getDir(int f, int t) {
 	if (!((f ^ t) & 56)) return 8;
 	if (!((f ^ t) & 7)) return 16;
 	return (!((f - t) % 9)) ? 32 : 64;
@@ -604,7 +607,7 @@ int generateCheckEsc(u64 ch, u64 apin, int c, int k, Movep *mp) {
 	while (cc) {
 		int cf = pullLsb(&cc);
 		int p = identPiece(cf);
-		if (p == PAWN && RANK(cf, c ? 0x08 : 0x30)) 
+		if (p == PAWN && RANK7(cf, c))
 			regPromotions(cf, c, ch, mp, 1, 1);
 		else 
 			regMovesCaps(PREMOVE(cf, p), ch, 0LL, mp);
@@ -635,50 +638,36 @@ int generateCheckEsc(u64 ch, u64 apin, int c, int k, Movep *mp) {
 		bf = c ? f+8 : f-8;
 		if (bf < 0 || bf > 63) continue;
 		if (BIT[bf] & pieceb[PAWN] & colorb[c] & apin) {
-			if (RANK(bf, c ? 0x08 : 0x30)) 
+			if (RANK7(bf, c))
 				regPromotions(bf, c, BIT[f], mp, 0, 1);
 			else
 				regMovesCaps(PREMOVE(bf, PAWN), 0LL, BIT[f], mp);
 		}
-		if (RANK(f, c ? 0x20 : 0x18) && !(BOARD & BIT[bf]) && (BIT[c ? f+16 : f-16] & pieceb[PAWN] & colorb[c] & apin))
+		if (RANK4(f, c) && !(BOARD & BIT[bf]) && (BIT[c ? f+16 : f-16] & pieceb[PAWN] & colorb[c] & apin))
 			regMovesCaps(PREMOVE(c ? f+16 : f-16, PAWN), 0LL, BIT[f], mp);
 	}
 	return 1;
 }
 
-void generateNonCaps(int c, int f, u64 pin, Movep* mp) {
+void generateQuiet(int c, int f, u64 pin, Movep* mp) {
 	u64 m, b, cb = colorb[c] & (~pin);
 
 	regKings(PREMOVE(f, KING), KMOVE(f), mp, c, 0);
 
-	b = pieceb[PAWN] & cb;
+	b = pieceb[PAWN] & colorb[c];
 	while (b) {
 		f = pullLsb(&b);
-		m = PMOVE(f, c);
-		if (m && RANK(f, c ? 0x30 : 0x08)) m |= PMOVE(c ? f-8 : f+8, c);
-		if (RANK(f, c ? 0x08 : 0x30)) {
-			u64 a = PCAP(f, c);
-			if (a) regPromotions(f, c, a, mp, 1, 0);
-			regPromotions(f, c, m, mp, 0, 0);
-		} else {
-			regMoves(PREMOVE(f, PAWN), m, mp, 0);
-		}
-	}
-
-	b = pin & pieceb[PAWN]; 
-	while (b) {
-		f = pullLsb(&b);
-		int t = getDir(f, kingpos[c]);
+		u32 t = BIT[f] & pin ? getDir(f, kingpos[c]) : 144;
 		if (t & 8) continue;
-		m = 0LL;
 		if (t & 16) {
-			m = PMOVE(f, c);         
-			if (m && RANK(f, c ? 0x30 : 0x08)) m |= PMOVE(c ? f-8 : f+8, c);
-		}
-		if (RANK(f, c ? 0x08 : 0x30)) {
-			u64 a = (t & 32) ? PCA3(f, c) : ((t & 64) ? PCA4(f, c) : 0LL);
+			m = PMOVE(f, c);
+			if (m && RANK2(f, c)) m |= PMOVE(c ? f-8 : f+8, c);
+		} else m = 0;
+		if (RANK7(f, c)) {
+			u64 a = (t & 128) ? PCAP(f, c) : (t & 32) ? PCA3(f, c) : ((t & 64) ? PCA4(f, c) : 0LL);
 			if (a) regPromotions(f, c, a, mp, 1, 0);
-		} else {
+			if (m) regPromotions(f, c, m, mp, 0, 0);
+		} else if (!RANK6(f, c)) {
 			regMoves(PREMOVE(f, PAWN), m, mp, 0);
 		}
 	}
@@ -732,45 +721,35 @@ void generateNonCaps(int c, int f, u64 pin, Movep* mp) {
 	}
 }
 
-void generateCaps(int c, int f, u64 pin, Movep *mp) {
+void generateNoisy(int c, int f, u64 pin, Movep *mp) {
 	u64 m, b, a, cb = colorb[c] & (~pin);
 
 	regKings(PREMOVE(f, KING), KCAP(f, c), mp, c, 1);
 
-	b = pieceb[PAWN] & cb;
+	b = pieceb[PAWN] & colorb[c];
 	while (b) {
 		f = pullLsb(&b);
-		a = PCAP(f, c);
-		if (RANK(f, c ? 0x08 : 0x30)) {
-			regMovesCaps(PREMOVE(f, PAWN) | _PROM(QUEEN), a, PMOVE(f, c), mp);
+		u32 t = BIT[f] & pin ? getDir(f, kingpos[c]) : 144;
+		if (t & 8) continue;
+		if (t & 16) {
+			m = PMOVE(f, c); a = t & 128 ? PCAP(f, c) : 0;
+		} else if (t & 32) {
+			m = 0; a = PCA3(f, c);
+		} else { // if (t & 64)
+			m = 0; a = PCA4(f, c);
+		}
+		if (RANK7(f, c)) {
+			regMovesCaps(PREMOVE(f, PAWN) | _PROM(QUEEN), a, m, mp);
+		} else if (RANK6(f, c)) {
+			regMovesCaps(PREMOVE(f, PAWN), a, m, mp);
 		} else {
-			if (ENPASS && (BIT[ENPASS] & pcaps[(f) | ((c)<<6)])) {
+			if (t & 128 && ENPASS && (BIT[ENPASS] & pcaps[(f) | ((c)<<6)])) {
 				colorb[c^1] ^= BIT[ENPASS^8];
 				if (!(ROCC1(f) & BIT[kingpos[c]]) || !(ROCC1(f) & colorb[c^1] & RQU)) {
 					a = a | BIT[ENPASS];
 				}
 				colorb[c^1] ^= BIT[ENPASS^8];
 			}
-			regMoves(PREMOVE(f, PAWN), a, mp, 1);
-		}
-	}
-
-	b = pin & pieceb[PAWN]; 
-	while (b) {
-		f = pullLsb(&b);
-		int t = getDir(f, kingpos[c]);
-		if (t & 8) continue;
-		m = a = 0LL;
-		if (t & 16) {
-			m = PMOVE(f, c);         
-		} else if (t & 32) {
-			a = PCA3(f, c);
-		} else {
-			a = PCA4(f, c);
-		}
-		if (RANK(f, c ? 0x08 : 0x30)) {
-			regMovesCaps(PREMOVE(f, PAWN) | _PROM(QUEEN), a, m, mp);
-		} else {
 			regMoves(PREMOVE(f, PAWN), a, mp, 1);
 		}
 	}
@@ -812,13 +791,13 @@ void generateCaps(int c, int f, u64 pin, Movep *mp) {
 }
 
 #define GENERATE(c, mp) generate(attacked(kingpos[c], c), c, mp, 1, 1)
-int generate(u64 ch, int c, Movep *mp, int cap, int noncap) {
+int generate(u64 ch, int c, Movep *mp, int noisy, int quiet) {
 	int f = kingpos[c];
 	u64 pin = pinnedPieces(f, c^1);
 	mp->n = 0;
 	if (ch) return generateCheckEsc(ch, ~pin, c, f, mp);
-	if (cap) generateCaps(c, f, pin, mp);
-	if (noncap) generateNonCaps(c, f, pin, mp);
+	if (noisy) generateNoisy(c, f, pin, mp);
+	if (quiet) generateQuiet(c, f, pin, mp);
 	return 0;
 }
 
@@ -912,7 +891,7 @@ u64 mobilityb(int c) {
 #define MOBILITY(a, mb) (bitcnt(a) + bitcnt(a & mb))
 /* The eval for Color c. It's almost only mobility. Pinned pieces are still awarded for limiting opposite's king */
 int evalc(int c) {
-	int t, f, mn = 0, katt = 0, egf = 5200/(40 + sf[c]);
+	int t, f, mn = 0, katt = 0, egf = 10400/(80 + sf[c] + sf[c^1]);
 	int oc = c^1;
 	u64 b, a, cb, ocb = colorb[oc], mb = sf[c] ? mobilityb(c) : 0LL;
 	u64 kn = kmoves[kingpos[oc]] & (~pieceb[PAWN]);
@@ -1023,7 +1002,7 @@ int evallazy(int c, int matrl) {
 		return ev + (c ? -matrl : matrl);
 }
 
-u64 eval1 = 0;
+u64 eval1, nodes, qnodes;
 int eval(int c, int matrl) {
 	int ev = evalc(c) - evalc(c^1);
 	eval1++;
@@ -1031,7 +1010,6 @@ int eval(int c, int matrl) {
 	return ev + evallazy(c, matrl);
 }
 
-u64 nodes, qnodes;
 int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 	int i, best = -MAXSCORE;
 
@@ -1083,7 +1061,6 @@ int retPVMove(int c, int ply) {
 }
 
 int ttime = 30000, mps = 0, inc = 0, post = 1, st = 0; char base[16];
-
 int inputSearch() {
 	int ex;
 	fgets(irbuf,255,stdin);
@@ -1169,7 +1146,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 		if (!sabort && w >= beta) return w >= MAXSCORE-500 ? beta : w;
 	}
 
-	if (d >= 5 && !hmove) { // Internal Iterative Reduction (IIR)
+	if (d >= 4 && !hmove) { // Internal Iterative Reduction (IIR)
 		d--;
 	}
 
@@ -1405,9 +1382,9 @@ int calc(int tm) {
 			delta += delta * 2 / 3;
 		}
 
-		t1 = (int)(getTime() - starttime);
+		t1 = (u32)(getTime() - starttime);
 		if (post && pv[0][0] && (!sabort || (!analyze && sabort>=1)) && w > -MAXSCORE) {
-			printf("%2d %5d %6lu %9llu  ", d, MEVAL(w), t1/10, nodes + qnodes);
+			printf("%2d %5d %6lu %9llu  ", d, MEVAL(w), (t1+4)/10, nodes + qnodes);
 			displaypv(); printf("\n"); 
 		}
 		if (sabort) break;
