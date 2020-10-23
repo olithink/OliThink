@@ -1,17 +1,20 @@
-OliThink5 (c) Oliver Brausch 18.Oct.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 23.Oct.2020, ob112@web.de, http://brausch.org
 
-Version: 5.8.8
+Version: 5.8.9
 Protocol: CECP v2 (winboard/xboard)
-HashSize: 196MB
+HashSize: 128MB
 Ponder: Yes
 OpeningBook: Small
 EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Reduction, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1555
+LinesOfCode: 1525
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
+
+v5.8.9: changes since 5.8.8:
+Reduce hash. More aggressiv evaluation. Code cleanup. Command random.
 
 v5.8.8: changes since 5.8.7:
 Progress to 7th rank is in noisy phase. IIR since depth 4. Symmatric end game factor. Simplify MovGen.

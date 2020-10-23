@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 18.Oct.2020, ob112@web.de, http://brausch.org */
-#define VER "5.8.8"
+/* OliThink5 (c) Oliver Brausch 23.Oct.2020, ob112@web.de, http://brausch.org */
+#define VER "5.8.9"
 #include <stdio.h>
 #include <string.h>
 #if defined(_WIN32) || defined(_WIN64)
@@ -52,43 +52,35 @@ const int pawnrun[] = {0, 0, 1, 8, 16, 32, 64, 128};
 #define BXRAY3(f) rays[((f) << 7) | key045(BOARD, f) | 0xC000]
 #define BXRAY4(f) rays[((f) << 7) | key135(BOARD, f) | 0xE000]
 
-#define ROCC1(f) (RATT1(f) & BOARD)
-#define ROCC2(f) (RATT2(f) & BOARD)
-#define BOCC3(f) (BATT3(f) & BOARD)
-#define BOCC4(f) (BATT4(f) & BOARD)
-#define RMOVE1(f) (RATT1(f) & (~BOARD))
-#define RMOVE2(f) (RATT2(f) & (~BOARD))
-#define BMOVE3(f) (BATT3(f) & (~BOARD))
-#define BMOVE4(f) (BATT4(f) & (~BOARD))
+#define RMOVE1(f) (RATT1(f) & ~BOARD)
+#define RMOVE2(f) (RATT2(f) & ~BOARD)
+#define BMOVE3(f) (BATT3(f) & ~BOARD)
+#define BMOVE4(f) (BATT4(f) & ~BOARD)
 #define RCAP1(f, c) (RATT1(f) & colorb[(c)^1])
 #define RCAP2(f, c) (RATT2(f) & colorb[(c)^1])
 #define BCAP3(f, c) (BATT3(f) & colorb[(c)^1])
 #define BCAP4(f, c) (BATT4(f) & colorb[(c)^1])
-#define ROCC(f) (ROCC1(f) | ROCC2(f))
-#define BOCC(f) (BOCC3(f) | BOCC4(f))
+#define RATT(f) (RATT1(f) | RATT2(f))
+#define BATT(f) (BATT3(f) | BATT4(f))
 #define RMOVE(f) (RMOVE1(f) | RMOVE2(f))
 #define BMOVE(f) (BMOVE3(f) | BMOVE4(f))
-#define RCAP(f, c) (ROCC(f) & colorb[(c)^1])
-#define BCAP(f, c) (BOCC(f) & colorb[(c)^1])
+#define RCAP(f, c) (RCAP1(f, c) | RCAP2(f, c))
+#define BCAP(f, c) (BCAP3(f, c) | BCAP4(f, c))
 
-#define SHORTMOVE(x) ((x) & ((x)^BOARD))
-#define SHORTCAP(x, c) ((x) & colorb[(c)^1])
-
-#define NMOVE(x) (SHORTMOVE(nmoves[x]))
-#define KMOVE(x) (SHORTMOVE(kmoves[x]))
-#define PMOVE(x, c) (pmoves[(x) | ((c)<<6)] & (~BOARD))
+#define NMOVE(x) (nmoves[x] & ~BOARD)
+#define KMOVE(x) (kmoves[x] & ~BOARD)
+#define NCAP(x, c) (nmoves[x] & colorb[(c)^1])
+#define KCAP(x, c) (kmoves[x] & colorb[(c)^1])
+#define PMOVE(x, c) (pmoves[(x) | ((c)<<6)] & ~BOARD)
 #define POCC(x, c) (pcaps[(x) | ((c)<<6)] & BOARD)
-#define NCAP(x, c) (SHORTCAP(nmoves[x], (c)))
-#define KCAP(x, c) (SHORTCAP(kmoves[x], (c)))
 #define PCAP(x, c) (pcaps[(x) | ((c)<<6)] & colorb[(c)^1])
-#define PCA3(x, c) (pcaps[(x) | ((c)<<6) | 128] & (colorb[(c)^1] | (BIT[ENPASS] & (c ? 0xFF0000LL : 0xFF0000000000LL))))
-#define PCA4(x, c) (pcaps[(x) | ((c)<<6) | 256] & (colorb[(c)^1] | (BIT[ENPASS] & (c ? 0xFF0000LL : 0xFF0000000000LL))))
+#define PCA3(x, c) (pcaps[(x) | ((c)<<6) | 128] & (colorb[(c)^1] | (BIT[ENPASS] & ((c) ? 0xFF0000 : 0xFF0000000000))))
+#define PCA4(x, c) (pcaps[(x) | ((c)<<6) | 256] & (colorb[(c)^1] | (BIT[ENPASS] & ((c) ? 0xFF0000 : 0xFF0000000000))))
 
 #define RANK7(f, c) (((f) & 0x38) == ((c) ? 0x08 : 0x30))
 #define RANK6(f, c) (((f) & 0x38) == ((c) ? 0x10 : 0x28))
 #define RANK4(f, c) (((f) & 0x38) == ((c) ? 0x20 : 0x18))
 #define RANK2(f, c) (((f) & 0x38) == ((c) ? 0x30 : 0x08))
-#define TEST(f, b) (BIT[f] & (b))
 #define ENPASS (flags & 63)
 #define CASTLE (flags & 960)
 #define COUNT (count & 0x3FF)
@@ -104,13 +96,12 @@ struct entry {
 	short value;
 	char depth;
 	char type;
-	short valstat;
 };
 
 struct entry hashDB[HSIZE];
 u64 hashb;
-u64 hstack[0x800];
-u64 mstack[0x800];
+u64 hstack[0x400];
+u64 mstack[0x400];
 
 static u64 BIT[64];
 static u64 hashxor[4096];
@@ -121,7 +112,6 @@ static u64 nmoves[64];
 static u64 kmoves[64];
 static int _knight[8] = {-17,-10,6,15,17,10,-6,-15};
 static int _king[8] = {-9,-1,7,8,9,1,-7,-8};
-static int nmobil[64];
 static int kmobil[64];
 static int pawnprg[128];
 static u32 crevoke[64];
@@ -144,7 +134,7 @@ const char pieceChar[] = "*PNK.BRQ";
 u64 maxtime, starttime;
 u64 pieceb[8], colorb[2];
 int kingpos[2], sf[2];
-int sabort, mat, onmove, engine =-1, sd = 64;
+int sabort, mat, onmove, random, engine =-1, sd = 64;
 u32 count, flags, ics = 0, ponder = 0, pondering = 0, analyze = 0;
 char irbuf[256];
 #define BOARD (colorb[0] | colorb[1])
@@ -171,11 +161,11 @@ void _parse_fen(char *fen, int reset) {
 	int c, i, halfm = 0, fullm = 1, col = 0, row = 7;
 	for (i = 0; i < 8; i++) pieceb[i] = 0LL;
 	colorb[0] = colorb[1] = hashb = 0LL;
-	mat = book = i = c = cas[0] = enps[0] = sf[0] = sf[1] = 0;
+	mat = book = i = c = sf[0] = sf[1] = 0; cas[0] = enps[0] = 0;
 	sscanf(fen, "%s %c %s %s %d %d", pos, &mv, cas, enps, &halfm, &fullm); if (fullm < 1) fullm = 1;
 	while ((s = pos[i++])) {
 		if (s == '/') {
-			row--, col = 0;
+			row--; col = 0;
 		} else if (s >= '1' && s <= '8') {
 			col += s - '0';
 		} else {
@@ -204,11 +194,10 @@ void _parse_fen(char *fen, int reset) {
 #define BKSIZE 8192
 Move bkmove[BKSIZE*32];
 int bkflag[BKSIZE], bkcount[3];
-
-void _readbook(char *bk) {
+void _newGame() {
 	char buf[256], s0[64], s1[64], s2[64];
 	int k, n = 0;
-	FILE *in = fopen(bk, "r");
+	FILE *in = fopen("olibook.pgn", "r");
 	bkcount[0] = bkcount[1] = 0;
 	for (k = 0; k < BKSIZE; k++) bkflag[k] = 2;
 	if (in != NULL) {
@@ -249,18 +238,17 @@ void _readbook(char *bk) {
 	}
 	_parse_fen(sfen, 1);
 	if (bkcount[0] > 0 || bkcount[1] > 0) book = 1;
+	engine = 1; random = 0;
 }
 
 void _init_pawns(u64* moves, u64* caps, u64* freep, u64* filep, u64* helpp, int c) {
 	int i, j;
 	for (i = 0; i < 64; i++) {
-		int rank = i/8;
-		int file = i&7;
+		int rank = i/8, file = i&7;
 		int m = i + (c ? -8 : 8);
 		pawnprg[i + (c << 6)] = pawnrun[c ? 7-rank : rank];
 		for (j = 0; j < 64; j++) {
-			int jrank = j/8;
-			int jfile = j&7;
+			int jrank = j/8, jfile = j&7;
 			int dfile = (jfile - file)*(jfile - file);
 			if (dfile > 1) continue;
 			if ((c && jrank < rank) || (!c && jrank > rank)) {//The not touched part of the board
@@ -288,7 +276,7 @@ void _init_pawns(u64* moves, u64* caps, u64* freep, u64* filep, u64* helpp, int 
 }
 
 void _init_shorts(u64* moves, int* m) {
-	int i, j, n;
+	u32 i, j, n;
 	for (i = 0; i < 64; i++) {
 		for (j = 0; j < 8; j++) {
 			n = i + m[j];
@@ -305,7 +293,7 @@ u64 _occ_free_board(int bc, int del, u64 free) {
 	for (i = 0; i < bc; i++) {
 		low = free & (-free); // Lowest bit 
 		free &= (~low);
-		if (!TEST(i, del)) perm &= (~low);
+		if (!(BIT[i] & del)) perm &= (~low);
 	}
 	return perm;
 }
@@ -328,7 +316,7 @@ void _init_rays(u64* rays, u64 (*rayFunc)(int, u64, int), int (*key)(u64, int)) 
 	}
 }
 
-#define RAYMACRO { if (TEST(i, board)) \
+#define RAYMACRO { if (BIT[i] & board) \
 	{ if (b) { xray |= BIT[i]; break; } else { occ |= BIT[i]; b = 1; }} if (!b) free |= BIT[i]; }
 u64 _rook0(int f, u64 board, int t) {
 	u64 free = 0LL, occ = 0LL, xray = 0LL;
@@ -408,7 +396,7 @@ int pullLsb(u64* bit) {
 
 int identPiece(int f) {
 	int i;
-	for (i = PAWN; i <= QUEEN; i++) if (i != ENP && TEST(f, pieceb[i])) return i;
+	for (i = PAWN; i <= QUEEN; i++) if (i != ENP && (BIT[f] & pieceb[i])) return i;
 	return ENP;
 }
 
@@ -450,10 +438,8 @@ int battacked(int f, int c) {
 
 u64 reach(int f, int c) {
 	return (NCAP(f, c) & pieceb[KNIGHT])
-		   | (RCAP1(f, c) & RQU)
-		   | (RCAP2(f, c) & RQU)
-		   | (BCAP3(f, c) & BQU)
-		   | (BCAP4(f, c) & BQU);
+		| (RCAP1(f, c) & RQU) | (RCAP2(f, c) & RQU)
+		| (BCAP3(f, c) & BQU) | (BCAP4(f, c) & BQU);
 }
 
 u64 attacked(int f, int c) {
@@ -465,12 +451,12 @@ u64 pinnedPieces(int f, int oc) {
 	u64 b = ((RXRAY1(f) | RXRAY2(f)) & colorb[oc]) & RQU;
 	while (b) {
 		int t = pullLsb(&b);
-		pin |= RCAP(t, oc) & ROCC(f);
+		pin |= RATT(f) & RATT(t) & colorb[oc^1];
 	}
 	b = ((BXRAY3(f) | BXRAY4(f)) & colorb[oc]) & BQU;
 	while (b) {
 		int t = pullLsb(&b);
-		pin |= BCAP(t, oc) & BOCC(f);
+		pin |= BATT(f) & BATT(t) & colorb[oc^1];
 	}
 	return pin;
 }
@@ -508,7 +494,7 @@ void move(Move m, int c, int d) {
 
 	if (a) {
 		if (a == ENP) { // Enpassant Capture
-			t = (t&7) | (f&56), a = PAWN;
+			t = (t&7) | (f&56); a = PAWN;
 		} else if (a == ROOK && CASTLE) { //Revoke castling rights.
 			flags &= crevoke[t];
 		}
@@ -569,11 +555,6 @@ void regMoves(Move m, u64 bt, Movep* mp, int cap) {
 	}
 }
 
-void regMovesCaps(Move m, u64 bc, u64 bm, Movep* mp) {
-	regMoves(m, bc, mp, 1);
-	regMoves(m, bm, mp, 0);
-}
-
 void regPromotions(int f, int c, u64 bt, Movep* mp, int cap, int queen) {
 	while (bt) {
 		int t = pullLsb(&bt);
@@ -610,13 +591,13 @@ int generateCheckEsc(u64 ch, u64 apin, int c, int k, Movep *mp) {
 		if (p == PAWN && RANK7(cf, c))
 			regPromotions(cf, c, ch, mp, 1, 1);
 		else 
-			regMovesCaps(PREMOVE(cf, p), ch, 0LL, mp);
+			regMoves(PREMOVE(cf, p), ch, mp, 1);
 	}
 	if (ENPASS && (ch & pieceb[PAWN])) { //Enpassant capture of attacking Pawn
 		cc = PCAP(ENPASS, c^1) & pieceb[PAWN] & apin;
 		while (cc) {
 			int cf = pullLsb(&cc);
-			regMovesCaps(PREMOVE(cf, PAWN), BIT[ENPASS], 0LL, mp);
+			regMoves(PREMOVE(cf, PAWN), BIT[ENPASS], mp, 1);
 		}
 	}
 	if (ch & (nmoves[k] | kmoves[k])) return 1; //We can't move anything between!
@@ -633,18 +614,18 @@ int generateCheckEsc(u64 ch, u64 apin, int c, int k, Movep *mp) {
 		while (cc) {
 			int cf = pullLsb(&cc);
 			int p = identPiece(cf);
-			regMovesCaps(PREMOVE(cf, p), 0LL, BIT[f], mp);
+			regMoves(PREMOVE(cf, p), BIT[f], mp, 0);
 		}
 		bf = c ? f+8 : f-8;
-		if (bf < 0 || bf > 63) continue;
-		if (BIT[bf] & pieceb[PAWN] & colorb[c] & apin) {
+		if (bf < 0 || bf > 63 || !(cc = pieceb[PAWN] & colorb[c] & apin)) continue;
+		if (BIT[bf] & cc) {
 			if (RANK7(bf, c))
 				regPromotions(bf, c, BIT[f], mp, 0, 1);
 			else
-				regMovesCaps(PREMOVE(bf, PAWN), 0LL, BIT[f], mp);
+				regMoves(PREMOVE(bf, PAWN), BIT[f], mp, 0);
 		}
-		if (RANK4(f, c) && !(BOARD & BIT[bf]) && (BIT[c ? f+16 : f-16] & pieceb[PAWN] & colorb[c] & apin))
-			regMovesCaps(PREMOVE(c ? f+16 : f-16, PAWN), 0LL, BIT[f], mp);
+		if (RANK4(f, c) && !(BOARD & BIT[bf]) && (BIT[c ? f+16 : f-16] & cc))
+			regMoves(PREMOVE(c ? f+16 : f-16, PAWN), BIT[f], mp, 0);
 	}
 	return 1;
 }
@@ -739,13 +720,15 @@ void generateNoisy(int c, int f, u64 pin, Movep *mp) {
 			m = 0; a = PCA4(f, c);
 		}
 		if (RANK7(f, c)) {
-			regMovesCaps(PREMOVE(f, PAWN) | _PROM(QUEEN), a, m, mp);
+			if (a) regMoves(PREMOVE(f, PAWN) | _PROM(QUEEN), a, mp, 1);
+			if (m) regMoves(PREMOVE(f, PAWN) | _PROM(QUEEN), m, mp, 0);
 		} else if (RANK6(f, c)) {
-			regMovesCaps(PREMOVE(f, PAWN), a, m, mp);
+			if (a) regMoves(PREMOVE(f, PAWN), a, mp, 1);
+			if (m) regMoves(PREMOVE(f, PAWN), m, mp, 0);
 		} else {
 			if (t & 128 && ENPASS && (BIT[ENPASS] & pcaps[(f) | ((c)<<6)])) {
 				colorb[c^1] ^= BIT[ENPASS^8];
-				if (!(ROCC1(f) & BIT[kingpos[c]]) || !(ROCC1(f) & colorb[c^1] & RQU)) {
+				if (!(RATT1(f) & BIT[kingpos[c]]) || !(RATT1(f) & colorb[c^1] & RQU)) {
 					a = a | BIT[ENPASS];
 				}
 				colorb[c^1] ^= BIT[ENPASS^8];
@@ -814,7 +797,7 @@ int swap(Move m) { //SEE
 
 	do {
 		c ^= 1;
-		attacks |= (BOCC(t) & BQU) | (ROCC(t) & RQU);
+		attacks |= (BATT(t) & BQU) | (RATT(t) & RQU);
 		attacks &= BOARD;
 
 		if ((temp = pieceb[PAWN] & colorb[c] & attacks)) piece = PAWN;
@@ -876,7 +859,6 @@ Move spick(Movep* mp, int s, int ply) {
 }
 
 u64 rankb[8]; u64 fileb[8];
-
 u64 pawnAttack(int c) {
 	u64 p = colorb[c] & pieceb[PAWN];
 	return c == 0 ? (p &~ fileb[0]) << 7 | (p &~ fileb[7]) << 9 : (p &~ fileb[7]) >> 7 | (p &~ fileb[0]) >> 9;
@@ -888,11 +870,10 @@ u64 mobilityb(int c) {
 	return ~(b | pawnAttack(c^1));
 }
 
-#define MOBILITY(a, mb) (bitcnt(a) + bitcnt(a & mb))
+#define MOBILITY(a, mb) (bitcnt(a) + bitcnt((a) & (mb)))
 /* The eval for Color c. It's almost only mobility. Pinned pieces are still awarded for limiting opposite's king */
 int evalc(int c) {
-	int t, f, mn = 0, katt = 0, egf = 10400/(80 + sf[c] + sf[c^1]);
-	int oc = c^1;
+	int t, f, mn = 0, katt = 0, oc = c^1, egf = 10400/(80 + sf[c] + sf[oc]) + random;
 	u64 b, a, cb, ocb = colorb[oc], mb = sf[c] ? mobilityb(c) : 0LL;
 	u64 kn = kmoves[kingpos[oc]] & (~pieceb[PAWN]);
 	u64 pin = pinnedPieces(kingpos[c], oc);
@@ -940,14 +921,14 @@ int evalc(int c) {
 		f = pullLsb(&b);
 		a = BATT3(f) | BATT4(f) | RATT1(f) | RATT2(f);
 		if (a & kn) katt += MOBILITY(a & kn, mb) << 3;
-		mn += MOBILITY(a, mb) * egf * egf / 78 / 78;
+		mn += MOBILITY(a, mb) * egf * egf / 77 / 78;
 	}
 
 	colorb[oc] ^= RQU & ocb; //Opposite Queen & Rook doesn't block mobility for bishop
 	b = pieceb[BISHOP] & cb;
 	while (b) {
 		f = pullLsb(&b);
-		a = BATT3(f) | BATT4(f);
+		a = BATT(f);
 		if (a & kn) katt += MOBILITY(a & kn, mb) << 3;
 		mn += MOBILITY(a, mb) << 2;
 	}
@@ -957,7 +938,7 @@ int evalc(int c) {
 	b = pieceb[ROOK] & cb;
 	while (b) {
 		f = pullLsb(&b);
-		a = RATT1(f) | RATT2(f);
+		a = RATT(f);
 		if (a & kn) katt += MOBILITY(a & kn, mb) << 3;
 		mn += (MOBILITY(a, mb) << 1) * egf / 75;
 	}
@@ -967,8 +948,8 @@ int evalc(int c) {
 	while (b) {
 		f = pullLsb(&b);
 		int p = identPiece(f);
-		if (p == BISHOP) a = BATT3(f) | BATT4(f);
-		else if (p == ROOK) a = RATT1(f) | RATT2(f);
+		if (p == BISHOP) a = BATT(f);
+		else if (p == ROOK) a = RATT(f);
 		else a = RATT1(f) | RATT2(f) | BATT3(f) | BATT4(f);
 
 		if (a & kn) katt += MOBILITY(a & kn, mb) << 3;
@@ -981,7 +962,7 @@ int evalc(int c) {
 
 	colorb[oc] ^= pieceb[QUEEN] & ocb; //Back
 	colorb[oc] ^= BIT[kingpos[oc]]; //Back
-	return mn + katt * sf[c] / 17; //Reduce the bonus for attacking king squares
+	return mn + katt * (sf[c] + 3) / 15; //Reduce the bonus for attacking king squares
 }
 
 int kmobilf(int c) {
@@ -1108,10 +1089,10 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 	}
 	if (sabort) return alpha;
 
-	u64 hp = HASHP; long long hismax = -1LL;
+	u64 hp = HASHP;
 	if (ply && isDraw(hp, 1)) return 0;
 
-	if (ch) d++;
+	if (ch) d++; // Check extension
 	if (d <= 0 || ply > 100) return quiesce(ch, c, ply, alpha, beta);
 		
 	if (alpha < -MAXSCORE+ply) alpha = -MAXSCORE+ply;
@@ -1129,7 +1110,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 		if (!hmove) hmove = he.move;
 	}
 
-	int wstat = ch ? -MAXSCORE+ply : he.key == hp ? he.valstat : eval(c, mat);
+	int wstat = ch ? -MAXSCORE+ply : he.key == hp ? he.value : eval(c, mat);
 	if (!ch && !pvnode && beta > -MAXSCORE+500) {
 		if (d <= 3 && wstat + 400 < beta) { w = quiesce(ch, c, ply, alpha, beta); if (w < beta) return w; }
 		if (d <= 8 && wstat - 88*d > beta) return wstat;
@@ -1151,7 +1132,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 	}
 
 	Movep mp; mp.nquiet = 0;
-	int first = NO_MOVE;
+	int first = NO_MOVE;  long long hismax = -1LL;
 	for (n = HASH; n <= (ch ? NOISY : QUIET); n++) {
 		if (n == HASH) {
 			if (hmove == 0) continue;
@@ -1229,8 +1210,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 	char type = UPPER;
 	if (first == GOOD_MOVE) type = (char)(alpha >= beta ? LOWER : EXACT), hmove = pv[ply][ply]; // Found good move
 	
-	hashDB[hp & HMASK]
-		= (struct entry) {.key = hp, .move = hmove, .value = alpha, .depth = d, .type = type, .valstat = wstat};
+	hashDB[hp & HMASK] = (struct entry) {.key = hp, .move = hmove, .value = alpha, .depth = d, .type = type };
 
 	return alpha;
 }
@@ -1301,10 +1281,8 @@ int parseMove(char *s, int c, Move p) {
 		}
 	}
 	to = c1 - 'a' + 8*(c2 - '1');
-	if (p) {
-		if (ismove(p, to, from, piece, prom, h)) return p;
-		return 0;
-	}
+	if (p) return ismove(p, to, from, piece, prom, h) ? p : 0;
+
 	Movep mp; GENERATE(c, &mp);
 	for (i = 0; i < mp.n; i++) if (ismove(mp.list[i], to, from, piece, prom, h)) return mp.list[i];
 	return 0;
@@ -1365,6 +1343,7 @@ int calc(int tm) {
 			}
 		}
 	}
+	if ((!book || analyze) && random) random = analyze ? 0 : (int)(hashxor[starttime & 4095] & 0xF) % 5;
 	if (!book || analyze) for (d = 1; d <= sd; d++) {
 		int alpha = d > 6 ? w - 13 : -MAXSCORE, beta = d > 6 ? w + 13: MAXSCORE, delta = 18;
 		Move bestm = pv[0][0];
@@ -1385,7 +1364,7 @@ int calc(int tm) {
 		t1 = (u32)(getTime() - starttime);
 		if (post && pv[0][0] && (!sabort || (!analyze && sabort>=1)) && w > -MAXSCORE) {
 			printf("%2d %5d %6lu %9llu  ", d, MEVAL(w), (t1+4)/10, nodes + qnodes);
-			displaypv(); printf("\n"); 
+			displaypv(); printf("\n");
 		}
 		if (sabort) break;
 		if (pondering) continue;
@@ -1414,17 +1393,15 @@ int doponder(int c) {
 	if (pon) {
 		pondering = 1;
 		if (execMove(pon)) {
-			pondering = 0;
 			undo();
-			pon = 0;
+			pondering = pon = 0;
 		}
 	}
 	return pondering ? 0 : -1;
 }
 
 u64 perft(int c, int d, int div) {
-	int i;
-	u64 n, cnt = 0LL;
+	int i; u64 n, cnt = 0LL;
 	Movep mp; generate(attacked(kingpos[c], c), c, &mp, 1, 1);
 	if (d == 1 || bioskey()) return (u64)mp.n;
 	for (i = 0; i < mp.n; i++) {
@@ -1435,11 +1412,6 @@ u64 perft(int c, int d, int div) {
 		undoMove(m, c);
 	}
 	return cnt;
-}
-
-void newGame() {
-	_readbook("olibook.pgn");
-	engine = 1;
 }
 
 int protV2(char* buf, int parse) {
@@ -1466,14 +1438,14 @@ int protV2(char* buf, int parse) {
 	else if (!strncmp(buf,"result",6)) return -6; //result 0-1 {Black mates}
 	else if (!strncmp(buf,"otim",4));//otim <optime>
 	else if (!strncmp(buf,"draw",4));//draw offer
-	else if (!strncmp(buf,"st",2)) sscanf(buf+3,"%d",&st);
+	else if (!strncmp(buf,"st",2)) scanf(buf+3,"%d",&st);
 	else if (!strncmp(buf,"?",1)) return 1;
 	else if (!strncmp(buf,".",1));
 	else if (!strncmp(buf,"bk",2));
 	else if (!strncmp(buf,"hint",4));
 	else if (!strncmp(buf,"computer",8));
 	else if (!strncmp(buf,"accepted",8) || !strncmp(buf,"rejected",8));//accepted/rejected <feature>
-	else if (!strncmp(buf,"random",6));
+	else if (!strncmp(buf,"random",6)) random = 1;
 	else if (!strncmp(buf,"rating",6)) ics = 1;//ICS: rating <myrat> <oprat>
 	else if (!strncmp(buf,"name",4));//ICS: name <opname>
 	else if (!strncmp(buf,"perft",5)) { int i; for (i = 1; i <= sd && !bioskey(); i++)
@@ -1524,10 +1496,9 @@ int main(int argc, char **argv) {
 	_init_pawns(pmoves, pcaps, pawnfree, pawnfile, pawnhelp, 0);
 	_init_pawns(pmoves + 64, pcaps + 64, pawnfree + 64, pawnfile + 64, pawnhelp + 64, 1);
 
-	for (i = 0; i < 64; i++) nmobil[i] = (bitcnt(nmoves[i]))*8;
 	for (i = 0; i < 64; i++) kmobil[i] = MAX(bitcnt(nmoves[i]), 3);
 	for (i = 0; i < 32; i++) bishcorn[i] = bishcorn[63-i] = (i&7) < 4 ? cornbase[(i&7) +i/8] : -cornbase[7 -(i&7) +i/8];
-	newGame();
+	_newGame();
 
 	if (argc > 1 && !strncmp(argv[1],"-sd",3)) {
 		ttime = 99999999;
@@ -1544,7 +1515,7 @@ int main(int argc, char **argv) {
 
 		if (!ponder || book || engine == -1 || ex != 0) ex = input(onmove);
 		if (ex == -2) break;
-		if (ex == -3) newGame();
+		if (ex == -3) _newGame();
 		if (ex == -4) { undo(); undo(); }
 		if (ex == -5) analyze = pondering = 1, engine = -1;
 		if (ex == -6) analyze = pondering = 0;
