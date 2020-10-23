@@ -1343,7 +1343,7 @@ int calc(int tm) {
 			}
 		}
 	}
-	if ((!book || analyze) && random) random = analyze ? 0 : (int)(hashxor[starttime & 4095] & 0xF) % 5;
+	if ((!book || analyze) && random) random = analyze ? 0 : (int)(hashxor[starttime & 4095] & 0xF) % 6;
 	if (!book || analyze) for (d = 1; d <= sd; d++) {
 		int alpha = d > 6 ? w - 13 : -MAXSCORE, beta = d > 6 ? w + 13: MAXSCORE, delta = 18;
 		Move bestm = pv[0][0];
