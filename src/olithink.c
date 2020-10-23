@@ -1438,7 +1438,7 @@ int protV2(char* buf, int parse) {
 	else if (!strncmp(buf,"result",6)) return -6; //result 0-1 {Black mates}
 	else if (!strncmp(buf,"otim",4));//otim <optime>
 	else if (!strncmp(buf,"draw",4));//draw offer
-	else if (!strncmp(buf,"st",2)) scanf(buf+3,"%d",&st);
+	else if (!strncmp(buf,"st",2)) sscanf(buf+3,"%d",&st);
 	else if (!strncmp(buf,"?",1)) return 1;
 	else if (!strncmp(buf,".",1));
 	else if (!strncmp(buf,"bk",2));
