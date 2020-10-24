@@ -1,7 +1,7 @@
-/* OliPerft 1.0.6 - Bitboard Magic Move (c) Oliver Brausch 05.Oct.2020, ob112@web.de */
+/* OliPerft 1.0.7 - Bitboard Magic Move (c) Oliver Brausch 25.Oct.2020, ob112@web.de */
 /* oliperft 6 "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
-Nodes: 8229523927 cs: 1156 knps: 711527 (gcc8 64bit AMD EPYC 7502P 1/32-Core Processor)
-Nodes: 8229523927 cs: 1526 knps: 539145 (gcc4 OSX i7 8850H 2.6 GHz)
+Nodes: 8229523927 cs: 1156 knps: 713625 (gcc8 64bit AMD EPYC 7502P 1/32-Core Processor)
+Nodes: 8229523927 cs: 1526 knps: 568690 (gcc4 OSX i7 8850H 2.6 GHz)
 Nodes: 8229523927 ms: 40610 knps: 202647 (VS2005 64bit AMD64 4600+) (1.0.2)
 Nodes: 8229523927 ms: 64860 knps: 126881 (VS2005 32bit AMD64 4600+) (1.0.2)
 Nodes: 8229523927 ms: 97251 knps: 84621 (gcc4 32bit AMD Opteron 1210HE) (1.0.2)
@@ -51,43 +51,34 @@ struct timezone tz;
 #define BXRAY3(f) rays[((f) << 7) | key045(board, f) | 0xC000]
 #define BXRAY4(f) rays[((f) << 7) | key135(board, f) | 0xE000]
 
-#define ROCC1(f) (RATT1(f) & board)
-#define ROCC2(f) (RATT2(f) & board)
-#define BOCC3(f) (BATT3(f) & board)
-#define BOCC4(f) (BATT4(f) & board)
-#define RMOVE1(f) (RATT1(f) & (~board))
-#define RMOVE2(f) (RATT2(f) & (~board))
-#define BMOVE3(f) (BATT3(f) & (~board))
-#define BMOVE4(f) (BATT4(f) & (~board))
+#define RMOVE1(f) (RATT1(f) & ~board)
+#define RMOVE2(f) (RATT2(f) & ~board)
+#define BMOVE3(f) (BATT3(f) & ~board)
+#define BMOVE4(f) (BATT4(f) & ~board)
 #define RCAP1(f, c) (RATT1(f) & colorb[(c)^1])
 #define RCAP2(f, c) (RATT2(f) & colorb[(c)^1])
 #define BCAP3(f, c) (BATT3(f) & colorb[(c)^1])
 #define BCAP4(f, c) (BATT4(f) & colorb[(c)^1])
-#define ROCC(f) (ROCC1(f) | ROCC2(f))
-#define BOCC(f) (BOCC3(f) | BOCC4(f))
+#define RATT(f) (RATT1(f) | RATT2(f))
+#define BATT(f) (BATT3(f) | BATT4(f))
 #define RMOVE(f) (RMOVE1(f) | RMOVE2(f))
 #define BMOVE(f) (BMOVE3(f) | BMOVE4(f))
-#define RCAP(f, c) (ROCC(f) & colorb[(c)^1])
-#define BCAP(f, c) (BOCC(f) & colorb[(c)^1])
+#define RCAP(f, c) (RCAP1(f, c) | RCAP2(f, c))
+#define BCAP(f, c) (BCAP3(f, c) | BCAP4(f, c))
 
-#define SHORTMOVE(x) ((x) & ((x)^board))
-#define SHORTOCC(x) ((x) & board))
-#define SHORTCAP(x, c) ((x) & colorb[(c)^1])
-
-#define NMOVE(x) (SHORTMOVE(nmoves[x]))
-#define KMOVE(x) (SHORTMOVE(kmoves[x]))
-#define PMOVE(x, c) (pmoves[(x) | ((c)<<6)] & (~board))
-#define NOCC(x) (SHORTOCC(nmoves[x]))
-#define KOCC(x) (SHORTOCC(kmoves[x]))
+#define NMOVE(x) (nmoves[x] & ~board)
+#define KMOVE(x) (kmoves[x] & ~board)
+#define NCAP(x, c) (nmoves[x] & colorb[(c)^1])
+#define KCAP(x, c) (kmoves[x] & colorb[(c)^1])
+#define PMOVE(x, c) (pmoves[(x) | ((c)<<6)] & ~board)
 #define POCC(x, c) (pcaps[(x) | ((c)<<6)] & board)
-#define NCAP(x, c) (SHORTCAP(nmoves[x], (c)))
-#define KCAP(x, c) (SHORTCAP(kmoves[x], (c)))
 #define PCAP(x, c) (pcaps[(x) | ((c)<<6)] & colorb[(c)^1])
-#define PCA3(x, c) (pcaps[(x) | ((c)<<6) | 128] & (colorb[(c)^1] | ((BIT[ENPASS]) & (c ? 0xFF0000LL : 0xFF0000000000LL))))
-#define PCA4(x, c) (pcaps[(x) | ((c)<<6) | 256] & (colorb[(c)^1] | ((BIT[ENPASS]) & (c ? 0xFF0000LL : 0xFF0000000000LL))))
+#define PCA3(x, c) (pcaps[(x) | ((c)<<6) | 128] & (colorb[(c)^1] | (BIT[ENPASS] & ((c) ? 0xFF0000 : 0xFF0000000000))))
+#define PCA4(x, c) (pcaps[(x) | ((c)<<6) | 256] & (colorb[(c)^1] | (BIT[ENPASS] & ((c) ? 0xFF0000 : 0xFF0000000000))))
 
-#define RANK(x, y) (((x) & 0x38) == (y))
-#define TEST(f, b) (BIT[f] & (b))
+#define RANK7(f, c) (((f) & 0x38) == ((c) ? 0x08 : 0x30))
+#define RANK4(f, c) (((f) & 0x38) == ((c) ? 0x20 : 0x18))
+#define RANK2(f, c) (((f) & 0x38) == ((c) ? 0x30 : 0x08))
 #define ENPASS (flags & 63)
 #define CASTLE (flags & 960)
 
@@ -107,7 +98,7 @@ u64 colorb[2];
 u64 board;
 u64 hashb;
 static u64 BIT[64];
-static u64 hashxor[0x10000];
+static u64 hashxor[0x8000];
 int flags;
 int crevoke[64];
 int onmove;
@@ -117,121 +108,37 @@ const char pieceChar[] = "*PNK.BRQ";
 
 void _parse_fen(char *fen) {
 	char s, mv, pos[128], cas[5], enps[3];
-	int i, j = 0, halfm = 0, fullm = 1, col = 0, row = 7;
-	for (i = 0; i < 8; i++) {
-		pieceb[i] = 0LL;
-	}
-	colorb[0] = colorb[1] = hashb = 0LL;
-	sscanf(fen, "%s %c %s %s %d %d", pos, &mv, cas, enps, &halfm, &fullm);
-	while ((s = pos[j++])) {
+	int i, p, halfm = 0, fullm = 1, col = 0, row = 7;
+	for (i = 0; i < 8; i++) pieceb[i] = 0LL;
+	colorb[0] = colorb[1] = hashb = i = 0LL;
+	sscanf(fen, "%s %c %s %s %d %d", pos, &mv, cas, enps, &halfm, &fullm); if (fullm < 1) fullm = 1;
+	while ((s = pos[i++])) {
 		if (s == '/') {
 			row--;
 			col = 0;
 		} else if (s >= '1' && s <= '8') {
 			col += s - '0';
-		} else for (i = 1; i < 8; i++) {
-			if (pieceChar[i] == s || pieceChar[i] == s - 32) {
-				int c = pieceChar[i] != s;
-				if (i == KING) kingpos[c] = row*8 + col;
-				hashb ^= hashxor[c | (row << 1) | (i << 4) | (col << 7)];
-				pieceb[i] |= BIT[row*8 + col];
-				colorb[c] |= BIT[row*8 + (col++)];
+		} else for (p = 1; p < 8; p++) {
+			if (pieceChar[p] == s || pieceChar[p] == s - 32) {
+				int c = pieceChar[p] != s, t = row*8 + (col++);
+				if (p == KING) kingpos[c] = t;
+				hashb ^= hashxor[col | row << 3 | p << 6 | c << 9];
+				pieceb[p] |= BIT[t];
+				colorb[c] |= BIT[t];
 				break;
 			}
 		}
 	}
 	onmove = mv == 'b' ? 1 : 0;
-	flags = j = 0;
-	while ((s = cas[j++])) {
+	flags = i = 0;
+	while ((s = cas[i++])) {
 		if (s == 'K') flags |= BIT[6];
 		if (s == 'k') flags |= BIT[7];
 		if (s == 'Q') flags |= BIT[8];
 		if (s == 'q') flags |= BIT[9];
 	}
-	if (enps[0] != '-') {
-		flags |= 8*(enps[1] - '1') + enps[0] - 'a'; 
-	}
+	if (enps[0] != '-') flags |= 8*(enps[1] - '1') + enps[0] - 'a';
 	board = colorb[0] | colorb[1];
-}
-
-u64 getTime()
-{
-#ifdef _WIN32
-	_ftime(&tv);
-	return(tv.time * 1000LL + tv.millitm);
-#else
-	gettimeofday (&tv, &tz);
-	return(tv.tv_sec * 1000LL + (tv.tv_usec / 1000));
-#endif
-}
-
-int pullLsb(u64* bit) {
-	int f = getLsb(*bit);
-	*bit &= *bit - 1;
-	return f;
-}
-
-int identPiece(int f) {
-	int i;
-	for (i = PAWN; i <= QUEEN; i++) if (i != ENP && TEST(f, pieceb[i])) return i;
-	return ENP;
-}
-
-int identColor(int f) {
-	return (TEST(f, colorb[1])) ? 1 : 0;
-}
-
-u64 bmask45[64];
-u64 bmask135[64];
-
-int key000(u64 b, int f) {
-	return (int) ((b >> (f & 56)) & 0x7E);
-}
-
-int key090(u64 b, int f) {
-	u64 _b = (b >> (f&7)) & 0x0101010101010101LL;
-	_b = _b * 0x0080402010080400LL;
-	return (int)(_b >> 57);
-}
-
-int keyDiag(u64 _b) {
-	_b = _b * 0x0202020202020202LL;
-	return (int)(_b >> 57);
-}
-
-int key045(u64 b, int f) {
-   return keyDiag(b & bmask45[f]);
-}
-
-int key135(u64 b, int f) {
-   return keyDiag(b & bmask135[f]);
-}
-
-#define DUALATT(x, y, c) (battacked(x, c) || battacked(y, c))
-#define RQU (pieceb[ROOK] | pieceb[QUEEN])
-#define BQU (pieceb[BISHOP] | pieceb[QUEEN])
-
-int battacked(int f, int c) {
-	if (PCAP(f, c) & pieceb[PAWN]) return 1;
-	if (NCAP(f, c) & pieceb[KNIGHT]) return 1;
-	if (KCAP(f, c) & pieceb[KING]) return 1;
-	if (RCAP1(f, c) & RQU) return 1; 
-	if (RCAP2(f, c) & RQU) return 1; 
-	if (BCAP3(f, c) & BQU) return 1;
-	if (BCAP4(f, c) & BQU) return 1;
-	return 0;
-}
-
-u64 reach(int f, int c) {
-	return (NCAP(f, c) & pieceb[KNIGHT])
-		| (RCAP1(f, c) & RQU)
-		| (RCAP2(f, c) & RQU)
-		| (BCAP3(f, c) & BQU)
-		| (BCAP4(f, c) & BQU);
-}
-
-u64 attacked(int f, int c) {
-	return (PCAP(f, c) & pieceb[PAWN]) | reach(f, c);
 }
 
 void _init_pawns(u64* moves, u64* caps, int c) {
@@ -273,13 +180,13 @@ u64 _occ_free_board(int bc, int del, u64 free) {
 	for (i = 0; i < bc; i++) {
 		low = free & (-free); // Lowest bit
 		free &= (~low);
-		if (!TEST(i, del)) perm &= (~low);
+		if (!(BIT[i] & del)) perm &= (~low);
 	}
 	return perm;
 }
 
 void _init_rays(u64* rays, u64 (*rayFunc) (int, u64, int), int (*key)(u64, int)) {
-	int i, f, iperm, bc, index; 
+	int i, f, iperm, bc, index;
 	u64 board, mmask, occ, move, xray;
 	for (f = 0; f < 64; f++) {
 		mmask = (*rayFunc)(f, 0LL, 0) | BIT[f];
@@ -296,7 +203,8 @@ void _init_rays(u64* rays, u64 (*rayFunc) (int, u64, int), int (*key)(u64, int))
 	}
 }
 
-#define RAYMACRO {if (TEST(i, board)) { if (b) { xray |= BIT[i]; break; } else { occ |= BIT[i];; b = 1; } } if (!b) free |= BIT[i];}
+#define RAYMACRO { if (BIT[i] & board) \
+	{ if (b) { xray |= BIT[i]; break; } else { occ |= BIT[i]; b = 1; } } if (!b) free |= BIT[i]; }
 u64 _rook0(int f, u64 board, int t) {
 	u64 free = 0LL, occ = 0LL, xray = 0LL;
 	int i, b;
@@ -317,23 +225,98 @@ u64 _bishop45(int f, u64 board, int t) {
 	u64 free = 0LL, occ = 0LL, xray = 0LL;
 	int i, b;
 	for (b = 0, i = f+9; i < 64 && (i%8 != 0); i+=9) RAYMACRO
-		for (b = 0, i = f-9; i >= 0 && (i%8 != 7); i-=9) RAYMACRO
-			return (t < 2) ? free : (t == 2 ? occ : xray);
+	for (b = 0, i = f-9; i >= 0 && (i%8 != 7); i-=9) RAYMACRO
+	return (t < 2) ? free : (t == 2 ? occ : xray);
 }
 
 u64 _bishop135(int f, u64 board, int t) {
 	u64 free = 0LL, occ = 0LL, xray = 0LL;
 	int i, b;
 	for (b = 0, i = f-7; i >= 0 && (i%8 != 0); i-=7) RAYMACRO
-		for (b = 0, i = f+7; i < 64 && (i%8 != 7); i+=7) RAYMACRO
-			return (t < 2) ? free : (t == 2 ? occ : xray);
+	for (b = 0, i = f+7; i < 64 && (i%8 != 7); i+=7) RAYMACRO
+	return (t < 2) ? free : (t == 2 ? occ : xray);
+}
+
+u64 getTime() {
+#ifdef _WIN32
+	_ftime(&tv);
+	return(tv.time * 1000LL + tv.millitm);
+#else
+	gettimeofday (&tv, &tz);
+	return(tv.tv_sec * 1000LL + (tv.tv_usec / 1000));
+#endif
+}
+
+int pullLsb(u64* bit) {
+	int f = getLsb(*bit);
+	*bit &= *bit - 1;
+	return f;
+}
+
+int identPiece(int f) {
+	int i;
+	for (i = PAWN; i <= QUEEN; i++) if (i != ENP && (BIT[f] & pieceb[i])) return i;
+	return ENP;
+}
+
+int identColor(int f) {
+	return (BIT[f] & colorb[1]) ? 1 : 0;
+}
+
+int key000(u64 b, int f) {
+	return (int) ((b >> (f & 56)) & 0x7E);
+}
+
+int key090(u64 b, int f) {
+	u64 _b = (b >> (f&7)) & 0x0101010101010101LL;
+	_b = _b * 0x0080402010080400LL;
+	return (int)(_b >> 57);
+}
+
+int keyDiag(u64 _b) {
+	_b = _b * 0x0202020202020202LL;
+	return (int)(_b >> 57);
+}
+
+u64 bmask45[64], bmask135[64];
+int key045(u64 b, int f) {
+   return keyDiag(b & bmask45[f]);
+}
+
+int key135(u64 b, int f) {
+   return keyDiag(b & bmask135[f]);
+}
+
+#define DUALATT(x, y, c) (battacked(x, c) || battacked(y, c))
+#define RQU (pieceb[ROOK] | pieceb[QUEEN])
+#define BQU (pieceb[BISHOP] | pieceb[QUEEN])
+
+int battacked(int f, int c) {
+	if (PCAP(f, c) & pieceb[PAWN]) return 1;
+	if (NCAP(f, c) & pieceb[KNIGHT]) return 1;
+	if (KCAP(f, c) & pieceb[KING]) return 1;
+	if (RCAP1(f, c) & RQU) return 1; 
+	if (RCAP2(f, c) & RQU) return 1; 
+	if (BCAP3(f, c) & BQU) return 1;
+	if (BCAP4(f, c) & BQU) return 1;
+	return 0;
+}
+
+u64 reach(int f, int c) {
+	return (NCAP(f, c) & pieceb[KNIGHT])
+		| (RCAP1(f, c) & RQU) | (RCAP2(f, c) & RQU)
+		| (BCAP3(f, c) & BQU) | (BCAP4(f, c) & BQU);
+}
+
+u64 attacked(int f, int c) {
+	return (PCAP(f, c) & pieceb[PAWN]) | reach(f, c);
 }
 
 void display64(u64 bb) {
 	int i, j;
 	for (i = 0; i < 8; i++) {
 		for (j = 0; j < 8; j++) {
-			printf(" %d", TEST(j + (7-i)*8, bb) ? 1 : 0);
+			printf(" %d", BIT[j + (7-i)*8] & bb ? 1 : 0);
 		}
 		printf("\n");
 	}
@@ -369,22 +352,27 @@ void doMove(Move m, int c) {
 
 	colorb[c] ^= BIT[t];
 	pieceb[p] ^= BIT[t];
+	hashb ^= hashxor[f | p << 6 | c << 9];
+	hashb ^= hashxor[t | p << 6 | c << 9];
+
 	flags &= 960;
 	if (a) {
 		if (a == ENP) { // Enpassant Capture
-			t = (t&7) | (f&56);
-			a = PAWN;
+			t = (t&7) | (f&56); a = PAWN;
 		} else if (a == ROOK && CASTLE) { //Revoke castling rights.
 			flags &= crevoke[t];
 		}
 		pieceb[a] ^= BIT[t];
 		colorb[c^1] ^= BIT[t];
+		hashb ^= hashxor[t | a << 6 | (c^1) << 9];
 	}
 	if (p == PAWN) {
 		if (((f^t)&8) == 0) flags |= f^24; //Enpassant
 		else if ((t&56) == 0 || (t&56) == 56) {
 			pieceb[PAWN] ^= BIT[t];
 			pieceb[PROM(m)] ^= BIT[t];
+			hashb ^= hashxor[t | PAWN << 6 | c << 9];
+			hashb ^= hashxor[t | PROM(m) << 6 | c << 9];
 		}
 	} else if (p == KING) {
 		if (kingpos[c] == f) kingpos[c] = t; else kingpos[c] = f;
@@ -398,15 +386,13 @@ void doMove(Move m, int c) {
 			pieceb[ROOK] ^= BIT[f];
 			colorb[c] ^= BIT[t];
 			pieceb[ROOK] ^= BIT[t];
-			hashb ^= hashxor[f | c << 12 | ROOK << 13];
-			hashb ^= hashxor[t | c << 12 | ROOK << 13];
+			hashb ^= hashxor[f | ROOK << 6 | c << 9];
+			hashb ^= hashxor[t | ROOK << 6 | c << 9];
 		}
 	} else if (p == ROOK && CASTLE) {
 		flags &= crevoke[f];
 	}
 	board = colorb[0] | colorb[1];
-	hashb ^= hashxor[f | ((m >> 6) & 0x3C0)];
-	hashb ^= hashxor[m >> 6];
 }
 
 struct Movep {
@@ -414,13 +400,6 @@ struct Movep {
 	Move moves[128];
 };
 typedef struct Movep Movep;
-
-void registerCaps(Move m, u64 bc, Movep *mp) {
-	while (bc) {
-		int t = pullLsb(&bc);
-		mp->moves[mp->n++] = m | _TO(t) | _CAP(identPiece(t));
-	}
-}
 
 void registerMoves(Move m, u64 bc, u64 bm, Movep *mp) {
 	while (bc) {
@@ -482,7 +461,7 @@ int generateCheckEsc(u64 ch, u64 apin, int c, int k, Movep *mp) {
 	while (cc) {
 		int cf = pullLsb(&cc);
 		int p = identPiece(cf);
-		if (p == PAWN && RANK(cf, c ? 0x08 : 0x30)) {
+		if (p == PAWN && RANK7(cf, c)) {
 			registerProms(cf, c, ch, 0LL, mp);
 		} else {
 			registerMoves(PREMOVE(cf, p), ch, 0LL, mp);
@@ -508,18 +487,17 @@ int generateCheckEsc(u64 ch, u64 apin, int c, int k, Movep *mp) {
 		cc = reach(f, c^1) & apin;
 		while (cc) {
 			int cf = pullLsb(&cc);
-			int p = identPiece(cf);
-			registerMoves(PREMOVE(cf, p), 0LL, BIT[f], mp);
+			registerMoves(PREMOVE(cf, identPiece(cf)), 0LL, BIT[f], mp);
 		}
 		bf = c ? f+8 : f-8;
-		if (bf < 0 || bf > 63) continue;
-		if (BIT[bf] & pieceb[PAWN] & colorb[c] & apin) {
-			if (RANK(bf, c ? 0x08 : 0x30))
+		if (bf < 0 || bf > 63 || !(cc = pieceb[PAWN] & colorb[c] & apin)) continue;
+		if (BIT[bf] & cc) {
+			if (RANK7(bf, c))
 				registerProms(bf, c, 0LL, BIT[f], mp);
 			else
 				registerMoves(PREMOVE(bf, PAWN), 0LL, BIT[f], mp);
 		}
-		if (RANK(f, c ? 0x20 : 0x18) && (board & BIT[bf]) == 0 && (BIT[c ? f+16 : f-16] & pieceb[PAWN] & colorb[c] & apin))
+		if (RANK4(f, c) && !(board & BIT[bf]) && (BIT[c ? f+16 : f-16] & cc))
 			registerMoves(PREMOVE(c ? f+16 : f-16, PAWN), 0LL, BIT[f], mp);
 	}
 	return 1;
@@ -530,39 +508,45 @@ u64 pinnedPieces(int f, int oc) {
 	u64 b = ((RXRAY1(f) | RXRAY2(f)) & colorb[oc]) & RQU;
 	while (b) {
 		int t = pullLsb(&b);
-		pin |= RCAP(t, oc) & ROCC(f);
+		pin |= RATT(f) & RATT(t) & colorb[oc^1];
 	}
 	b = ((BXRAY3(f) | BXRAY4(f)) & colorb[oc]) & BQU;
 	while (b) {
 		int t = pullLsb(&b);
-		pin |= BCAP(t, oc) & BOCC(f);
+		pin |= BATT(f) & BATT(t) & colorb[oc^1];
 	}
 	return pin;
 }
 
 int generateMoves(int c, Movep *mp) {
 	int t, f = kingpos[c];
-	u64 m, b, a, cb = colorb[c], ch = attacked(f, c);
+	u64 m, b, a, ch = attacked(f, c);
 	u64 pin = pinnedPieces(f, c^1);
 	mp->n = 0;
 
 	if (ch) return generateCheckEsc(ch, ~pin, c, f, mp);
 	registerKing(PREMOVE(f, KING), KCAP(f, c), KMOVE(f), mp, c);
 
-	cb = colorb[c] & (~pin);
-	b = pieceb[PAWN] & cb;
+	u64 cb = colorb[c] & (~pin);
+	b = pieceb[PAWN] & colorb[c];
 	while (b) {
 		f = pullLsb(&b);
-		m = PMOVE(f, c);
-		a = PCAP(f, c);
-		if (m && RANK(f, c ? 0x30 : 0x08)) m |= PMOVE(c ? f-8 : f+8, c);
-		if (RANK(f, c ? 0x08 : 0x30)) {
+		t = BIT[f] & pin ? getDir(f, kingpos[c]) : 144;
+		if (t & 8) continue;
+		else if (t & 16) {
+			m = PMOVE(f, c); a = t & 128 ? PCAP(f, c) : 0;
+			if (m && RANK2(f, c)) m |= PMOVE(c ? f-8 : f+8, c);
+		} else if (t & 32) {
+			m = 0; a = PCA3(f, c);
+		} else {
+			m = 0; a = PCA4(f, c);
+		}
+		if (RANK7(f, c)) {
 			registerProms(f, c, a, m, mp);
 		} else {
-			if (ENPASS && (BIT[ENPASS] & pcaps[(f) | ((c)<<6)])) {
+			if (t & 128 && ENPASS && (BIT[ENPASS] & pcaps[(f) | ((c)<<6)])) {
 				board ^= BIT[ENPASS^8];
-				u64 hh = ROCC1(f);
-				if (!(hh & BIT[kingpos[c]]) || !(hh & colorb[c^1] & RQU)) {
+				if (!(RATT1(f) & BIT[kingpos[c]]) || !(RATT1(f) & colorb[c^1] & RQU)) {
 					a |= BIT[ENPASS];
 				}
 				board ^= BIT[ENPASS^8];
@@ -570,28 +554,7 @@ int generateMoves(int c, Movep *mp) {
 			registerMoves(PREMOVE(f, PAWN), a, m, mp);
 		}
 	}
-
-	b = pin & pieceb[PAWN]; 
-	while (b) {
-		f = pullLsb(&b);
-		t = getDir(f, kingpos[c]);
-		if (t & 8) continue;
-		m = a = 0LL;
-		if (t & 16) {
-			m = PMOVE(f, c);         
-			if (m && RANK(f, c ? 0x30 : 0x08)) m |= PMOVE(c ? f-8 : f+8, c);
-		} else if (t & 32) {
-			a = PCA3(f, c);
-		} else {
-			a = PCA4(f, c);
-		}
-		if (RANK(f, c ? 0x08 : 0x30)) {
-			registerProms(f, c, a, m, mp);
-		} else {
-			registerMoves(PREMOVE(f, PAWN), a, m, mp);
-		}
-	}
-
+	
 	b = pieceb[KNIGHT] & cb;
 	while (b) {
 		f = pullLsb(&b);
@@ -604,14 +567,14 @@ int generateMoves(int c, Movep *mp) {
 		registerMoves(PREMOVE(f, ROOK), RCAP(f, c), RMOVE(f), mp);
 		if (CASTLE && !ch) {
 			if (c) {
-				if ((flags & 128) && (f == 63) && (RMOVE1(63) & BIT[61]))
+				if ((flags & 128) && (f == 63) && (RATT1(63) & BIT[60]))
 					if (!DUALATT(61, 62, c)) registerMoves(PREMOVE(60, KING), 0LL, BIT[62], mp);
-				if ((flags & 512) && (f == 56) && (RMOVE1(56) & BIT[59]))
+				if ((flags & 512) && (f == 56) && (RATT1(56) & BIT[60]))
 					if (!DUALATT(59, 58, c)) registerMoves(PREMOVE(60, KING), 0LL, BIT[58], mp);
 			} else {
-				if ((flags & 64) && (f == 7) && (RMOVE1(7) & BIT[5]))
+				if ((flags & 64) && (f == 7) && (RATT1(7) & BIT[4]))
 					if (!DUALATT(5, 6, c)) registerMoves(PREMOVE(4, KING), 0LL, BIT[6], mp);
-				if ((flags & 256) && (f == 0) && (RMOVE1(0) & BIT[3]))
+				if ((flags & 256) && (f == 0) && (RATT1(0) & BIT[4]))
 					if (!DUALATT(3, 2, c)) registerMoves(PREMOVE(4, KING), 0LL, BIT[2], mp);
 			}
 		}
@@ -651,27 +614,26 @@ void countKing(u64 bm, Movep *mp, int c) {
 
 int countMoves(int c, Movep *mp) {
 	int t, f = kingpos[c];
-	u64 m, b, a, cb = colorb[c], ch = attacked(f, c);
+	u64 m, b, a, ch = attacked(f, c);
 	u64 pin = pinnedPieces(f, c^1);
 	mp->n = 0;
 
 	if (ch) return generateCheckEsc(ch, ~pin, c, f, mp);
 	countKing(KCAP(f, c) | KMOVE(f), mp, c);
 
-	cb = colorb[c] & (~pin);
+	u64 cb = colorb[c] & (~pin);
 	b = pieceb[PAWN] & cb;
 	while (b) {
 		f = pullLsb(&b);
 		m = PMOVE(f, c);
 		a = PCAP(f, c);
-		if (m && RANK(f, c ? 0x30 : 0x08)) m |= PMOVE(c ? f-8 : f+8, c);
-		if (RANK(f, c ? 0x08 : 0x30)) {
+		if (m && RANK2(f, c)) m |= PMOVE(c ? f-8 : f+8, c);
+		if (RANK7(f, c)) {
 			mp->n += _bitcount(a | m) << 2;
 		} else {
 			if (ENPASS && (BIT[ENPASS] & pcaps[(f) | ((c)<<6)])) {
 				board ^= BIT[ENPASS^8];
-				u64 hh = ROCC1(f);
-				if (!(hh & BIT[kingpos[c]]) || !(hh & colorb[c^1] & RQU)) {
+				if (!(RATT1(f) & BIT[kingpos[c]]) || !(RATT1(f) & colorb[c^1] & RQU)) {
 					a |= BIT[ENPASS];
 				}
 				board ^= BIT[ENPASS^8];
@@ -688,13 +650,13 @@ int countMoves(int c, Movep *mp) {
 		m = a = 0LL;
 		if (t & 16) {
 			m = PMOVE(f, c);         
-			if (m && RANK(f, c ? 0x30 : 0x08)) m |= PMOVE(c ? f-8 : f+8, c);
+			if (m && RANK2(f, c)) m |= PMOVE(c ? f-8 : f+8, c);
 		} else if (t & 32) {
 			a = PCA3(f, c);
 		} else {
 			a = PCA4(f, c);
 		}
-		if (RANK(f, c ? 0x08 : 0x30)) {
+		if (RANK7(f, c)) {
 			mp->n += _bitcount(a | m) << 2;
 		} else {
 			mp->n += _bitcount(a | m);
@@ -704,29 +666,29 @@ int countMoves(int c, Movep *mp) {
 	b = pieceb[KNIGHT] & cb;
 	while (b) {
 		f = pullLsb(&b);
-		mp->n += _bitcount(NCAP(f, c) | NMOVE(f));
+		mp->n += _bitcount(nmoves[f] & ~colorb[c]);
 	}
 
 	b = pieceb[BISHOP] & cb;
 	while (b) {
 		f = pullLsb(&b);
-		mp->n += _bitcount(BCAP(f,c) | BMOVE(f));
+		mp->n += _bitcount(BATT(f) & ~colorb[c]);
 	}
 
 	b = pieceb[ROOK] & cb;
 	while (b) {
 		f = pullLsb(&b);
-		mp->n += _bitcount(RCAP(f,c) | RMOVE(f));
+		mp->n += _bitcount(RATT(f) & ~colorb[c]);
 		if (CASTLE && !ch) {
 			if (c) {
-				if ((flags & 128) && (f == 63) && (RMOVE1(63) & BIT[61]))
+				if ((flags & 128) && (f == 63) && (RATT1(63) & BIT[60]))
 					if (!DUALATT(61, 62, c)) mp->n++;
-				if ((flags & 512) && (f == 56) && (RMOVE1(56) & BIT[59]))
+				if ((flags & 512) && (f == 56) && (RATT1(56) & BIT[60]))
 					if (!DUALATT(59, 58, c)) mp->n++;
 			} else {
-				if ((flags & 64) && (f == 7) && (RMOVE1(7) & BIT[5]))
+				if ((flags & 64) && (f == 7) && (RATT1(7) & BIT[4]))
 					if (!DUALATT(5, 6, c)) mp->n++;
-				if ((flags & 256) && (f == 0) && (RMOVE1(0) & BIT[3]))
+				if ((flags & 256) && (f == 0) && (RATT1(0) & BIT[4]))
 					if (!DUALATT(3, 2, c)) mp->n++;
 			}
 		}
@@ -735,7 +697,7 @@ int countMoves(int c, Movep *mp) {
 	b = pieceb[QUEEN] & cb;
 	while (b) {
 		f = pullLsb(&b);
-		mp->n += _bitcount(RCAP(f, c) | BCAP(f, c) | RMOVE(f) | BMOVE(f));
+		mp->n += _bitcount((RATT(f) | BATT(f)) & ~colorb[c]);
 	}
 
 	b = pin & (pieceb[ROOK] | pieceb[BISHOP] | pieceb[QUEEN]); 
@@ -744,26 +706,23 @@ int countMoves(int c, Movep *mp) {
 		f = pullLsb(&b);
 		p = identPiece(f);
 		t = p | getDir(f, kingpos[c]);
-		if ((t & 10) == 10) mp->n += _bitcount(RCAP1(f, c) | RMOVE1(f));
-		if ((t & 18) == 18) mp->n += _bitcount(RCAP2(f, c) | RMOVE2(f));
-		if ((t & 33) == 33) mp->n += _bitcount(BCAP3(f, c) | BMOVE3(f));
-		if ((t & 65) == 65) mp->n += _bitcount(BCAP4(f, c) | BMOVE4(f));
+		if ((t & 10) == 10) mp->n += _bitcount(RATT1(f) & ~colorb[c]);
+		if ((t & 18) == 18) mp->n += _bitcount(RATT2(f) & ~colorb[c]);
+		if ((t & 33) == 33) mp->n += _bitcount(BATT3(f) & ~colorb[c]);
+		if ((t & 65) == 65) mp->n += _bitcount(BATT4(f) & ~colorb[c]);
 	}
 	return 0;
 }
 
-#define HASHB(d) (hashb ^ hashxor[flags | (c) << 10 | (d) << 11])
-#define HSIZE 0x400000
-#define HMASK 0x3FFFFF
-#define HINV 0xFFFFFFFFFFC00000LL
+#define HASHB (hashb ^ hashxor[flags | c << 10 | d << 11])
+#define HSIZE 0x400000LL
+#define HMASK (HSIZE-1)
+#define HINV ~HMASK
 u64 hashDB[HSIZE];
 u64 num[128];
 
 void perft(int c, int d, int ply) {
-	int i, poff;
-	int flagstor = flags;
-
-	u64 hb = HASHB(d);
+	u64 hb = HASHB;
 	u64 he = hashDB[hb & HMASK];
 	u64 n0, n1 = he & HMASK;
 
@@ -783,7 +742,7 @@ void perft(int c, int d, int ply) {
 	n0 = num[ply+d];
 
 	generateMoves(c, &mp);
-	poff = ply << 8;
+	int i, flagstor = flags, poff = ply << 8;
 	for (i = 0; i < mp.n; i++) {
 		Move m = mp.moves[i];
 		doMove(m, c);
@@ -802,7 +761,7 @@ void perft(int c, int d, int ply) {
 
 int main(int argc, char **argv) {
 	int i, divide = 0, sd = 6;
-	u64 t1, m, p, n = 0;
+	u64 t1, p, n;
 	char *sfen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 	if (argc > 1) sscanf(argv[1], "%d", &sd);
 	if (argc > 2) sfen = argv[2];
@@ -810,7 +769,7 @@ int main(int argc, char **argv) {
 		sd = -sd;
 		divide = 1;
 	}
-	for (i = 0x10000, p = 1, m = 6364136223846793005LL; i--; hashxor[0xFFFF-i] = p = p*m +1LL);
+	for (i = 0x8000, p = 1, n = 6364136223846793005LL; i--; hashxor[0x7FFF-i] = p = p*n +1LL);
 	for (i = 0; i < HSIZE; i++) hashDB[i] = 0LL;
 	for (i = 0; i < 64; i++) BIT[i] = 1LL << i;
 	for (i = 0; i < 64; i++) crevoke[i] = 0x3FF;
@@ -837,7 +796,7 @@ int main(int argc, char **argv) {
 
 	t1 = getTime();
 
-	Movep mp;
+	Movep mp; n = 0;
 
 	if (divide) {
 		int flagstor = flags;
@@ -860,10 +819,10 @@ int main(int argc, char **argv) {
 			num[i] = 0;
 			perft(onmove, i, 0);
 			n += num[i];
-			printf("%2d %5d %6llu %11llu\n", i, 0, (getTime() - t1)/10, num[i]);
+			printf("%2d %5d %6llu %11llu\n", i, 0, (getTime() - t1 + 4)/10, num[i]);
 		}
 	}
 	t1 = getTime() - t1 + 1;
-	printf("\nNodes: %llu cs: %llu knps: %llu\n", n, t1/10, n/t1);
+	printf("\nNodes: %llu cs: %llu knps: %llu\n", n, (t1 + 3)/10, n/t1);
 	return 0;
 }
