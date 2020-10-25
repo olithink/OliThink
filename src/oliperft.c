@@ -8,37 +8,33 @@ Nodes: 8229523927 ms: 97251 knps: 84621 (gcc4 32bit AMD Opteron 1210HE) (1.0.2)
 */
 #include <stdio.h>
 #ifdef _WIN32
-#include <sys/timeb.h>
+#include <windows.h>
 struct _timeb tv;
-#define _bitcount(x) __popcnt64(x)
+#define bitcnt(x) __popcnt64(x)
 #define getLsb(x) _tzcnt_u64(x)
 #else
 #include <sys/time.h>
 struct timeval tv;
-struct timezone tz;
-#define _bitcount(x) __builtin_popcountll(x)
+#define bitcnt(x) __builtin_popcountll(x)
 #define getLsb(x) __builtin_ctzll(x)
 #endif
+typedef unsigned long long u64;
+typedef unsigned long u32;
+typedef int Move;
 
-#define PAWN 1
-#define KNIGHT 2
-#define KING 3
-#define ENP 4
-#define BISHOP 5
-#define ROOK 6
-#define QUEEN 7
+enum { EMPTY, PAWN, KNIGHT, KING, ENP, BISHOP, ROOK, QUEEN };
 
-#define FROM(x) ((x) & 0x3F)
-#define TO(x) (((x) >> 6) & 0x3F)
+#define FROM(x) ((x) & 63)
+#define TO(x) (((x) >> 6) & 63)
 #define ONMV(x) (((x) >> 12) & 1)
-#define PIECE(x) (((x) >> 13) & 7)  
-#define PROM(x) (((x) >> 16) & 7)
+#define PROM(x) (((x) >> 13) & 7)
+#define PIECE(x) (((x) >> 16) & 7)
 #define CAP(x) (((x) >> 19) & 7)
 
 #define _TO(x) ((x) << 6)
 #define _ONMV(x) ((x) << 12)
-#define _PIECE(x) ((x) << 13)
-#define _PROM(x) ((x) << 16)
+#define _PROM(x) ((x) << 13)
+#define _PIECE(x) ((x) << 16)
 #define _CAP(x) ((x) << 19)
 #define PREMOVE(f, p) ((f) | _ONMV(c) | _PIECE(p))
 
@@ -82,29 +78,33 @@ struct timezone tz;
 #define ENPASS (flags & 63)
 #define CASTLE (flags & 960)
 
-typedef unsigned long long u64;
-typedef unsigned long u32;
-typedef int Move;
-
-static u64 rays[0x10000];
-u64 nmoves[64];
-u64 kmoves[64];
-u64 pmoves[128];
-u64 pcaps[384];
-int _knight[8] = {-17,-10,6,15,17,10,-6,-15};
-int _king[8] = {-9,-1,7,8,9,1,-7,-8};
-u64 pieceb[8];
-u64 colorb[2];
-u64 board;
+#define HSIZE 0x400000LL
+#define HMASK (HSIZE-1)
+#define HINV ~HMASK
+u64 hashDB[HSIZE], num[128];
 u64 hashb;
+
 static u64 BIT[64];
 static u64 hashxor[0x8000];
-int flags;
-int crevoke[64];
-int onmove;
-int kingpos[2];
+static u64 rays[0x10000];
+static u64 nmoves[64];
+static u64 kmoves[64];
+static u64 pmoves[128];
+static u64 pcaps[384];
+static int crevoke[64];
+static int _knight[8] = {-17,-10,6,15,17,10,-6,-15};
+static int _king[8] = {-9,-1,7,8,9,1,-7,-8};
 
+struct Movep {
+	int n;
+	Move moves[128];
+};
+typedef struct Movep Movep;
 const char pieceChar[] = "*PNK.BRQ";
+u64 pieceb[8], colorb[2];
+u64 board;
+int kingpos[2];
+int flags, onmove;
 
 void _parse_fen(char *fen) {
 	char s, mv, pos[128], cas[5], enps[3];
@@ -175,37 +175,36 @@ void _init_shorts(u64* moves, int* m) {
 }
 
 u64 _occ_free_board(int bc, int del, u64 free) {
-	u64 low, perm = free;
+	u64 perm = free;
 	int i;
 	for (i = 0; i < bc; i++) {
-		low = free & (-free); // Lowest bit
+		u64 low = free & (-free); // Lowest bit
 		free &= (~low);
 		if (!(BIT[i] & del)) perm &= (~low);
 	}
 	return perm;
 }
 
-void _init_rays(u64* rays, u64 (*rayFunc) (int, u64, int), int (*key)(u64, int)) {
-	int i, f, iperm, bc, index;
-	u64 board, mmask, occ, move, xray;
+void _init_rays(u64* ray, u64 (*rayFunc) (int, u64, int), int (*key)(u64, int)) {
+	int i, f, bc;
 	for (f = 0; f < 64; f++) {
-		mmask = (*rayFunc)(f, 0LL, 0) | BIT[f];
-		iperm = 1 << (bc = _bitcount(mmask));
+		u64 mmask = (*rayFunc)(f, 0LL, 0) | BIT[f];
+		int iperm = 1 << (bc = bitcnt(mmask));
 		for (i = 0; i < iperm; i++) {
-			board = _occ_free_board(bc, i, mmask);
-			move = (*rayFunc)(f, board, 1);
-			occ = (*rayFunc)(f, board, 2);
-			xray = (*rayFunc)(f, board, 3);
-			index = (*key)(board, f);
-			rays[(f << 7) + index] = occ | move;
-			rays[(f << 7) + index + 0x8000] = xray;
+			u64 bord = _occ_free_board(bc, i, mmask);
+			u64 move = (*rayFunc)(f, bord, 1);
+			u64 occ = (*rayFunc)(f, bord, 2);
+			u64 xray = (*rayFunc)(f, bord, 3);
+			int index = (*key)(bord, f);
+			ray[(f << 7) + index] = occ | move;
+			ray[(f << 7) + index + 0x8000] = xray;
 		}
 	}
 }
 
-#define RAYMACRO { if (BIT[i] & board) \
+#define RAYMACRO { if (BIT[i] & bord) \
 	{ if (b) { xray |= BIT[i]; break; } else { occ |= BIT[i]; b = 1; } } if (!b) free |= BIT[i]; }
-u64 _rook0(int f, u64 board, int t) {
+u64 _rook0(int f, u64 bord, int t) {
 	u64 free = 0LL, occ = 0LL, xray = 0LL;
 	int i, b;
 	for (b = 0, i = f+1; i < 64 && i%8 != 0; i++) RAYMACRO
@@ -213,7 +212,7 @@ u64 _rook0(int f, u64 board, int t) {
 	return (t < 2) ? free : (t == 2 ? occ : xray);
 }
 
-u64 _rook90(int f, u64 board, int t) {
+u64 _rook90(int f, u64 bord, int t) {
 	u64 free = 0LL, occ = 0LL, xray = 0LL;
 	int i, b;
 	for (b = 0, i = f-8; i >= 0; i-=8) RAYMACRO
@@ -221,7 +220,7 @@ u64 _rook90(int f, u64 board, int t) {
 	return (t < 2) ? free : (t == 2 ? occ : xray);
 }
 
-u64 _bishop45(int f, u64 board, int t) {
+u64 _bishop45(int f, u64 bord, int t) {
 	u64 free = 0LL, occ = 0LL, xray = 0LL;
 	int i, b;
 	for (b = 0, i = f+9; i < 64 && (i%8 != 0); i+=9) RAYMACRO
@@ -229,7 +228,7 @@ u64 _bishop45(int f, u64 board, int t) {
 	return (t < 2) ? free : (t == 2 ? occ : xray);
 }
 
-u64 _bishop135(int f, u64 board, int t) {
+u64 _bishop135(int f, u64 bord, int t) {
 	u64 free = 0LL, occ = 0LL, xray = 0LL;
 	int i, b;
 	for (b = 0, i = f-7; i >= 0 && (i%8 != 0); i-=7) RAYMACRO
@@ -239,10 +238,9 @@ u64 _bishop135(int f, u64 board, int t) {
 
 u64 getTime() {
 #ifdef _WIN32
-	_ftime(&tv);
-	return(tv.time * 1000LL + tv.millitm);
+	return GetTickCount64();
 #else
-	gettimeofday (&tv, &tz);
+	gettimeofday (&tv, NULL);
 	return(tv.tv_sec * 1000LL + (tv.tv_usec / 1000));
 #endif
 }
@@ -287,16 +285,15 @@ int key135(u64 b, int f) {
    return keyDiag(b & bmask135[f]);
 }
 
-#define DUALATT(x, y, c) (battacked(x, c) || battacked(y, c))
 #define RQU (pieceb[ROOK] | pieceb[QUEEN])
 #define BQU (pieceb[BISHOP] | pieceb[QUEEN])
-
+#define DUALATT(x, y, c) (battacked(x, c) || battacked(y, c))
 int battacked(int f, int c) {
 	if (PCAP(f, c) & pieceb[PAWN]) return 1;
 	if (NCAP(f, c) & pieceb[KNIGHT]) return 1;
 	if (KCAP(f, c) & pieceb[KING]) return 1;
-	if (RCAP1(f, c) & RQU) return 1; 
-	if (RCAP2(f, c) & RQU) return 1; 
+	if (RCAP1(f, c) & RQU) return 1;
+	if (RCAP2(f, c) & RQU) return 1;
 	if (BCAP3(f, c) & BQU) return 1;
 	if (BCAP4(f, c) & BQU) return 1;
 	return 0;
@@ -316,19 +313,9 @@ void display64(u64 bb) {
 	int i, j;
 	for (i = 0; i < 8; i++) {
 		for (j = 0; j < 8; j++) {
-			printf(" %d", BIT[j + (7-i)*8] & bb ? 1 : 0);
-		}
-		printf("\n");
-	}
-	printf("\n");
-}
-
-void displayb() {
-	int i, j;
-	for (i = 0; i < 8; i++) {
-		for (j = 0; j < 8; j++) {
 			int f = j + (7-i)*8;
-			printf(" %c", pieceChar[identPiece(f)] + identColor(f)*32);
+			if (bb) printf(" %d", BIT[j + (7-i)*8] & bb ? 1 : 0);
+			else printf(" %c", pieceChar[identPiece(f)] + identColor(f)*32);
 		}
 		printf("\n");
 	}
@@ -341,7 +328,29 @@ void displaym(Move m) {
 	if (PROM(m)) printf("%c", pieceChar[PROM(m)]+32);
 }
 
-void doMove(Move m, int c) {
+u64 pinnedPieces(int f, int oc) {
+	u64 pin = 0LL;
+	u64 b = ((RXRAY1(f) | RXRAY2(f)) & colorb[oc]) & RQU;
+	while (b) {
+		int t = pullLsb(&b);
+		pin |= RATT(f) & RATT(t) & colorb[oc^1];
+	}
+	b = ((BXRAY3(f) | BXRAY4(f)) & colorb[oc]) & BQU;
+	while (b) {
+		int t = pullLsb(&b);
+		pin |= BATT(f) & BATT(t) & colorb[oc^1];
+	}
+	return pin;
+}
+
+/* precondition: f and t are on common rank (8), file (16), diagonal (32) or antidiagonal (64) */
+char getDir(int f, int t) {
+	if (!((f ^ t) & 56)) return 8;
+	if (!((f ^ t) & 7)) return 16;
+	return (!((f - t) % 9)) ? 32 : 64;
+}
+
+void move(Move m, int c) {
 	int f = FROM(m);
 	int t = TO(m);
 	int p = PIECE(m);
@@ -395,12 +404,6 @@ void doMove(Move m, int c) {
 	board = colorb[0] | colorb[1];
 }
 
-struct Movep {
-	int n;
-	Move moves[128];
-};
-typedef struct Movep Movep;
-
 void registerMoves(Move m, u64 bc, u64 bm, Movep *mp) {
 	while (bc) {
 		int t = pullLsb(&bc);
@@ -442,15 +445,9 @@ void registerKing(Move m, u64 bc, u64 bm, Movep *mp, int c) {
 	}
 }
 
-char getDir(int f, int t) {
-	if (!((f ^ t) & 56)) return 8;
-	if (!((f ^ t) & 7)) return 16;
-	return (!((f - t) % 9)) ? 32 : 64;
-}
-
 int generateCheckEsc(u64 ch, u64 apin, int c, int k, Movep *mp) {
 	u64 cc, fl;
-	int d, bf = _bitcount(ch);
+	int d, bf = bitcnt(ch);
 	board ^= BIT[k];
 	registerKing(PREMOVE(k, KING), KCAP(k, c), KMOVE(k), mp, c);
 	board ^= BIT[k];
@@ -501,21 +498,6 @@ int generateCheckEsc(u64 ch, u64 apin, int c, int k, Movep *mp) {
 			registerMoves(PREMOVE(c ? f+16 : f-16, PAWN), 0LL, BIT[f], mp);
 	}
 	return 1;
-}
-
-u64 pinnedPieces(int f, int oc) {
-	u64 pin = 0LL;
-	u64 b = ((RXRAY1(f) | RXRAY2(f)) & colorb[oc]) & RQU;
-	while (b) {
-		int t = pullLsb(&b);
-		pin |= RATT(f) & RATT(t) & colorb[oc^1];
-	}
-	b = ((BXRAY3(f) | BXRAY4(f)) & colorb[oc]) & BQU;
-	while (b) {
-		int t = pullLsb(&b);
-		pin |= BATT(f) & BATT(t) & colorb[oc^1];
-	}
-	return pin;
 }
 
 int generateMoves(int c, Movep *mp) {
@@ -629,7 +611,7 @@ int countMoves(int c, Movep *mp) {
 		a = PCAP(f, c);
 		if (m && RANK2(f, c)) m |= PMOVE(c ? f-8 : f+8, c);
 		if (RANK7(f, c)) {
-			mp->n += _bitcount(a | m) << 2;
+			mp->n += bitcnt(a | m) << 2;
 		} else {
 			if (ENPASS && (BIT[ENPASS] & pcaps[(f) | ((c)<<6)])) {
 				board ^= BIT[ENPASS^8];
@@ -638,7 +620,7 @@ int countMoves(int c, Movep *mp) {
 				}
 				board ^= BIT[ENPASS^8];
 			}
-			mp->n += _bitcount(a | m);
+			mp->n += bitcnt(a | m);
 		}
 	}
 
@@ -657,28 +639,28 @@ int countMoves(int c, Movep *mp) {
 			a = PCA4(f, c);
 		}
 		if (RANK7(f, c)) {
-			mp->n += _bitcount(a | m) << 2;
+			mp->n += bitcnt(a | m) << 2;
 		} else {
-			mp->n += _bitcount(a | m);
+			mp->n += bitcnt(a | m);
 		}
 	}
 
 	b = pieceb[KNIGHT] & cb;
 	while (b) {
 		f = pullLsb(&b);
-		mp->n += _bitcount(nmoves[f] & ~colorb[c]);
+		mp->n += bitcnt(nmoves[f] & ~colorb[c]);
 	}
 
 	b = pieceb[BISHOP] & cb;
 	while (b) {
 		f = pullLsb(&b);
-		mp->n += _bitcount(BATT(f) & ~colorb[c]);
+		mp->n += bitcnt(BATT(f) & ~colorb[c]);
 	}
 
 	b = pieceb[ROOK] & cb;
 	while (b) {
 		f = pullLsb(&b);
-		mp->n += _bitcount(RATT(f) & ~colorb[c]);
+		mp->n += bitcnt(RATT(f) & ~colorb[c]);
 		if (CASTLE && !ch) {
 			if (c) {
 				if ((flags & 128) && (f == 63) && (RATT1(63) & BIT[60]))
@@ -697,7 +679,7 @@ int countMoves(int c, Movep *mp) {
 	b = pieceb[QUEEN] & cb;
 	while (b) {
 		f = pullLsb(&b);
-		mp->n += _bitcount((RATT(f) | BATT(f)) & ~colorb[c]);
+		mp->n += bitcnt((RATT(f) | BATT(f)) & ~colorb[c]);
 	}
 
 	b = pin & (pieceb[ROOK] | pieceb[BISHOP] | pieceb[QUEEN]); 
@@ -706,21 +688,15 @@ int countMoves(int c, Movep *mp) {
 		f = pullLsb(&b);
 		p = identPiece(f);
 		t = p | getDir(f, kingpos[c]);
-		if ((t & 10) == 10) mp->n += _bitcount(RATT1(f) & ~colorb[c]);
-		if ((t & 18) == 18) mp->n += _bitcount(RATT2(f) & ~colorb[c]);
-		if ((t & 33) == 33) mp->n += _bitcount(BATT3(f) & ~colorb[c]);
-		if ((t & 65) == 65) mp->n += _bitcount(BATT4(f) & ~colorb[c]);
+		if ((t & 10) == 10) mp->n += bitcnt(RATT1(f) & ~colorb[c]);
+		if ((t & 18) == 18) mp->n += bitcnt(RATT2(f) & ~colorb[c]);
+		if ((t & 33) == 33) mp->n += bitcnt(BATT3(f) & ~colorb[c]);
+		if ((t & 65) == 65) mp->n += bitcnt(BATT4(f) & ~colorb[c]);
 	}
 	return 0;
 }
 
 #define HASHB (hashb ^ hashxor[flags | c << 10 | d << 11])
-#define HSIZE 0x400000LL
-#define HMASK (HSIZE-1)
-#define HINV ~HMASK
-u64 hashDB[HSIZE];
-u64 num[128];
-
 void perft(int c, int d, int ply) {
 	u64 hb = HASHB;
 	u64 he = hashDB[hb & HMASK];
@@ -745,12 +721,12 @@ void perft(int c, int d, int ply) {
 	int i, flagstor = flags, poff = ply << 8;
 	for (i = 0; i < mp.n; i++) {
 		Move m = mp.moves[i];
-		doMove(m, c);
+		move(m, c);
 
 		num[ply+1]++;
 		if (d > 1) perft(c^1, d-1, ply+1);
 
-		doMove(m, c);
+		move(m, c);
 		flags = flagstor;
 	}
 	n0 = num[ply+d] - n0;
@@ -792,7 +768,7 @@ int main(int argc, char **argv) {
 	_init_pawns(pmoves, pcaps, 0);
 	_init_pawns(pmoves + 64, pcaps + 64, 1);
 	_parse_fen(sfen);
-	displayb();
+	display64(0LL);
 
 	t1 = getTime();
 
@@ -803,13 +779,13 @@ int main(int argc, char **argv) {
 		generateMoves(onmove, &mp);
 		for (i = 0; i < mp.n; i++) {
 			Move m = mp.moves[i];
-			doMove(m, onmove);
+			move(m, onmove);
 
 			num[1]++;
 			perft(onmove^1, sd-1, 1);
 
 			displaym(m); printf(": %llu\n", num[sd]);
-			doMove(m, onmove);
+			move(m, onmove);
 			flags = flagstor;
 			n += num[sd];
 			num[sd] = 0;
