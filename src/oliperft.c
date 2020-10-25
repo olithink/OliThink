@@ -1,7 +1,7 @@
 /* OliPerft 1.0.7 - Bitboard Magic Move (c) Oliver Brausch 25.Oct.2020, ob112@web.de */
 /* oliperft 6 "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
-Nodes: 8229523927 cs: 1156 knps: 713625 (gcc8 64bit AMD EPYC 7502P 1/32-Core Processor)
-Nodes: 8229523927 cs: 1526 knps: 568690 (gcc4 OSX i7 8850H 2.6 GHz)
+Nodes: 8229523927 cs: 1156 knps: 713625 (clang7 64bit AMD EPYC 7502P 1/32-Core Processor)
+Nodes: 8229523927 cs: 1442 knps: 570820 (clang10 OSX i7 8850H 2.6 GHz)
 Nodes: 8229523927 ms: 40610 knps: 202647 (VS2005 64bit AMD64 4600+) (1.0.2)
 Nodes: 8229523927 ms: 64860 knps: 126881 (VS2005 32bit AMD64 4600+) (1.0.2)
 Nodes: 8229523927 ms: 97251 knps: 84621 (gcc4 32bit AMD Opteron 1210HE) (1.0.2)
@@ -9,7 +9,6 @@ Nodes: 8229523927 ms: 97251 knps: 84621 (gcc4 32bit AMD Opteron 1210HE) (1.0.2)
 #include <stdio.h>
 #ifdef _WIN32
 #include <windows.h>
-struct _timeb tv;
 #define bitcnt(x) __popcnt64(x)
 #define getLsb(x) _tzcnt_u64(x)
 #else
@@ -709,16 +708,16 @@ void perft(int c, int d, int ply) {
 
 	Movep mp;
 
-	if (d<= 1) {
+	if (d <= 1) {
 		countMoves(c, &mp);
 		if (mp.n > n1) hashDB[hb & HMASK] = (hb & HINV) | mp.n;
-		num[ply+1]+= mp.n;
+		num[ply+1] += mp.n;
 		return;
 	}
 	n0 = num[ply+d];
 
 	generateMoves(c, &mp);
-	int i, flagstor = flags, poff = ply << 8;
+	int i, flagstore = flags, poff = ply << 8;
 	for (i = 0; i < mp.n; i++) {
 		Move m = mp.moves[i];
 		move(m, c);
@@ -727,10 +726,10 @@ void perft(int c, int d, int ply) {
 		if (d > 1) perft(c^1, d-1, ply+1);
 
 		move(m, c);
-		flags = flagstor;
+		flags = flagstore;
 	}
 	n0 = num[ply+d] - n0;
-	if (n0 < 0x100000 && n0 > n1) {
+	if (n0 < HSIZE && n0 > n1) {
 		hashDB[hb & HMASK] = (hb & HINV) | n0; 
 	}
 }
@@ -741,23 +740,20 @@ int main(int argc, char **argv) {
 	char *sfen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 	if (argc > 1) sscanf(argv[1], "%d", &sd);
 	if (argc > 2) sfen = argv[2];
-	if (sd < 0) {
-		sd = -sd;
-		divide = 1;
-	}
+	if (sd < 0) sd = -sd, divide = 1;
+
 	for (i = 0x8000, p = 1, n = 6364136223846793005LL; i--; hashxor[0x7FFF-i] = p = p*n +1LL);
-	for (i = 0; i < HSIZE; i++) hashDB[i] = 0LL;
 	for (i = 0; i < 64; i++) BIT[i] = 1LL << i;
-	for (i = 0; i < 64; i++) crevoke[i] = 0x3FF;
 	for (i = 0; i < 128; i++) pmoves[i] = 0LL;
 	for (i = 0; i < 384; i++) pcaps[i] = 0LL;
+	for (i = 0; i < 64; i++) bmask45[i] = _bishop45(i, 0LL, 0) | BIT[i];
+	for (i = 0; i < 64; i++) bmask135[i] = _bishop135(i, 0LL, 0) | BIT[i];
+	for (i = 0; i < 64; i++) crevoke[i] = 0x3FF;
+	for (i = 0; i < HSIZE; i++) hashDB[i] = 0LL;
 	crevoke[7] ^= BIT[6];
 	crevoke[63] ^= BIT[7];
 	crevoke[0] ^= BIT[8];
 	crevoke[56] ^= BIT[9];
-
-	for (i = 0; i < 64; i++) bmask45[i] = _bishop45(i, 0LL, 0) | BIT[i];
-	for (i = 0; i < 64; i++) bmask135[i] = _bishop135(i, 0LL, 0) | BIT[i];
 
 	_init_rays(rays, _rook0, key000);
 	_init_rays(rays + 0x2000, _rook90, key090);
@@ -767,6 +763,7 @@ int main(int argc, char **argv) {
 	_init_shorts(kmoves, _king);
 	_init_pawns(pmoves, pcaps, 0);
 	_init_pawns(pmoves + 64, pcaps + 64, 1);
+
 	_parse_fen(sfen);
 	display64(0LL);
 
@@ -775,7 +772,7 @@ int main(int argc, char **argv) {
 	Movep mp; n = 0;
 
 	if (divide) {
-		int flagstor = flags;
+		int flagstore = flags;
 		generateMoves(onmove, &mp);
 		for (i = 0; i < mp.n; i++) {
 			Move m = mp.moves[i];
@@ -786,7 +783,7 @@ int main(int argc, char **argv) {
 
 			displaym(m); printf(": %llu\n", num[sd]);
 			move(m, onmove);
-			flags = flagstor;
+			flags = flagstore;
 			n += num[sd];
 			num[sd] = 0;
 		}
