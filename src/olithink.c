@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 23.Oct.2020, ob112@web.de, http://brausch.org */
-#define VER "5.8.9"
+#define VER "5.8.9a"
 #include <stdio.h>
 #include <string.h>
 #if defined(_WIN32) || defined(_WIN64)
@@ -298,27 +298,26 @@ u64 _occ_free_board(int bc, int del, u64 free) {
 	return perm;
 }
 
-void _init_rays(u64* rays, u64 (*rayFunc)(int, u64, int), int (*key)(u64, int)) {
-	int i, f, iperm, bc, index; 
-	u64 board, mmask, occ, move, xray;
+void _init_rays(u64* ray, u64 (*rayFunc) (int, u64, int), int (*key)(u64, int)) {
+	int i, f, bc;
 	for (f = 0; f < 64; f++) {
-		mmask = (*rayFunc)(f, 0LL, 0) | BIT[f];
-		iperm = 1 << (bc = bitcnt(mmask));
+		u64 mmask = (*rayFunc)(f, 0LL, 0) | BIT[f];
+		int iperm = 1 << (bc = bitcnt(mmask));
 		for (i = 0; i < iperm; i++) {
-			board = _occ_free_board(bc, i, mmask);
-			move = (*rayFunc)(f, board, 1);
-			occ = (*rayFunc)(f, board, 2);
-			xray = (*rayFunc)(f, board, 3);
-			index = (*key)(board, f);
-			rays[(f << 7) + index] = occ | move;
-			rays[(f << 7) + index + 0x8000] = xray;
+			u64 bord = _occ_free_board(bc, i, mmask);
+			u64 move = (*rayFunc)(f, bord, 1);
+			u64 occ = (*rayFunc)(f, bord, 2);
+			u64 xray = (*rayFunc)(f, bord, 3);
+			int index = (*key)(bord, f);
+			ray[(f << 7) + index] = occ | move;
+			ray[(f << 7) + index + 0x8000] = xray;
 		}
 	}
 }
 
-#define RAYMACRO { if (BIT[i] & board) \
-	{ if (b) { xray |= BIT[i]; break; } else { occ |= BIT[i]; b = 1; }} if (!b) free |= BIT[i]; }
-u64 _rook0(int f, u64 board, int t) {
+#define RAYMACRO { if (BIT[i] & bord) \
+	{ if (b) { xray |= BIT[i]; break; } else { occ |= BIT[i]; b = 1; } } if (!b) free |= BIT[i]; }
+u64 _rook0(int f, u64 bord, int t) {
 	u64 free = 0LL, occ = 0LL, xray = 0LL;
 	int i, b;
 	for (b = 0, i = f+1; i < 64 && i%8 != 0; i++) RAYMACRO
@@ -326,7 +325,7 @@ u64 _rook0(int f, u64 board, int t) {
 	return (t < 2) ? free : (t == 2 ? occ : xray);
 }
 
-u64 _rook90(int f, u64 board, int t) {
+u64 _rook90(int f, u64 bord, int t) {
 	u64 free = 0LL, occ = 0LL, xray = 0LL;
 	int i, b;
 	for (b = 0, i = f-8; i >= 0; i-=8) RAYMACRO
@@ -334,7 +333,7 @@ u64 _rook90(int f, u64 board, int t) {
 	return (t < 2) ? free : (t == 2 ? occ : xray);
 }
 
-u64 _bishop45(int f, u64 board, int t) {
+u64 _bishop45(int f, u64 bord, int t) {
 	u64 free = 0LL, occ = 0LL, xray = 0LL;
 	int i, b;
 	for (b = 0, i = f+9; i < 64 && (i%8 != 0); i+=9) RAYMACRO
@@ -342,7 +341,7 @@ u64 _bishop45(int f, u64 board, int t) {
 	return (t < 2) ? free : (t == 2 ? occ : xray);
 }
 
-u64 _bishop135(int f, u64 board, int t) {
+u64 _bishop135(int f, u64 bord, int t) {
 	u64 free = 0LL, occ = 0LL, xray = 0LL;
 	int i, b;
 	for (b = 0, i = f-7; i >= 0 && (i%8 != 0); i-=7) RAYMACRO
@@ -476,7 +475,6 @@ int changeMat(int m, int c, int d) {
 	return c ? -d*dm : d*dm;
 }
 
-#define XORHASH(f, p, c) hashb ^= hashxor[(f) | (p) << 6 | (c) << 9]
 /* move is for both doMove and undoMove, only for undo the globalflags have to be restored (counter, castle, enpass..)*/
 void move(Move m, int c, int d) {
 	int f = FROM(m);
@@ -489,8 +487,8 @@ void move(Move m, int c, int d) {
 
 	colorb[c] ^= BIT[t];
 	pieceb[p] ^= BIT[t];
-	XORHASH(f, p, c);
-	XORHASH(t, p, c);
+	hashb ^= hashxor[f | p << 6 | c << 9];
+	hashb ^= hashxor[t | p << 6 | c << 9];
 
 	if (a) {
 		if (a == ENP) { // Enpassant Capture
@@ -500,7 +498,7 @@ void move(Move m, int c, int d) {
 		}
 		pieceb[a] ^= BIT[t];
 		colorb[c^1] ^= BIT[t];
-		XORHASH(t, a, c^1);
+		hashb ^= hashxor[t | a << 6 | (c^1) << 9];
 		count &= 0x3FF; //Reset Fifty Counter
 		mat += changeMat(m, c, d);
 	}
@@ -509,8 +507,8 @@ void move(Move m, int c, int d) {
 		else if ((t&56) == 0 || (t&56) == 56) {
 			pieceb[PAWN] ^= BIT[t];
 			pieceb[PROM(m)] ^= BIT[t];
-			XORHASH(t, PAWN, c);
-			XORHASH(t, PROM(m), c);
+			hashb ^= hashxor[t | PAWN << 6 | c << 9];
+			hashb ^= hashxor[t | PROM(m) << 6 | c << 9];
 			if (!a) mat += changeMat(m, c, d);
 		}
 		count &= 0x3FF; //Reset Fifty Counter
@@ -526,8 +524,8 @@ void move(Move m, int c, int d) {
 			pieceb[ROOK] ^= BIT[f];
 			colorb[c] ^= BIT[t];
 			pieceb[ROOK] ^= BIT[t];
-			XORHASH(f, ROOK, c);
-			XORHASH(t, ROOK, c);
+			hashb ^= hashxor[f | ROOK << 6 | c << 9];
+			hashb ^= hashxor[t | ROOK << 6 | c << 9];
 		}
 	} else if (p == ROOK && CASTLE) {
 		flags &= crevoke[f];
@@ -613,8 +611,7 @@ int generateCheckEsc(u64 ch, u64 apin, int c, int k, Movep *mp) {
 		cc = reach(f, c^1) & apin;
 		while (cc) {
 			int cf = pullLsb(&cc);
-			int p = identPiece(cf);
-			regMoves(PREMOVE(cf, p), BIT[f], mp, 0);
+			regMoves(PREMOVE(cf, identPiece(cf)), BIT[f], mp, 0);
 		}
 		bf = c ? f+8 : f-8;
 		if (bf < 0 || bf > 63 || !(cc = pieceb[PAWN] & colorb[c] & apin)) continue;
@@ -665,14 +662,14 @@ void generateQuiet(int c, int f, u64 pin, Movep* mp) {
 		regMoves(PREMOVE(f, ROOK), RMOVE(f), mp, 0);
 		if (CASTLE) {
 			if (c) {
-				if ((flags & 128) && (f == 63) && (RMOVE1(63) & BIT[61]))
+				if ((flags & 128) && (f == 63) && (RATT1(63) & BIT[60]))
 					if (!DUALATT(61, 62, c)) regMoves(PREMOVE(60, KING), BIT[62], mp, 0);
-				if ((flags & 512) && (f == 56) && (RMOVE1(56) & BIT[59]))
+				if ((flags & 512) && (f == 56) && (RATT1(56) & BIT[60]))
 					if (!DUALATT(59, 58, c)) regMoves(PREMOVE(60, KING), BIT[58], mp, 0);
 			} else {
-				if ((flags & 64) && (f == 7) && (RMOVE1(7) & BIT[5]))
+				if ((flags & 64) && (f == 7) && (RATT1(7) & BIT[4]))
 					if (!DUALATT(5, 6, c)) regMoves(PREMOVE(4, KING), BIT[6], mp, 0);
-				if ((flags & 256) && (f == 0) && (RMOVE1(0) & BIT[3]))
+				if ((flags & 256) && (f == 0) && (RATT1(0) & BIT[4]))
 					if (!DUALATT(3, 2, c)) regMoves(PREMOVE(4, KING), BIT[2], mp, 0);
 			}
 		}
@@ -1446,8 +1443,7 @@ int protV2(char* buf, int parse) {
 	else if (!strncmp(buf,"computer",8));
 	else if (!strncmp(buf,"accepted",8) || !strncmp(buf,"rejected",8));//accepted/rejected <feature>
 	else if (!strncmp(buf,"random",6)) random = 1;
-	else if (!strncmp(buf,"rating",6)) ics = 1;//ICS: rating <myrat> <oprat>
-	else if (!strncmp(buf,"name",4));//ICS: name <opname>
+	else if (!strncmp(buf,"rating",6) || !strncmp(buf,"name",4)) ics = 1; //ICS: rating <myrat> <oprat>, name <opname>
 	else if (!strncmp(buf,"perft",5)) { int i; for (i = 1; i <= sd && !bioskey(); i++)
 		printf("Depth: %d Nodes: %lld%c\n", i, perft(onmove, i, 0), bioskey() ? '+' : ' '); }
 	else if (!strncmp(buf,"divide",5)) perft(onmove, sd, 1);
