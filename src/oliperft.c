@@ -1,12 +1,13 @@
-/* OliPerft 1.0.7 - Bitboard Magic Move (c) Oliver Brausch 25.Oct.2020, ob112@web.de */
+/* OliPerft 1.0.8 - Bitboard Magic Move (c) Oliver Brausch 31.Oct.2020, ob112@web.de */
 /* oliperft 6 "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
-Nodes: 8229523927 cs: 1156 knps: 713625 (clang7 64bit AMD EPYC 7502P 1/32-Core Processor)
-Nodes: 8229523927 cs: 1442 knps: 570820 (clang10 OSX i7 8850H 2.6 GHz)
+Nodes: 8229523927 ms: 11196 knps: 734975 (clang7 64bit AMD EPYC 7502P 1/32-Core Processor)
+Nodes: 8229523927 ms: 13954 knps: 589718 (clang10 OSX i7 8850H 2.6 GHz)
 Nodes: 8229523927 ms: 40610 knps: 202647 (VS2005 64bit AMD64 4600+) (1.0.2)
 Nodes: 8229523927 ms: 64860 knps: 126881 (VS2005 32bit AMD64 4600+) (1.0.2)
 Nodes: 8229523927 ms: 97251 knps: 84621 (gcc4 32bit AMD Opteron 1210HE) (1.0.2)
 */
 #include <stdio.h>
+#include <string.h>
 #ifdef _WIN32
 #include <windows.h>
 #define bitcnt(x) __popcnt64(x)
@@ -23,6 +24,9 @@ typedef int Move;
 
 enum { EMPTY, PAWN, KNIGHT, KING, ENP, BISHOP, ROOK, QUEEN };
 
+#define HSIZE 0x400000LL
+#define HMASK (HSIZE-1)
+#define HINV ~HMASK
 #define FROM(x) ((x) & 63)
 #define TO(x) (((x) >> 6) & 63)
 #define ONMV(x) (((x) >> 12) & 1)
@@ -37,19 +41,19 @@ enum { EMPTY, PAWN, KNIGHT, KING, ENP, BISHOP, ROOK, QUEEN };
 #define _CAP(x) ((x) << 19)
 #define PREMOVE(f, p) ((f) | _ONMV(c) | _PIECE(p))
 
-#define RATT1(f) rays[((f) << 7) | key000(board, f)]
-#define RATT2(f) rays[((f) << 7) | key090(board, f) | 0x2000]
-#define BATT3(f) rays[((f) << 7) | key045(board, f) | 0x4000]
-#define BATT4(f) rays[((f) << 7) | key135(board, f) | 0x6000]
-#define RXRAY1(f) rays[((f) << 7) | key000(board, f) | 0x8000]
-#define RXRAY2(f) rays[((f) << 7) | key090(board, f) | 0xA000]
-#define BXRAY3(f) rays[((f) << 7) | key045(board, f) | 0xC000]
-#define BXRAY4(f) rays[((f) << 7) | key135(board, f) | 0xE000]
+#define RATT1(f) rays[((f) << 7) | key000(BOARD, f)]
+#define RATT2(f) rays[((f) << 7) | key090(BOARD, f) | 0x2000]
+#define BATT3(f) rays[((f) << 7) | key045(BOARD, f) | 0x4000]
+#define BATT4(f) rays[((f) << 7) | key135(BOARD, f) | 0x6000]
+#define RXRAY1(f) rays[((f) << 7) | key000(BOARD, f) | 0x8000]
+#define RXRAY2(f) rays[((f) << 7) | key090(BOARD, f) | 0xA000]
+#define BXRAY3(f) rays[((f) << 7) | key045(BOARD, f) | 0xC000]
+#define BXRAY4(f) rays[((f) << 7) | key135(BOARD, f) | 0xE000]
 
-#define RMOVE1(f) (RATT1(f) & ~board)
-#define RMOVE2(f) (RATT2(f) & ~board)
-#define BMOVE3(f) (BATT3(f) & ~board)
-#define BMOVE4(f) (BATT4(f) & ~board)
+#define RMOVE1(f) (RATT1(f) & ~BOARD)
+#define RMOVE2(f) (RATT2(f) & ~BOARD)
+#define BMOVE3(f) (BATT3(f) & ~BOARD)
+#define BMOVE4(f) (BATT4(f) & ~BOARD)
 #define RCAP1(f, c) (RATT1(f) & colorb[(c)^1])
 #define RCAP2(f, c) (RATT2(f) & colorb[(c)^1])
 #define BCAP3(f, c) (BATT3(f) & colorb[(c)^1])
@@ -61,12 +65,12 @@ enum { EMPTY, PAWN, KNIGHT, KING, ENP, BISHOP, ROOK, QUEEN };
 #define RCAP(f, c) (RCAP1(f, c) | RCAP2(f, c))
 #define BCAP(f, c) (BCAP3(f, c) | BCAP4(f, c))
 
-#define NMOVE(x) (nmoves[x] & ~board)
-#define KMOVE(x) (kmoves[x] & ~board)
+#define NMOVE(x) (nmoves[x] & ~BOARD)
+#define KMOVE(x) (kmoves[x] & ~BOARD)
 #define NCAP(x, c) (nmoves[x] & colorb[(c)^1])
 #define KCAP(x, c) (kmoves[x] & colorb[(c)^1])
-#define PMOVE(x, c) (pmoves[(x) | ((c)<<6)] & ~board)
-#define POCC(x, c) (pcaps[(x) | ((c)<<6)] & board)
+#define PMOVE(x, c) (pmoves[(x) | ((c)<<6)] & ~BOARD)
+#define POCC(x, c) (pcaps[(x) | ((c)<<6)] & BOARD)
 #define PCAP(x, c) (pcaps[(x) | ((c)<<6)] & colorb[(c)^1])
 #define PCA3(x, c) (pcaps[(x) | ((c)<<6) | 128] & (colorb[(c)^1] | (BIT[ENPASS] & ((c) ? 0xFF0000 : 0xFF0000000000))))
 #define PCA4(x, c) (pcaps[(x) | ((c)<<6) | 256] & (colorb[(c)^1] | (BIT[ENPASS] & ((c) ? 0xFF0000 : 0xFF0000000000))))
@@ -77,9 +81,6 @@ enum { EMPTY, PAWN, KNIGHT, KING, ENP, BISHOP, ROOK, QUEEN };
 #define ENPASS (flags & 63)
 #define CASTLE (flags & 960)
 
-#define HSIZE 0x400000LL
-#define HMASK (HSIZE-1)
-#define HINV ~HMASK
 u64 hashDB[HSIZE], num[128];
 u64 hashb;
 
@@ -100,10 +101,11 @@ struct Movep {
 };
 typedef struct Movep Movep;
 const char pieceChar[] = "*PNK.BRQ";
-u64 pieceb[8], colorb[2];
-u64 board;
+u64 pieceb[8], colorb[2], BOARD;
 int kingpos[2];
 int flags, onmove;
+#define RQU (pieceb[ROOK] | pieceb[QUEEN])
+#define BQU (pieceb[BISHOP] | pieceb[QUEEN])
 
 void _parse_fen(char *fen) {
 	char s, mv, pos[128], cas[5], enps[3];
@@ -137,7 +139,7 @@ void _parse_fen(char *fen) {
 		if (s == 'q') flags |= BIT[9];
 	}
 	if (enps[0] != '-') flags |= 8*(enps[1] - '1') + enps[0] - 'a';
-	board = colorb[0] | colorb[1];
+	BOARD = colorb[0] | colorb[1];
 }
 
 void _init_pawns(u64* moves, u64* caps, int c) {
@@ -190,20 +192,20 @@ void _init_rays(u64* ray, u64 (*rayFunc) (int, u64, int), int (*key)(u64, int)) 
 		u64 mmask = (*rayFunc)(f, 0LL, 0) | BIT[f];
 		int iperm = 1 << (bc = bitcnt(mmask));
 		for (i = 0; i < iperm; i++) {
-			u64 bord = _occ_free_board(bc, i, mmask);
-			u64 move = (*rayFunc)(f, bord, 1);
-			u64 occ = (*rayFunc)(f, bord, 2);
-			u64 xray = (*rayFunc)(f, bord, 3);
-			int index = (*key)(bord, f);
+			u64 board = _occ_free_board(bc, i, mmask);
+			u64 move = (*rayFunc)(f, board, 1);
+			u64 occ = (*rayFunc)(f, board, 2);
+			u64 xray = (*rayFunc)(f, board, 3);
+			int index = (*key)(board, f);
 			ray[(f << 7) + index] = occ | move;
 			ray[(f << 7) + index + 0x8000] = xray;
 		}
 	}
 }
 
-#define RAYMACRO { if (BIT[i] & bord) \
+#define RAYMACRO { if (BIT[i] & board) \
 	{ if (b) { xray |= BIT[i]; break; } else { occ |= BIT[i]; b = 1; } } if (!b) free |= BIT[i]; }
-u64 _rook0(int f, u64 bord, int t) {
+u64 _rook0(int f, u64 board, int t) {
 	u64 free = 0LL, occ = 0LL, xray = 0LL;
 	int i, b;
 	for (b = 0, i = f+1; i < 64 && i%8 != 0; i++) RAYMACRO
@@ -211,7 +213,7 @@ u64 _rook0(int f, u64 bord, int t) {
 	return (t < 2) ? free : (t == 2 ? occ : xray);
 }
 
-u64 _rook90(int f, u64 bord, int t) {
+u64 _rook90(int f, u64 board, int t) {
 	u64 free = 0LL, occ = 0LL, xray = 0LL;
 	int i, b;
 	for (b = 0, i = f-8; i >= 0; i-=8) RAYMACRO
@@ -219,7 +221,7 @@ u64 _rook90(int f, u64 bord, int t) {
 	return (t < 2) ? free : (t == 2 ? occ : xray);
 }
 
-u64 _bishop45(int f, u64 bord, int t) {
+u64 _bishop45(int f, u64 board, int t) {
 	u64 free = 0LL, occ = 0LL, xray = 0LL;
 	int i, b;
 	for (b = 0, i = f+9; i < 64 && (i%8 != 0); i+=9) RAYMACRO
@@ -227,7 +229,7 @@ u64 _bishop45(int f, u64 bord, int t) {
 	return (t < 2) ? free : (t == 2 ? occ : xray);
 }
 
-u64 _bishop135(int f, u64 bord, int t) {
+u64 _bishop135(int f, u64 board, int t) {
 	u64 free = 0LL, occ = 0LL, xray = 0LL;
 	int i, b;
 	for (b = 0, i = f-7; i >= 0 && (i%8 != 0); i-=7) RAYMACRO
@@ -277,15 +279,13 @@ int keyDiag(u64 _b) {
 
 u64 bmask45[64], bmask135[64];
 int key045(u64 b, int f) {
-   return keyDiag(b & bmask45[f]);
+	return keyDiag(b & bmask45[f]);
 }
 
 int key135(u64 b, int f) {
-   return keyDiag(b & bmask135[f]);
+	return keyDiag(b & bmask135[f]);
 }
 
-#define RQU (pieceb[ROOK] | pieceb[QUEEN])
-#define BQU (pieceb[BISHOP] | pieceb[QUEEN])
 #define DUALATT(x, y, c) (battacked(x, c) || battacked(y, c))
 int battacked(int f, int c) {
 	if (PCAP(f, c) & pieceb[PAWN]) return 1;
@@ -400,7 +400,7 @@ void move(Move m, int c) {
 	} else if (p == ROOK && CASTLE) {
 		flags &= crevoke[f];
 	}
-	board = colorb[0] | colorb[1];
+	BOARD = colorb[0] | colorb[1];
 }
 
 void registerMoves(Move m, u64 bc, u64 bm, Movep *mp) {
@@ -447,9 +447,9 @@ void registerKing(Move m, u64 bc, u64 bm, Movep *mp, int c) {
 int generateCheckEsc(u64 ch, u64 apin, int c, int k, Movep *mp) {
 	u64 cc, fl;
 	int d, bf = bitcnt(ch);
-	board ^= BIT[k];
+	BOARD ^= BIT[k];
 	registerKing(PREMOVE(k, KING), KCAP(k, c), KMOVE(k), mp, c);
-	board ^= BIT[k];
+	BOARD ^= BIT[k];
 	if (bf > 1) return bf; //Multicheck
 	bf = getLsb(ch);
 
@@ -493,7 +493,7 @@ int generateCheckEsc(u64 ch, u64 apin, int c, int k, Movep *mp) {
 			else
 				registerMoves(PREMOVE(bf, PAWN), 0LL, BIT[f], mp);
 		}
-		if (RANK4(f, c) && !(board & BIT[bf]) && (BIT[c ? f+16 : f-16] & cc))
+		if (RANK4(f, c) && !(BOARD & BIT[bf]) && (BIT[c ? f+16 : f-16] & cc))
 			registerMoves(PREMOVE(c ? f+16 : f-16, PAWN), 0LL, BIT[f], mp);
 	}
 	return 1;
@@ -526,11 +526,11 @@ int generateMoves(int c, Movep *mp) {
 			registerProms(f, c, a, m, mp);
 		} else {
 			if (t & 128 && ENPASS && (BIT[ENPASS] & pcaps[(f) | ((c)<<6)])) {
-				board ^= BIT[ENPASS^8];
+				BOARD ^= BIT[ENPASS^8];
 				if (!(RATT1(f) & BIT[kingpos[c]]) || !(RATT1(f) & colorb[c^1] & RQU)) {
 					a |= BIT[ENPASS];
 				}
-				board ^= BIT[ENPASS^8];
+				BOARD ^= BIT[ENPASS^8];
 			}
 			registerMoves(PREMOVE(f, PAWN), a, m, mp);
 		}
@@ -613,11 +613,11 @@ int countMoves(int c, Movep *mp) {
 			mp->n += bitcnt(a | m) << 2;
 		} else {
 			if (ENPASS && (BIT[ENPASS] & pcaps[(f) | ((c)<<6)])) {
-				board ^= BIT[ENPASS^8];
+				BOARD ^= BIT[ENPASS^8];
 				if (!(RATT1(f) & BIT[kingpos[c]]) || !(RATT1(f) & colorb[c^1] & RQU)) {
 					a |= BIT[ENPASS];
 				}
-				board ^= BIT[ENPASS^8];
+				BOARD ^= BIT[ENPASS^8];
 			}
 			mp->n += bitcnt(a | m);
 		}
@@ -695,6 +695,29 @@ int countMoves(int c, Movep *mp) {
 	return 0;
 }
 
+struct Pos {
+	u64 hashb;
+	int kingpos;
+	u64 colorb[3];
+	u64 pieceb[8];
+};
+typedef struct Pos Pos;
+
+void storePos(Pos* pos, int c) {
+	pos->hashb = hashb;
+	pos->kingpos = kingpos[c];
+	memcpy(pos->colorb, colorb, sizeof(colorb));
+	memcpy(pos->pieceb, pieceb, sizeof(pieceb));
+}
+
+void restorePos(Pos* pos, int c) {
+	hashb = pos->hashb;
+	kingpos[c] = pos->kingpos;
+	memcpy(colorb, pos->colorb, sizeof(colorb));
+	memcpy(pieceb, pos->pieceb, sizeof(pieceb));
+	BOARD = colorb[0] | colorb[1];
+}
+
 #define HASHB (hashb ^ hashxor[flags | c << 10 | d << 11])
 void perft(int c, int d, int ply) {
 	u64 hb = HASHB;
@@ -716,16 +739,19 @@ void perft(int c, int d, int ply) {
 	}
 	n0 = num[ply+d];
 
+	Pos pos; pos.hashb = 0;
 	generateMoves(c, &mp);
 	int i, flagstore = flags, poff = ply << 8;
 	for (i = 0; i < mp.n; i++) {
 		Move m = mp.moves[i];
+
+		if (!pos.hashb) storePos(&pos, c);
 		move(m, c);
 
 		num[ply+1]++;
 		if (d > 1) perft(c^1, d-1, ply+1);
 
-		move(m, c);
+		restorePos(&pos, c); //move(m, c);
 		flags = flagstore;
 	}
 	n0 = num[ply+d] - n0;
@@ -796,6 +822,6 @@ int main(int argc, char **argv) {
 		}
 	}
 	t1 = getTime() - t1 + 1;
-	printf("\nNodes: %llu cs: %llu knps: %llu\n", n, (t1 + 3)/10, n/t1);
+	printf("\nNodes: %llu ms: %llu knps: %llu\n", n, t1, n/(t1+1));
 	return 0;
 }
