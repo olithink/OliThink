@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 30.Oct.2020, ob112@web.de, http://brausch.org */
-#define VER "5.9.0"
+#define VER "5.9.0a"
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -1175,22 +1175,20 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 			generate(ch, c, &mp, 0, 1);
 		}
 		for (i = 0; i < mp.n; i++) {
-			Move m;
-			u64 nch;
-			int ext = 0;
-			if (n == HASH) {
-				m = hmove;
-			} else {
-				if (n == NOISY) m = qpick(&mp, i);
-				else m = spick(&mp, i, ply);
-				if (m == hmove) continue;
-				if (first != NO_MOVE && STDSCORE(beta, alpha) && d <= 8 && swap(m) < -d*60) continue;
-			}
+			Move m = n == HASH ? hmove : n == NOISY ? qpick(&mp, i) : spick(&mp, i, ply);
+			if (n != HASH && m == hmove) continue;
 
+			int quiet = !CAP(m) && !PROM(m);
+			if (!ch && quiet && mp.nquiet >= 2 + 3*d) {
+				n = EXIT; break; // LMP
+			}
+			if (n != HASH && first != NO_MOVE && STDSCORE(beta, alpha) && d <= 8 && swap(m) < -d*60) continue;
+
+			int ext = 0;
 			if (!pos.hashb) storePos(&pos, c);
 			doMove(m, c);
-			if (!CAP(m) && !PROM(m)) mp.quiets[mp.nquiet++] = m;
-			nch = attacked(kingpos[oc], oc);
+			if (quiet) mp.quiets[mp.nquiet++] = m;
+			u64 nch = attacked(kingpos[oc], oc);
 			if (nch || pvnode || ch);
 			else if (n == NOISY && d >= 2 && !PROM(m) && swap(m) < 0) ext-= (d + 1)/3; //Reduce bad exchanges
 			else if (n == QUIET) { //LMR
@@ -1224,7 +1222,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 				pv[ply][j] = 0;
 
 				if (w >= beta) {
-					if ((!CAP(m) && !PROM(m))) {
+					if (quiet) {
 						int his = MIN(d*d, 512);
 						killer[ply] = m;
 						history[m & 0x1FFF] += his;
