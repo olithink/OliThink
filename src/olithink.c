@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 30.Oct.2020, ob112@web.de, http://brausch.org */
-#define VER "5.9.0b"
+#define VER "5.9.0c"
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -1187,7 +1187,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 			if (quiet) mp.quiets[mp.nquiet++] = m;
 			u64 nch = attacked(kingpos[oc], oc);
 			if (nch || pvnode || ch);
-			else if (n == NOISY && d >= 2 && !PROM(m) && swap(m) < 0) ext-= (d + 1)/3; //Reduce bad exchanges
+			else if (n == NOISY && d >= 2 && !PROM(m) && swap(m) < 0) ext-= (d + 1)/(3+raising); //Reduce bad exchanges
 			else if (n == QUIET) { //LMR
 				if (m == killer[ply]); //Don't reduce killers
 				else if (PIECE(m) == PAWN && !(pawnfree[TO(m) + (c << 6)] & pieceb[PAWN] & colorb[oc])); //Free pawns
