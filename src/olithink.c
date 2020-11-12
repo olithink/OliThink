@@ -1102,10 +1102,6 @@ static int nullvariance(int delta) {
 	return r;
 }
 
-int dummy() { // This is never called, it just exists for code alignment.
-	return random++;
-}
-
 #define STDSCORE(b, w) (b > -MAXSCORE+500 && w > -MAXSCORE+500 && w < MAXSCORE-500)
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
@@ -1122,7 +1118,6 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 
 	u64 hp = HASHP;
 	if (ply && isDraw(hp, 1)) return 0;
-	if (ply == 127) return dummy();
 
 	if (ch) d++; // Check extension
 	if (d <= 0 || ply > 100) return quiesce(ch, c, ply, alpha, beta);
@@ -1204,13 +1199,10 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 				}
 			}
 
-			if (first == NO_MOVE && pvnode) {
-				w = -search(nch, oc, d-1+ext, ply+1, -beta, -alpha, 0);
-			} else {
-				w = -search(nch, oc, d-1+ext, ply+1, -alpha-1, -alpha, 1);
-				if (w > alpha && ext < 0) w = -search(nch, oc, d-1, ply+1, -alpha-1, -alpha, 1);
-				if (w > alpha && w < beta) w = -search(nch, oc, d-1, ply+1, -beta, -alpha, 0);
-			}
+			int firstPVNode = first == NO_MOVE && pvnode;
+			if (!firstPVNode) w = -search(nch, oc, d-1+ext, ply+1, -alpha-1, -alpha, 1);
+			if (w > alpha && ext < 0) w = -search(nch, oc, d-1, ply+1, -alpha-1, -alpha, 1);
+			if ((w > alpha && w < beta) || firstPVNode) w = -search(nch, oc, d-1, ply+1, -beta, -alpha, 0);
 
 			undoMove(0, c);
 			restorePos(&pos, c);
