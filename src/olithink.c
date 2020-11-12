@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 30.Oct.2020, ob112@web.de, http://brausch.org */
-#define VER "5.9.0a"
+#define VER "5.9.0b"
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -101,6 +101,7 @@ struct entry hashDB[HSIZE];
 u64 hashb;
 u64 hstack[0x400];
 u64 mstack[0x400];
+int wstack[0x400];
 
 static u64 BIT[64];
 static u64 hashxor[4096];
@@ -1141,7 +1142,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 		if (!hmove) hmove = he.move;
 	}
 
-	int wstat = ch ? -MAXSCORE+ply : he.key == hp ? he.value : eval(c);
+	int wstat = wstack[COUNT] = ch ? -MAXSCORE+ply : he.key == hp ? he.value : eval(c);
 	if (!ch && !pvnode && beta > -MAXSCORE+500) {
 		if (d <= 3 && wstat + 400 < beta) { w = quiesce(ch, c, ply, alpha, beta); if (w < beta) return w; }
 		if (d <= 8 && wstat - 88*d > beta) return wstat;
@@ -1164,10 +1165,11 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 
 	Movep mp; mp.nquiet = 0;
 	Pos pos; pos.hashb = 0;
+	int raising = !ch && ply >= 2 && wstat >= wstack[COUNT-2];
 	int first = NO_MOVE;  long long hismax = -1LL;
 	for (n = HASH; n <= (ch ? NOISY : QUIET); n++) {
 		if (n == HASH) {
-			if (hmove == 0) continue;
+			if (!hmove) continue;
 			mp.n = 1;
 		} else if (n == NOISY) {
 			generate(ch, c, &mp, 1, 0);
@@ -1179,7 +1181,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 			if (n != HASH && m == hmove) continue;
 
 			int quiet = !CAP(m) && !PROM(m);
-			if (!ch && quiet && mp.nquiet >= 2 + 3*d) {
+			if (!ch && quiet && mp.nquiet > 2*d*(raising+1)) {
 				n = EXIT; break; // LMP
 			}
 			if (n != HASH && first != NO_MOVE && STDSCORE(beta, alpha) && d <= 8 && swap(m) < -d*60) continue;
@@ -1201,14 +1203,13 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 					else if (d >= 2) ext-= (d + 1)/3;
 				}
 			}
-			if (PROM(m) == QUEEN) ext++;
 
 			if (first == NO_MOVE && pvnode) {
 				w = -search(nch, oc, d-1+ext, ply+1, -beta, -alpha, 0);
 			} else {
 				w = -search(nch, oc, d-1+ext, ply+1, -alpha-1, -alpha, 1);
 				if (w > alpha && ext < 0) w = -search(nch, oc, d-1, ply+1, -alpha-1, -alpha, 1);
-				if (w > alpha && w < beta) w = -search(nch, oc, d-1+ext, ply+1, -beta, -alpha, 0);
+				if (w > alpha && w < beta) w = -search(nch, oc, d-1, ply+1, -beta, -alpha, 0);
 			}
 
 			undoMove(0, c);
