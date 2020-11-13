@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 30.Oct.2020, ob112@web.de, http://brausch.org */
-#define VER "5.9.0"
+/* OliThink5 (c) Oliver Brausch 13.Nov.2020, ob112@web.de, http://brausch.org */
+#define VER "5.9.1"
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -101,6 +101,7 @@ struct entry hashDB[HSIZE];
 u64 hashb;
 u64 hstack[0x400];
 u64 mstack[0x400];
+int wstack[0x400];
 
 static u64 BIT[64];
 static u64 hashxor[4096];
@@ -1101,10 +1102,6 @@ static int nullvariance(int delta) {
 	return r;
 }
 
-int dummy() { // This is never called, it just exists for code alignment.
-	return random++;
-}
-
 #define STDSCORE(b, w) (b > -MAXSCORE+500 && w > -MAXSCORE+500 && w < MAXSCORE-500)
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
@@ -1121,7 +1118,6 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 
 	u64 hp = HASHP;
 	if (ply && isDraw(hp, 1)) return 0;
-	if (ply == 127) return dummy();
 
 	if (ch) d++; // Check extension
 	if (d <= 0 || ply > 100) return quiesce(ch, c, ply, alpha, beta);
@@ -1141,7 +1137,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 		if (!hmove) hmove = he.move;
 	}
 
-	int wstat = ch ? -MAXSCORE+ply : he.key == hp ? he.value : eval(c);
+	int wstat = wstack[COUNT] = ch ? -MAXSCORE+ply : he.key == hp ? he.value : eval(c);
 	if (!ch && !pvnode && beta > -MAXSCORE+500) {
 		if (d <= 3 && wstat + 400 < beta) { w = quiesce(ch, c, ply, alpha, beta); if (w < beta) return w; }
 		if (d <= 8 && wstat - 88*d > beta) return wstat;
@@ -1164,10 +1160,11 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 
 	Movep mp; mp.nquiet = 0;
 	Pos pos; pos.hashb = 0;
+	int raising = !ch && ply >= 2 && wstat >= wstack[COUNT-2];
 	int first = NO_MOVE;  long long hismax = -1LL;
 	for (n = HASH; n <= (ch ? NOISY : QUIET); n++) {
 		if (n == HASH) {
-			if (hmove == 0) continue;
+			if (!hmove) continue;
 			mp.n = 1;
 		} else if (n == NOISY) {
 			generate(ch, c, &mp, 1, 0);
@@ -1175,24 +1172,22 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 			generate(ch, c, &mp, 0, 1);
 		}
 		for (i = 0; i < mp.n; i++) {
-			Move m;
-			u64 nch;
-			int ext = 0;
-			if (n == HASH) {
-				m = hmove;
-			} else {
-				if (n == NOISY) m = qpick(&mp, i);
-				else m = spick(&mp, i, ply);
-				if (m == hmove) continue;
-				if (first != NO_MOVE && STDSCORE(beta, alpha) && d <= 8 && swap(m) < -d*60) continue;
-			}
+			Move m = n == HASH ? hmove : n == NOISY ? qpick(&mp, i) : spick(&mp, i, ply);
+			if (n != HASH && m == hmove) continue;
 
+			int quiet = !CAP(m) && !PROM(m);
+			if (!ch && quiet && mp.nquiet > 2*d*(raising+1)) {
+				n = EXIT; break; // LMP
+			}
+			if (n != HASH && first != NO_MOVE && STDSCORE(beta, alpha) && d <= 8 && swap(m) < -d*60) continue;
+
+			int ext = 0;
 			if (!pos.hashb) storePos(&pos, c);
 			doMove(m, c);
-			if (!CAP(m) && !PROM(m)) mp.quiets[mp.nquiet++] = m;
-			nch = attacked(kingpos[oc], oc);
+			if (quiet) mp.quiets[mp.nquiet++] = m;
+			u64 nch = attacked(kingpos[oc], oc);
 			if (nch || pvnode || ch);
-			else if (n == NOISY && d >= 2 && !PROM(m) && swap(m) < 0) ext-= (d + 1)/3; //Reduce bad exchanges
+			else if (n == NOISY && d >= 2 && !PROM(m) && swap(m) < 0) ext-= (d + 1)/(3+raising); //Reduce bad exchanges
 			else if (n == QUIET) { //LMR
 				if (m == killer[ply]); //Don't reduce killers
 				else if (PIECE(m) == PAWN && !(pawnfree[TO(m) + (c << 6)] & pieceb[PAWN] & colorb[oc])); //Free pawns
@@ -1203,15 +1198,11 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 					else if (d >= 2) ext-= (d + 1)/3;
 				}
 			}
-			if (PROM(m) == QUEEN) ext++;
 
-			if (first == NO_MOVE && pvnode) {
-				w = -search(nch, oc, d-1+ext, ply+1, -beta, -alpha, 0);
-			} else {
-				w = -search(nch, oc, d-1+ext, ply+1, -alpha-1, -alpha, 1);
-				if (w > alpha && ext < 0) w = -search(nch, oc, d-1, ply+1, -alpha-1, -alpha, 1);
-				if (w > alpha && w < beta) w = -search(nch, oc, d-1+ext, ply+1, -beta, -alpha, 0);
-			}
+			int firstPVNode = first == NO_MOVE && pvnode;
+			if (!firstPVNode) w = -search(nch, oc, d-1+ext, ply+1, -alpha-1, -alpha, 1);
+			if (w > alpha && ext < 0) w = -search(nch, oc, d-1, ply+1, -alpha-1, -alpha, 1);
+			if ((w > alpha && w < beta) || firstPVNode) w = -search(nch, oc, d-1, ply+1, -beta, -alpha, 0);
 
 			undoMove(0, c);
 			restorePos(&pos, c);
@@ -1224,7 +1215,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 				pv[ply][j] = 0;
 
 				if (w >= beta) {
-					if ((!CAP(m) && !PROM(m))) {
+					if (quiet) {
 						int his = MIN(d*d, 512);
 						killer[ply] = m;
 						history[m & 0x1FFF] += his;
