@@ -9,7 +9,7 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Reduction, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1541
+LinesOfCode: 1544
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
 

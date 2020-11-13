@@ -1470,8 +1470,10 @@ int protV2(char* buf, int parse) {
 	else if (strchr(buf, '/') != NULL && strlen(buf)>16) {
 		engine = -1; analyze = pondering = 1; if (parse) _parse_fen(buf, 1); else return -9; }
 	else if (buf[0] == 0 || buf[0] == '\n');
-	else { int i; for (i = 0; i < 15 ; i++)
-		if (!strncmp(buf, comreturn[i], strlen(comreturn[i]))) return  i < 8 ? 0 : 6-i; return -1; }
+	else {
+		int i; for (i = 0; i < 15 ; i++) if (!strncmp(buf, comreturn[i], strlen(comreturn[i]))) return i < 8 ? 0 : 6-i;
+		return -1;
+	}
 	return 0;
 }
 
