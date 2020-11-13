@@ -129,7 +129,7 @@ struct Movep {
 	Move quiets[128];
 };
 typedef struct Movep Movep;
-Move pv[128][128], pon = 0;;
+Move pv[128][128], pon = 0;
 const char pieceChar[] = "*PNK.BRQ";
 u64 maxtime, starttime;
 u64 pieceb[8], colorb[3];
