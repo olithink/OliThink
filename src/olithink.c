@@ -89,15 +89,15 @@ const int pawnrun[] = {0, 0, 1, 8, 16, 32, 64, 128};
 #define MEVAL(w) ((w) > MAXSCORE-500 ? (200001+MAXSCORE-(w))/2 : ((w) < 500-MAXSCORE ? (-200000-MAXSCORE-(w))/2 : (w)))
 #define NOMATEMAT(c) ((sf[c] <= 4 || (sf[c] <= 8 && sf[c] <= sf[(c)^1] + 3)) && (pieceb[PAWN] & colorb[c]) == 0)
 
-struct entry {
+typedef struct {
 	u64 key;
 	Move move;
 	short value;
 	char depth;
 	char type;
-};
+} entry;
 
-struct entry hashDB[HSIZE];
+entry hashDB[HSIZE];
 u64 hashb;
 u64 hstack[0x400];
 u64 mstack[0x400];
@@ -122,13 +122,13 @@ const int cornbase[] = {4, 4, 2, 1, 0, 0 ,0};
 static int bishcorn[64];
 static u64 whitesq;
 
-struct Movep {
+typedef struct {
 	int n;
 	Move list[128];
 	int nquiet;
 	Move quiets[128];
-};
-typedef struct Movep Movep;
+} Movep;
+
 Move pv[128][128], pon = 0;
 const char pieceChar[] = "*PNK.BRQ";
 u64 maxtime, starttime;
@@ -990,14 +990,13 @@ int eval(int c) {
 	return ev + evallazy(c, MAT);
 }
 
-struct Pos {
+typedef struct {
 	u64 hashb;
 	int kingpos;
 	int sf[3];
 	u64 colorb[3];
 	u64 pieceb[8];
-};
-typedef struct Pos Pos;
+} Pos;
 
 void storePos(Pos* pos, int c) {
 	pos->kingpos = kingpos[c];
@@ -1128,7 +1127,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 
 	Move hmove = ply ? 0 : retPVMove(c, 0);
 
-	struct entry he = hashDB[hp & HMASK];
+	entry he = hashDB[hp & HMASK];
 	if (he.key == hp) {
 		if (he.depth >= d) {
 			if (he.type <= EXACT && he.value >= beta) return beta;
@@ -1236,7 +1235,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 	char type = UPPER;
 	if (first == GOOD_MOVE) type = (char)(alpha >= beta ? LOWER : EXACT), hmove = pv[ply][ply]; // Found good move
 	
-	hashDB[hp & HMASK] = (struct entry) {.key = hp, .move = hmove, .value = alpha, .depth = d, .type = type };
+	hashDB[hp & HMASK] = (entry) {.key = hp, .move = hmove, .value = alpha, .depth = d, .type = type };
 
 	return alpha;
 }
