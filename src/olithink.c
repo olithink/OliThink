@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 13.Nov.2020, ob112@web.de, http://brausch.org */
-#define VER "5.9.1"
+/* OliThink5 (c) Oliver Brausch 30.Nov.2020, ob112@web.de, http://brausch.org */
+#define VER "5.9.2"
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -447,17 +447,17 @@ u64 attacked(int f, int c) {
 	return (PCAP(f, c) & pieceb[PAWN]) | reach(f, c);
 }
 
-u64 pinnedPieces(int f, int oc) {
+u64 pinnedPieces(int k, int oc) {
 	u64 pin = 0LL;
-	u64 b = ((RXRAY1(f) | RXRAY2(f)) & colorb[oc]) & RQU;
+	u64 b = ((RXRAY1(k) | RXRAY2(k)) & colorb[oc]) & RQU;
 	while (b) {
 		int t = pullLsb(&b);
-		pin |= RATT(f) & RATT(t) & colorb[oc^1];
+		pin |= RATT(k) & RATT(t) & colorb[oc^1];
 	}
-	b = ((BXRAY3(f) | BXRAY4(f)) & colorb[oc]) & BQU;
+	b = ((BXRAY3(k) | BXRAY4(k)) & colorb[oc]) & BQU;
 	while (b) {
 		int t = pullLsb(&b);
-		pin |= BATT(f) & BATT(t) & colorb[oc^1];
+		pin |= BATT(k) & BATT(t) & colorb[oc^1];
 	}
 	return pin;
 }
@@ -630,15 +630,15 @@ int generateCheckEsc(u64 ch, u64 apin, int c, int k, Movep *mp) {
 	return 1;
 }
 
-void generateQuiet(int c, int f, u64 pin, Movep* mp) {
-	u64 m, b, cb = colorb[c] & (~pin);
+void generateQuiet(int c, int k, u64 pin, Movep* mp) {
+	u64 m, b, f, cb = colorb[c] & (~pin);
 
-	regKings(PREMOVE(f, KING), KMOVE(f), mp, c, 0);
+	regKings(PREMOVE(k, KING), KMOVE(k), mp, c, 0);
 
 	b = pieceb[PAWN] & colorb[c];
 	while (b) {
 		f = pullLsb(&b);
-		u32 t = BIT[f] & pin ? getDir(f, kingpos[c]) : 144;
+		u32 t = BIT[f] & pin ? getDir(f, k) : 144;
 		if (t & 8) continue;
 		if (t & 16) {
 			m = PMOVE(f, c);
@@ -694,7 +694,7 @@ void generateQuiet(int c, int f, u64 pin, Movep* mp) {
 	while (b) {
 		f = pullLsb(&b);
 		int p = identPiece(f);
-		int t = p | getDir(f, kingpos[c]);
+		int t = p | getDir(f, k);
 		if ((t & 10) == 10) regMoves(PREMOVE(f, p), RMOVE1(f), mp, 0);
 		if ((t & 18) == 18) regMoves(PREMOVE(f, p), RMOVE2(f), mp, 0);
 		if ((t & 33) == 33) regMoves(PREMOVE(f, p), BMOVE3(f), mp, 0);
@@ -702,15 +702,15 @@ void generateQuiet(int c, int f, u64 pin, Movep* mp) {
 	}
 }
 
-void generateNoisy(int c, int f, u64 pin, Movep *mp) {
-	u64 m, b, a, cb = colorb[c] & (~pin);
+void generateNoisy(int c, int k, u64 pin, Movep *mp) {
+	u64 m, b, a, f, cb = colorb[c] & (~pin);
 
-	regKings(PREMOVE(f, KING), KCAP(f, c), mp, c, 1);
+	regKings(PREMOVE(k, KING), KCAP(k, c), mp, c, 1);
 
 	b = pieceb[PAWN] & colorb[c];
 	while (b) {
 		f = pullLsb(&b);
-		u32 t = BIT[f] & pin ? getDir(f, kingpos[c]) : 144;
+		u32 t = BIT[f] & pin ? getDir(f, k) : 144;
 		if (t & 8) continue;
 		if (t & 16) {
 			m = PMOVE(f, c); a = t & 128 ? PCAP(f, c) : 0;
@@ -728,7 +728,7 @@ void generateNoisy(int c, int f, u64 pin, Movep *mp) {
 		} else {
 			if (t & 128 && ENPASS && (BIT[ENPASS] & pcaps[(f) | ((c)<<6)])) {
 				BOARD ^= BIT[ENPASS ^ 8];
-				if (!(RATT1(f) & BIT[kingpos[c]]) || !(RATT1(f) & colorb[c^1] & RQU)) {
+				if (!(RATT1(f) & BIT[k]) || !(RATT1(f) & colorb[c^1] & RQU)) {
 					a = a | BIT[ENPASS];
 				}
 				BOARD ^= BIT[ENPASS ^ 8];
@@ -765,7 +765,7 @@ void generateNoisy(int c, int f, u64 pin, Movep *mp) {
 	while (b) {
 		f = pullLsb(&b);
 		int p = identPiece(f);
-		int t = p | getDir(f, kingpos[c]);
+		int t = p | getDir(f, k);
 		if ((t & 10) == 10) regMoves(PREMOVE(f, p), RCAP1(f, c), mp, 1);
 		if ((t & 18) == 18) regMoves(PREMOVE(f, p), RCAP2(f, c), mp, 1);
 		if ((t & 33) == 33) regMoves(PREMOVE(f, p), BCAP3(f, c), mp, 1);
@@ -775,12 +775,12 @@ void generateNoisy(int c, int f, u64 pin, Movep *mp) {
 
 #define GENERATE(c, mp) generate(attacked(kingpos[c], c), c, mp, 1, 1)
 int generate(u64 ch, int c, Movep *mp, int noisy, int quiet) {
-	int f = kingpos[c];
-	u64 pin = pinnedPieces(f, c^1);
+	int k = kingpos[c];
+	u64 pin = pinnedPieces(k, c^1);
 	mp->n = 0;
-	if (ch) return generateCheckEsc(ch, ~pin, c, f, mp);
-	if (noisy) generateNoisy(c, f, pin, mp);
-	if (quiet) generateQuiet(c, f, pin, mp);
+	if (ch) return generateCheckEsc(ch, ~pin, c, k, mp);
+	if (noisy) generateNoisy(c, k, pin, mp);
+	if (quiet) generateQuiet(c, k, pin, mp);
 	return 0;
 }
 
@@ -858,7 +858,7 @@ Move spick(Movep* mp, int s, int ply) {
 }
 
 u64 rankb[8]; u64 fileb[8];
-u64 pawnAttack(int c) {
+inline u64 pawnAttack(int c) {
 	u64 p = colorb[c] & pieceb[PAWN];
 	return c == 0 ? (p &~ fileb[0]) << 7 | (p &~ fileb[7]) << 9 : (p &~ fileb[7]) >> 7 | (p &~ fileb[0]) >> 9;
 }
@@ -867,6 +867,15 @@ u64 mobilityb(int c) {
 	u64 b = c == 0 ? rankb[1] | (BOARD >> 8) : rankb[6] | (BOARD << 8);
 	b &= b & colorb[c] & pieceb[PAWN];
 	return ~(b | pawnAttack(c^1));
+}
+
+inline int kmobilf(int c) {
+	int km = kmobil[kingpos[c]] << 2, sfo = sf[c^1];
+	if (!sf[c] && sfo == 5 && pieceb[BISHOP] && !pieceb[PAWN]) { // BNK_vs_k
+		int bc = bishcorn[kingpos[c]] << 5;
+		if (pieceb[BISHOP] & whitesq) km += bc; else km -= bc;
+	}
+	return sfo < 14 ? km : km * (16 - sfo) /4;
 }
 
 #define MOBILITY(a, mb) (bitcnt(a) + bitcnt((a) & (mb)))
@@ -961,25 +970,7 @@ int evalc(int c) {
 
 	BOARD ^= pieceb[QUEEN] & ocb; //Back
 	BOARD ^= BIT[kingpos[oc]]; //Back
-	return mn + katt * (sf[c] + 3) / 15; //Reduce the bonus for attacking king squares
-}
-
-int kmobilf(int c) {
-	int km = kmobil[kingpos[c]] << 2, sfo = sf[c^1];
-	if (!sf[c] && sfo == 5 && pieceb[BISHOP] && !pieceb[PAWN]) { // BNK_vs_k
-		int bc = bishcorn[kingpos[c]] << 5;
-		if (pieceb[BISHOP] & whitesq) km += bc; else km -= bc; 
-	}
-	return sfo < 14 ? km : km * (16 - sfo) /4;
-}
-
-int evallazy(int c, int matrl) {
-		int ev = kmobilf(c) - kmobilf(c^1);
-
-		if ((matrl < 0 && NOMATEMAT(1)) || (matrl > 0 && NOMATEMAT(0)))
-				matrl = 0;
-
-		return ev + (c ? -matrl : matrl);
+	return mn + kmobilf(c) + katt * (sf[c] + 3) / 15; //Reduce the bonus for attacking king squares
 }
 
 u64 eval1, nodes, qnodes;
@@ -987,7 +978,10 @@ int eval(int c) {
 	int ev = evalc(c) - evalc(c^1);
 	eval1++;
 
-	return ev + evallazy(c, MAT);
+	if ((MAT < 0 && NOMATEMAT(1)) || (MAT > 0 && NOMATEMAT(0)))
+		return ev;
+
+	return ev + (c ? -MAT : MAT);
 }
 
 typedef struct {
@@ -1019,7 +1013,7 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 
 	if (ply == 127) return eval(c);
 	if (!ch) do {
-		int cmat = evallazy(c, MAT);
+		int cmat = (c ? -MAT : MAT);
 		if (cmat - 125 >= beta) return beta;
 		if (cmat + 85 <= alpha) break;
 		best = eval(c);
