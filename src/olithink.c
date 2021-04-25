@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 30.Nov.2020, ob112@web.de, http://brausch.org */
-#define VER "5.9.2"
+/* OliThink5 (c) Oliver Brausch 25.Apr.2020, ob112@web.de, http://brausch.org */
+#define VER "5.9.2b"
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -870,7 +870,7 @@ u64 mobilityb(int c) {
 }
 
 inline int kmobilf(int c) {
-	int km = kmobil[kingpos[c]] << 2, sfo = sf[c^1];
+	int km = kmobil[kingpos[c]] << 3, sfo = sf[c^1];
 	if (!sf[c] && sfo == 5 && pieceb[BISHOP] && !pieceb[PAWN]) { // BNK_vs_k
 		int bc = bishcorn[kingpos[c]] << 5;
 		if (pieceb[BISHOP] & whitesq) km += bc; else km -= bc;
