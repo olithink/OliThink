@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 30.Nov.2020, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 25.Apr.2021, ob112@web.de, http://brausch.org
 
-Version: 5.9.2
+Version: 5.9.3
 Protocol: CECP v2 (winboard/xboard)
 HashSize: 128MB
 Ponder: Yes
@@ -12,6 +12,9 @@ Evaluation: Just mobility and a very simple pawnprogressing evaluation
 LinesOfCode: 1536
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
+
+v5.9.3: changes since 5.9.2:
+Adapt k-mobility. Endgame-factor adjustment.
 
 v5.9.2: changes since 5.9.1:
 Remove evallazy. Parameter k as kingpos.
