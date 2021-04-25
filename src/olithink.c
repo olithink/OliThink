@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 25.Apr.2020, ob112@web.de, http://brausch.org */
-#define VER "5.9.2b"
+#define VER "5.9.2c"
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -892,7 +892,7 @@ int evalc(int c) {
 		t = f + (c << 6);
 
 		/* The only non-mobility eval is the detection of free pawns/hanging pawns */
-		int ppos = pawnprg[t]* egf / 100;
+		int ppos = pawnprg[t]* egf * egf / 100 / 100;
 		if (!(pawnfree[t] & pieceb[PAWN] & ocb)) ppos <<= 1; //Free run?
 
 		if (!(pawnhelp[t] & pieceb[PAWN] & colorb[c])) { // No support
@@ -929,7 +929,7 @@ int evalc(int c) {
 		f = pullLsb(&b);
 		a = BATT3(f) | BATT4(f) | RATT1(f) | RATT2(f);
 		if (a & kn) katt += MOBILITY(a & kn, mb) << 3;
-		mn += MOBILITY(a, mb) * egf * egf / 77 / 78;
+		mn += MOBILITY(a, mb) * egf * egf / 75 / 75;
 	}
 
 	BOARD ^= RQU & ocb; //Opposite Queen & Rook doesn't block mobility for bishop
