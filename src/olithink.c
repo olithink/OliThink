@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 25.Apr.2020, ob112@web.de, http://brausch.org */
-#define VER "5.9.3"
+#define VER "5.9.3b"
+/* OliThink5 (c) Oliver Brausch 25.Apr.2021, ob112@web.de, http://brausch.org */
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -785,17 +785,15 @@ int generate(u64 ch, int c, Movep *mp, int noisy, int quiet) {
 }
 
 int swap(Move m) { //SEE
-	int s_list[32], f = FROM(m), t = TO(m), c = ONMV(m);
-	int a_piece = pval[CAP(m)], piece = PIECE(m), nc = 1;
-	u64 temp = 0;
-
-	u64 attacks = ((PCAP(t, 0) | PCAP(t, 1)) & pieceb[PAWN])
+	int s_list[32], f = FROM(m), t = TO(m), c = ONMV(m), piece = PIECE(m), nc = 1;
+	u64 temp, attacks = ((PCAP(t, 0) | PCAP(t, 1)) & pieceb[PAWN])
 		| (nmoves[t] & pieceb[KNIGHT]) | (kmoves[t] & pieceb[KING]);
-	s_list[0] = a_piece;
-	a_piece = pval[piece];
+
+	s_list[0] = pval[CAP(m)];
 	BOARD &= ~BIT[f];
 
 	do {
+		s_list[nc] = -s_list[nc - 1] + pval[piece];
 		c ^= 1;
 		attacks |= (BATT(t) & BQU) | (RATT(t) & RQU);
 		attacks &= BOARD;
@@ -805,16 +803,11 @@ int swap(Move m) { //SEE
 		else if ((temp = pieceb[BISHOP] & colorb[c] & attacks)) piece = BISHOP;
 		else if ((temp = pieceb[ROOK] & colorb[c] & attacks)) piece = ROOK;
 		else if ((temp = pieceb[QUEEN] & colorb[c] & attacks)) piece = QUEEN;
-		else if ((temp = pieceb[KING] & colorb[c] & attacks)) { piece = KING; if (colorb[c^1] & attacks) break; }
+		else if ((temp = pieceb[KING] & colorb[c] & attacks)) { nc += !(colorb[c^1] & attacks); break; }
 		else break;
 
-		temp &= -(long long)temp;
-		BOARD ^= temp;
-
-		s_list[nc] = -s_list[nc - 1] + a_piece;
-		a_piece = pval[piece];
-		if (a_piece < s_list[++nc - 1]) break;
-	} while (1);
+		BOARD ^= temp & -(long long)temp;
+	} while (pval[piece] >= s_list[nc++]);
 
 	while (--nc)
 		if (s_list[nc] > -s_list[nc - 1])
