@@ -1,5 +1,5 @@
-#define VER "5.9.3b"
-/* OliThink5 (c) Oliver Brausch 25.Apr.2021, ob112@web.de, http://brausch.org */
+/* OliThink5 (c) Oliver Brausch 11.May.2021, ob112@web.de, http://brausch.org */
+#define VER "5.9.3c"
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -601,7 +601,7 @@ int generateCheckEsc(u64 ch, u64 apin, int c, int k, Movep *mp) {
 			regMoves(PREMOVE(cf, PAWN), BIT[ENPASS], mp, 1);
 		}
 	}
-	if (ch & (nmoves[k] | kmoves[k])) return 1; //We can't move anything between!
+	if (ch & (nmoves[k] | kmoves[k])) return 1; //We can't move anything in between!
 
 	d = getDir(bf, k);
 	if (d & 8) fl = RMOVE1(bf) & RMOVE1(k);
@@ -875,11 +875,10 @@ inline int kmobilf(int c) {
 /* The eval for Color c. It's almost only mobility. Pinned pieces are still awarded for limiting opposite's king */
 int evalc(int c) {
 	int t, f, mn = 0, katt = 0, oc = c^1, egf = 10400/(80 + sf[c] + sf[oc]) + random;
-	u64 b, a, cb, ocb = colorb[oc], mb = sf[c] ? mobilityb(c) : 0LL;
+	u64 b, a, cb = colorb[c], ocb = colorb[oc], mb = sf[c] ? mobilityb(c) : 0LL;
 	u64 kn = kmoves[kingpos[oc]] & (~pieceb[PAWN]);
-	u64 pin = pinnedPieces(kingpos[c], oc);
 
-	b = pieceb[PAWN] & colorb[c];
+	b = pieceb[PAWN] & cb;
 	while (b) {
 		f = pullLsb(&b);
 		t = f + (c << 6);
@@ -888,18 +887,17 @@ int evalc(int c) {
 		int ppos = pawnprg[t]* egf * egf / 100 / 100;
 		if (!(pawnfree[t] & pieceb[PAWN] & ocb)) ppos <<= 1; //Free run?
 
-		if (!(pawnhelp[t] & pieceb[PAWN] & colorb[c])) { // No support
+		if (!(pawnhelp[t] & pieceb[PAWN] & cb)) { // No support
 			int openfile = !(pawnfile[t] & pieceb[PAWN] & ocb);
 			ppos -= (openfile ? 32 : 10); // Open file
 		}
 
 		a = POCC(f, c);
-		if (a) ppos += bitcnt(a & pieceb[PAWN] & colorb[c]) << 2;
+		if (a) ppos += bitcnt(a & pieceb[PAWN] & cb) << 2;
 		if (a & kn) katt += MOBILITY(a & kn, mb) << 3;
 		mn += ppos;
 	}
 
-	cb = colorb[c] & (~pin);
 	b = pieceb[KNIGHT] & cb;
 	while (b) {
 		f = pullLsb(&b);
@@ -908,15 +906,8 @@ int evalc(int c) {
 		mn += MOBILITY(a, mb) << 2;
 	}
 
-	b = pieceb[KNIGHT] & pin;
-	while (b) {
-		f = pullLsb(&b);
-		a = nmoves[f];
-		if (a & kn) katt += MOBILITY(a & kn, mb) << 3;
-	}
-
 	BOARD ^= BIT[kingpos[oc]]; //Opposite King doesn't block mobility at all
-	BOARD ^= pieceb[QUEEN] & cb; //Own non-pinned Queen doesn't block mobility for anybody.
+	BOARD ^= pieceb[QUEEN] & cb; //Own Queen doesn't block mobility for anybody.
 	b = pieceb[QUEEN] & cb;
 	while (b) {
 		f = pullLsb(&b);
@@ -925,7 +916,7 @@ int evalc(int c) {
 		mn += MOBILITY(a, mb) * egf * egf / 75 / 75;
 	}
 
-	BOARD ^= RQU & ocb; //Opposite Queen & Rook doesn't block mobility for bishop
+	BOARD ^= RQU & ocb; //Opposite Queen & Rooks don't block mobility for bishop
 	b = pieceb[BISHOP] & cb;
 	while (b) {
 		f = pullLsb(&b);
@@ -935,7 +926,7 @@ int evalc(int c) {
 	}
 
 	BOARD ^= pieceb[ROOK] & ocb; //Opposite Queen doesn't block mobility for rook.
-	BOARD ^= pieceb[ROOK] & cb; //Own non-pinned Rook doesn't block mobility for rook.
+	BOARD ^= pieceb[ROOK] & cb; //Own Rooks don't block mobility for rook.
 	b = pieceb[ROOK] & cb;
 	while (b) {
 		f = pullLsb(&b);
@@ -944,25 +935,7 @@ int evalc(int c) {
 		mn += (MOBILITY(a, mb) << 1) * egf / 75;
 	}
 
-	BOARD ^= RQU & cb; // Back
-	b = pin & (pieceb[ROOK] | pieceb[BISHOP] | pieceb[QUEEN]);
-	while (b) {
-		f = pullLsb(&b);
-		int p = identPiece(f);
-		if (p == BISHOP) a = BATT(f);
-		else if (p == ROOK) a = RATT(f);
-		else a = RATT1(f) | RATT2(f) | BATT3(f) | BATT4(f);
-
-		if (a & kn) katt += MOBILITY(a & kn, mb) << 3;
-		t = p | getDir(f, kingpos[c]);
-		if ((t & 10) == 10) mn += bitcnt(RATT1(f));
-		if ((t & 18) == 18) mn += bitcnt(RATT2(f));
-		if ((t & 33) == 33) mn += bitcnt(BATT3(f));
-		if ((t & 65) == 65) mn += bitcnt(BATT4(f));
-	}
-
-	BOARD ^= pieceb[QUEEN] & ocb; //Back
-	BOARD ^= BIT[kingpos[oc]]; //Back
+	BOARD = cb | ocb;
 	return mn + kmobilf(c) + katt * (sf[c] + 3) / 15; //Reduce the bonus for attacking king squares
 }
 
@@ -1214,14 +1187,14 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 					n = EXIT; break;
 				}
 			} else if (first == NO_MOVE) first = ANY_MOVE;
-	    }
+		}
 	}
 	if (sabort) return alpha;
 	if (first == NO_MOVE) alpha = ch ? -MAXSCORE+ply : 0;
 
 	char type = UPPER;
 	if (first == GOOD_MOVE) type = (char)(alpha >= beta ? LOWER : EXACT), hmove = pv[ply][ply]; // Found good move
-	
+
 	hashDB[hp & HMASK] = (entry) {.key = hp, .move = hmove, .value = alpha, .depth = d, .type = type };
 
 	return alpha;
@@ -1360,7 +1333,7 @@ int calc(int tm) {
 		int alpha = d > 6 ? w - 13 : -MAXSCORE, beta = d > 6 ? w + 13: MAXSCORE, delta = 18;
 		Move bestm = pv[0][0];
 
-		for(;;) {
+		for (;;) {
 			if (alpha < -pval[QUEEN]*2) alpha = -MAXSCORE;
 			if (beta > pval[QUEEN]*2) beta = MAXSCORE;
 
