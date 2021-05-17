@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 11.May.2021, ob112@web.de, http://brausch.org */
-#define VER "5.9.4"
+/* OliThink5 (c) Oliver Brausch 17.May.2021, ob112@web.de, http://brausch.org */
+#define VER "5.9.5"
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -1065,7 +1065,7 @@ static int nullvariance(int delta) {
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #define HASHP (hashb ^ hashxor[flags | 1024 | c << 11])
-int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
+int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move sem) {
 	int i, j, n, w, oc = c^1, pvnode = beta > alpha + 1;
 
 	if (ply) pv[ply][ply] = 0;
@@ -1088,7 +1088,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 	Move hmove = ply ? 0 : retPVMove(c, 0);
 
 	entry he = hashDB[hp & HMASK];
-	if (he.key == hp) {
+	if (he.key == hp && !sem) {
 		if (he.depth >= d) {
 			if (he.type <= EXACT && he.value >= beta) return beta;
 			if (he.type >= EXACT && he.value <= alpha) return alpha;
@@ -1108,7 +1108,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 	if (null && bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], oc))) > 1) {
 		int R = (10 + d + nullvariance(wstat - alpha))/4;
 		doMove(0, c);
-		w = -search(0LL, oc, d-R, ply+1, -beta, 1-beta, 0);
+		w = -search(0LL, oc, d-R, ply+1, -beta, 1-beta, 0, 0);
 		undoMove(0, c);
 		if (!sabort && w >= beta) return w >= MAXSCORE-500 ? beta : w;
 	}
@@ -1122,9 +1122,14 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 	int raising = !ch && ply >= 2 && wstat >= wstack[COUNT-2];
 	int first = NO_MOVE;  long long hismax = -1LL;
 	for (n = HASH; n <= (ch ? NOISY : QUIET); n++) {
+		int nd = d - 1;
 		if (n == HASH) {
 			if (!hmove) continue;
 			mp.n = 1;
+			if (d >= 8 && ply && !sem && STDSCORE(beta, alpha) && he.type == LOWER && he.depth >= d - 3) {
+				int bc = he.value - d;
+				nd += search(ch, c, d >> 1, ply, bc-1, bc, 0, hmove) < bc;  // Singular extensions
+			}
 		} else if (n == NOISY) {
 			generate(ch, c, &mp, 1, 0);
 		} else {
@@ -1132,7 +1137,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 		}
 		for (i = 0; i < mp.n; i++) {
 			Move m = n == HASH ? hmove : n == NOISY ? qpick(&mp, i) : spick(&mp, i, ply);
-			if (n != HASH && m == hmove) continue;
+			if ((n != HASH && m == hmove) || m == sem) continue;
 
 			int quiet = !CAP(m) && !PROM(m);
 			if (!ch && quiet && mp.nquiet > 2*d*(raising+1)) {
@@ -1159,9 +1164,9 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 			}
 
 			int firstPVNode = first == NO_MOVE && pvnode;
-			if (!firstPVNode) w = -search(nch, oc, d-1+ext, ply+1, -alpha-1, -alpha, 1);
-			if (w > alpha && ext < 0) w = -search(nch, oc, d-1, ply+1, -alpha-1, -alpha, 1);
-			if ((w > alpha && w < beta) || firstPVNode) w = -search(nch, oc, d-1, ply+1, -beta, -alpha, 0);
+			if (!firstPVNode) w = -search(nch, oc, nd+ext, ply+1, -alpha-1, -alpha, 1, 0);
+			if (w > alpha && ext < 0) w = -search(nch, oc, nd, ply+1, -alpha-1, -alpha, 1, 0);
+			if ((w > alpha && w < beta) || firstPVNode) w = -search(nch, oc, nd, ply+1, -beta, -alpha, 0, 0);
 
 			undoMove(0, c);
 			restorePos(&pos, c);
@@ -1190,12 +1195,12 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null) {
 		}
 	}
 	if (sabort) return alpha;
-	if (first == NO_MOVE) alpha = ch ? -MAXSCORE+ply : 0;
+	if (first == NO_MOVE) alpha = ch || sem ? -MAXSCORE + ply : 0;
 
 	char type = UPPER;
 	if (first == GOOD_MOVE) type = (char)(alpha >= beta ? LOWER : EXACT), hmove = pv[ply][ply]; // Found good move
 
-	hashDB[hp & HMASK] = (entry) {.key = hp, .move = hmove, .value = alpha, .depth = d, .type = type };
+	if (!sem) hashDB[hp & HMASK] = (entry) {.key = hp, .move = hmove, .value = alpha, .depth = d, .type = type};
 
 	return alpha;
 }
@@ -1337,7 +1342,7 @@ int calc(int tm) {
 			if (alpha < -pval[QUEEN]*2) alpha = -MAXSCORE;
 			if (beta > pval[QUEEN]*2) beta = MAXSCORE;
 
-			w = search(ch, onmove, d, 0, alpha, beta, 0);
+			w = search(ch, onmove, d, 0, alpha, beta, 0, 0);
 			if (sabort) break;
 
 			if (w <= alpha) alpha -= delta, beta = (alpha + beta)/2;

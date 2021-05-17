@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 11.May.2021, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 17.May.2021, ob112@web.de, http://brausch.org
 
-Version: 5.9.4
+Version: 5.9.5
 Protocol: CECP v2 (winboard/xboard)
 HashSize: 128MB
 Ponder: Yes
@@ -9,9 +9,12 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Reduction, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1502
+LinesOfCode: 1507
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
+
+v5.9.5: changes since 5.9.4:
+Singular extensions.
 
 v5.9.4: changes since 5.9.3:
 Refactor see. Simplify eval.
