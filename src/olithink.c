@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 17.May.2021, ob112@web.de, http://brausch.org */
-#define VER "5.9.5"
+#define VER "5.9.5b"
+/* OliThink5 (c) Oliver Brausch 22.May.2021, ob112@web.de, http://brausch.org */
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -633,8 +633,6 @@ int generateCheckEsc(u64 ch, u64 apin, int c, int k, Movep *mp) {
 void generateQuiet(int c, int k, u64 pin, Movep* mp) {
 	u64 m, b, f, cb = colorb[c] & (~pin);
 
-	regKings(PREMOVE(k, KING), KMOVE(k), mp, c, 0);
-
 	b = pieceb[PAWN] & colorb[c];
 	while (b) {
 		f = pullLsb(&b);
@@ -659,6 +657,12 @@ void generateQuiet(int c, int k, u64 pin, Movep* mp) {
 		regMoves(PREMOVE(f, KNIGHT), NMOVE(f), mp, 0);
 	}
 
+	b = pieceb[BISHOP] & cb;
+	while (b) {
+		f = pullLsb(&b);
+		regMoves(PREMOVE(f, BISHOP), BMOVE(f), mp, 0);
+	}
+
 	b = pieceb[ROOK] & cb;
 	while (b) {
 		f = pullLsb(&b);
@@ -678,12 +682,6 @@ void generateQuiet(int c, int k, u64 pin, Movep* mp) {
 		}
 	}
 
-	b = pieceb[BISHOP] & cb;
-	while (b) {
-		f = pullLsb(&b);
-		regMoves(PREMOVE(f, BISHOP), BMOVE(f), mp, 0);
-	}
-
 	b = pieceb[QUEEN] & cb;
 	while (b) {
 		f = pullLsb(&b);
@@ -700,12 +698,12 @@ void generateQuiet(int c, int k, u64 pin, Movep* mp) {
 		if ((t & 33) == 33) regMoves(PREMOVE(f, p), BMOVE3(f), mp, 0);
 		if ((t & 65) == 65) regMoves(PREMOVE(f, p), BMOVE4(f), mp, 0);
 	}
+
+	regKings(PREMOVE(k, KING), KMOVE(k), mp, c, 0);
 }
 
 void generateNoisy(int c, int k, u64 pin, Movep *mp) {
 	u64 m, b, a, f, cb = colorb[c] & (~pin);
-
-	regKings(PREMOVE(k, KING), KCAP(k, c), mp, c, 1);
 
 	b = pieceb[PAWN] & colorb[c];
 	while (b) {
@@ -771,6 +769,8 @@ void generateNoisy(int c, int k, u64 pin, Movep *mp) {
 		if ((t & 33) == 33) regMoves(PREMOVE(f, p), BCAP3(f, c), mp, 1);
 		if ((t & 65) == 65) regMoves(PREMOVE(f, p), BCAP4(f, c), mp, 1);
 	}
+
+	regKings(PREMOVE(k, KING), KCAP(k, c), mp, c, 1);
 }
 
 #define GENERATE(c, mp) generate(attacked(kingpos[c], c), c, mp, 1, 1)
@@ -853,11 +853,11 @@ Move spick(Movep* mp, int s, int ply) {
 u64 rankb[8]; u64 fileb[8];
 inline u64 pawnAttack(int c) {
 	u64 p = colorb[c] & pieceb[PAWN];
-	return c == 0 ? (p &~ fileb[0]) << 7 | (p &~ fileb[7]) << 9 : (p &~ fileb[7]) >> 7 | (p &~ fileb[0]) >> 9;
+	return c ? (p &~ fileb[7]) >> 7 | (p &~ fileb[0]) >> 9 : (p &~ fileb[0]) << 7 | (p &~ fileb[7]) << 9;
 }
 
 u64 mobilityb(int c) {
-	u64 b = c == 0 ? rankb[1] | (BOARD >> 8) : rankb[6] | (BOARD << 8);
+	u64 b = c ? rankb[6] | (BOARD << 8) : rankb[1] | (BOARD >> 8);
 	b &= b & colorb[c] & pieceb[PAWN];
 	return ~(b | pawnAttack(c^1));
 }
@@ -925,8 +925,7 @@ int evalc(int c) {
 		mn += MOBILITY(a, mb) << 2;
 	}
 
-	BOARD ^= pieceb[ROOK] & ocb; //Opposite Queen doesn't block mobility for rook.
-	BOARD ^= pieceb[ROOK] & cb; //Own Rooks don't block mobility for rook.
+	BOARD ^= pieceb[ROOK]; //Own Rooks and opposite Queen don't block mobility for rook.
 	b = pieceb[ROOK] & cb;
 	while (b) {
 		f = pullLsb(&b);
@@ -1126,7 +1125,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 		if (n == HASH) {
 			if (!hmove) continue;
 			mp.n = 1;
-			if (d >= 8 && ply && !sem && STDSCORE(beta, alpha) && he.type == LOWER && he.depth >= d - 3) {
+			if (d >= 8 && ply && STDSCORE(beta, alpha) && he.type == LOWER && he.depth >= d - 3) {
 				int bc = he.value - d;
 				nd += search(ch, c, d >> 1, ply, bc-1, bc, 0, hmove) < bc;  // Singular extensions
 			}
