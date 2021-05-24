@@ -1,6 +1,7 @@
-#define VER "5.9.5b"
-/* OliThink5 (c) Oliver Brausch 22.May.2021, ob112@web.de, http://brausch.org */
+/* OliThink5 (c) Oliver Brausch 23.May.2021, ob112@web.de, http://brausch.org */
+#define VER "5.9.5c"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #ifdef _WIN64
 #include <windows.h>
@@ -23,8 +24,7 @@ enum { LOWER, EXACT, UPPER };
 enum { NO_MOVE, ANY_MOVE, GOOD_MOVE };
 enum { NOPE, HASH, NOISY, QUIET, EXIT };
 
-#define HSIZE 0x800000LL
-#define HMASK (HSIZE-1)
+static size_t HSIZE, HMASK;
 #define CNODES 0x1FFF
 const int pval[] = {0, 100, 290, 0, 100, 310, 500, 980};
 const int fval[] = {0, 0, 2, 0, 0, 3, 5, 9};
@@ -97,7 +97,7 @@ typedef struct {
 	char type;
 } entry;
 
-entry hashDB[HSIZE];
+entry *hashDB;
 u64 hashb;
 u64 hstack[0x400];
 u64 mstack[0x400];
@@ -134,7 +134,7 @@ const char pieceChar[] = "*PNK.BRQ";
 u64 maxtime, starttime;
 u64 pieceb[8], colorb[3];
 int kingpos[2], sf[3];
-int sabort, onmove, random, engine =-1, sd = 64;
+int sabort, onmove, rndm, engine =-1, sd = 64;
 u32 count, flags, ics = 0, ponder = 0, pondering = 0, analyze = 0;
 char irbuf[256];
 #define MAT sf[2]
@@ -146,6 +146,14 @@ int changeMat(int, int, int);
 void doMove(Move, int c);
 int parseMove(char*, int, Move);
 int protV2(char*,int);
+
+void _halloc(int n) {
+	size_t megabytes = (n > 0 ? n : 1) * (1LL << 20);
+	size_t max_index, wanted_entries = megabytes / sizeof(entry);
+	for (max_index = 1; (1LL << max_index) <= wanted_entries; max_index++);
+	HSIZE = 1LL << (max_index - 1); HMASK = HSIZE-1;
+	hashDB = malloc(HSIZE*sizeof(entry));
+}
 
 int _getpiece(char s, int *c) {
 	int i;
@@ -189,7 +197,7 @@ void _parse_fen(char *fen, int reset) {
 	if (enps[0] >= 'a' && enps[0] <= 'h' && enps[1] >= '1' && enps[1] <= '8') flags |= 8*(enps[1] -'1') + enps[0] -'a';
 	count = (fullm - 1)*2 + onmove + (halfm << 10);
 	for (i = 0; i < (int)COUNT; i++) hstack[i] = 0LL;
-	if (reset) memset(hashDB, 0, sizeof(hashDB));
+	if (reset) memset(hashDB, 0, sizeof(entry)*HSIZE);
 	BOARD = colorb[0] | colorb[1];
 }
 
@@ -240,7 +248,7 @@ void _newGame() {
 	}
 	_parse_fen(sfen, 1);
 	if (bkcount[0] > 0 || bkcount[1] > 0) book = 1;
-	engine = 1; random = 0;
+	engine = 1; rndm = 0;
 }
 
 void _init_pawns(u64* moves, u64* caps, u64* freep, u64* filep, u64* helpp, int c) {
@@ -874,7 +882,7 @@ inline int kmobilf(int c) {
 #define MOBILITY(a, mb) (bitcnt(a) + bitcnt((a) & (mb)))
 /* The eval for Color c. It's almost only mobility. Pinned pieces are still awarded for limiting opposite's king */
 int evalc(int c) {
-	int t, f, mn = 0, katt = 0, oc = c^1, egf = 10400/(80 + sf[c] + sf[oc]) + random;
+	int t, f, mn = 0, katt = 0, oc = c^1, egf = 10400/(80 + sf[c] + sf[oc]) + rndm;
 	u64 b, a, cb = colorb[c], ocb = colorb[oc], mb = sf[c] ? mobilityb(c) : 0LL;
 	u64 kn = kmoves[kingpos[oc]] & (~pieceb[PAWN]);
 
@@ -1332,7 +1340,7 @@ int calc(int tm) {
 			}
 		}
 	}
-	if ((!book || analyze) && random) random = analyze ? 0 : (int)(hashxor[starttime & 4095] & 0xF) % 6;
+	if ((!book || analyze) && rndm) rndm = analyze ? 0 : (int)(hashxor[starttime & 4095] & 0xF) % 6;
 	if (!book || analyze) for (d = 1; d <= sd; d++) {
 		int alpha = d > 6 ? w - 13 : -MAXSCORE, beta = d > 6 ? w + 13: MAXSCORE, delta = 18;
 		Move bestm = pv[0][0];
@@ -1409,9 +1417,9 @@ void printPerft(int c, int i) {
 
 char comreturn[][9] = {"xboard", ".", "bk", "draw", "hint", "computer", "accepted", "rejected", // ignored
 						"quit", "new", "remove", "analyze", "exit", "force", "undo"}; // return 6-index
-char* ft = "feature setboard=1 myname=\"OliThink "VER"\" variants=\"normal\" colors=0 ping=1 sigint=0 sigterm=0 done=1";
+char* ft = "setboard=1 myname=\"OliThink "VER"\" variants=\"normal\" colors=0 ping=1 memory=1 sigint=0 sigterm=0";
 int protV2(char* buf, int parse) {
-	if (!strncmp(buf,"protover",8)) printf("%s\n", ft);
+	if (!strncmp(buf,"protover",8)) printf("feature %s done=1\n", ft);
 	else if (!strncmp(buf,"ping",4)) { buf[1] = 'o'; printf("%s", buf); fgets(buf,255,stdin); return protV2(buf, 0); }
 	else if (!strncmp(buf,"time",4)) { sscanf(buf+5,"%d",&ttime); maxtime = MIN(maxtime, ttime*9UL); }
 	else if (!strncmp(buf,"otim",4));
@@ -1420,13 +1428,14 @@ int protV2(char* buf, int parse) {
 	else if (!strncmp(buf,"easy",4)) ponder = 0;
 	else if (!strncmp(buf,"hard",4)) ponder = 1;
 	else if (!strncmp(buf,"sd",2)) sscanf(buf+3,"%d",&sd);
+	else if (!strncmp(buf,"memory",6)) { sscanf(buf+7,"%d",&parse); _halloc(parse); }
 	else if (!strncmp(buf,"level",4)) sscanf(buf+6,"%d %s %d",&mps, base, &inc);
 	else if (!strncmp(buf,"post",4)) post = 1;
 	else if (!strncmp(buf,"nopost",6)) post = 0;
 	else if (!strncmp(buf,"result",6)) return -6; //result 0-1 {Black mates}
 	else if (!strncmp(buf,"st",2)) sscanf(buf+3,"%d",&st);
 	else if (!strncmp(buf,"?",1)) return 1;
-	else if (!strncmp(buf,"random",6)) random = 1;
+	else if (!strncmp(buf,"random",6)) rndm = 1;
 	else if (!strncmp(buf,"rating",6) || !strncmp(buf,"name",4)) ics = 1; //ICS: rating <myrat> <oprat>, name <opname>
 	else if (!strncmp(buf,"perft",5)) { int i; for (i = 1; i <= sd && !bioskey(); i++) printPerft(onmove, i); }
 	else if (!strncmp(buf,"divide",6)) perft(onmove, sd, 1);
@@ -1468,6 +1477,7 @@ int main(int argc, char **argv) {
 	crevoke[0] ^= BIT[8];
 	crevoke[56] ^= BIT[9];
 
+	_halloc(128);
 	_init_rays(rays, _rook0, key000);
 	_init_rays(rays + 0x2000, _rook90, key090);
 	_init_rays(rays + 0x4000, _bishop45, key045);
