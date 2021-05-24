@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 23.May.2021, ob112@web.de, http://brausch.org */
-#define VER "5.9.5c"
+/* OliThink5 (c) Oliver Brausch 24.May.2021, ob112@web.de, http://brausch.org */
+#define VER "5.9.5d"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -64,12 +64,7 @@ const int pawnrun[] = {0, 0, 1, 8, 16, 32, 64, 128};
 #define BCAP4(f, c) (BATT4(f) & colorb[(c)^1])
 #define RATT(f) (RATT1(f) | RATT2(f))
 #define BATT(f) (BATT3(f) | BATT4(f))
-#define RMOVE(f) (RMOVE1(f) | RMOVE2(f))
-#define BMOVE(f) (BMOVE3(f) | BMOVE4(f))
-#define RCAP(f, c) (RCAP1(f, c) | RCAP2(f, c))
-#define BCAP(f, c) (BCAP3(f, c) | BCAP4(f, c))
 
-#define NMOVE(x) (nmoves[x] & ~BOARD)
 #define KMOVE(x) (kmoves[x] & ~BOARD)
 #define NCAP(x, c) (nmoves[x] & colorb[(c)^1])
 #define KCAP(x, c) (kmoves[x] & colorb[(c)^1])
@@ -638,8 +633,8 @@ int generateCheckEsc(u64 ch, u64 apin, int c, int k, Movep *mp) {
 	return 1;
 }
 
-void generateQuiet(int c, int k, u64 pin, Movep* mp) {
-	u64 m, b, f, cb = colorb[c] & (~pin);
+void generateMoves(int c, int k, u64 pin, Movep* mp, int cap) {
+	u64 m, b, a, f, cb = colorb[c] & (~pin), tb = cap ? colorb[c^1] : ~BOARD;
 
 	b = pieceb[PAWN] & colorb[c];
 	while (b) {
@@ -648,34 +643,56 @@ void generateQuiet(int c, int k, u64 pin, Movep* mp) {
 		if (t & 8) continue;
 		if (t & 16) {
 			m = PMOVE(f, c);
-			if (m && RANK2(f, c)) m |= PMOVE(c ? f-8 : f+8, c);
-		} else m = 0;
+			if (cap) a = t & 128 ? PCAP(f, c) : 0;
+			else if (m && RANK2(f, c)) m |= PMOVE(c ? f-8 : f+8, c);
+		} else {
+			m = 0;
+			if (cap) a = t & 32 ? PCA3(f, c) : PCA4(f, c); // (t & 64)
+		}
+
 		if (RANK7(f, c)) {
-			u64 a = (t & 128) ? PCAP(f, c) : (t & 32) ? PCA3(f, c) : ((t & 64) ? PCA4(f, c) : 0LL);
-			if (a) regPromotions(f, c, a, mp, 1, 0);
-			if (m) regPromotions(f, c, m, mp, 0, 0);
-		} else if (!RANK6(f, c)) {
-			regMoves(PREMOVE(f, PAWN), m, mp, 0);
+			if (cap) {
+				if (a) regMoves(PREMOVE(f, PAWN) | _PROM(QUEEN), a, mp, 1);
+				if (m) regMoves(PREMOVE(f, PAWN) | _PROM(QUEEN), m, mp, 0);
+			} else {
+				a = (t & 128) ? PCAP(f, c) : (t & 32) ? PCA3(f, c) : PCA4(f, c);
+				if (a) regPromotions(f, c, a, mp, 1, 0);
+				if (m) regPromotions(f, c, m, mp, 0, 0);
+			}
+		} else if (RANK6(f, c)) {
+			if (cap) {
+				if (a) regMoves(PREMOVE(f, PAWN), a, mp, 1);
+				if (m) regMoves(PREMOVE(f, PAWN), m, mp, 0);
+			}
+		} else {
+			if (cap && t & 128 && ENPASS && (BIT[ENPASS] & pcaps[(f) | (c<<6)])) {
+				BOARD ^= BIT[ENPASS ^ 8];
+				if (!(RATT1(f) & BIT[k]) || !(RATT1(f) & colorb[c^1] & RQU)) {
+					a = a | BIT[ENPASS];
+				}
+				BOARD ^= BIT[ENPASS ^ 8];
+			}
+			regMoves(PREMOVE(f, PAWN), cap ? a : m, mp, cap);
 		}
 	}
 
 	b = pieceb[KNIGHT] & cb;
 	while (b) {
 		f = pullLsb(&b);
-		regMoves(PREMOVE(f, KNIGHT), NMOVE(f), mp, 0);
+		regMoves(PREMOVE(f, KNIGHT), nmoves[f] & tb, mp, cap);
 	}
 
 	b = pieceb[BISHOP] & cb;
 	while (b) {
 		f = pullLsb(&b);
-		regMoves(PREMOVE(f, BISHOP), BMOVE(f), mp, 0);
+		regMoves(PREMOVE(f, BISHOP), BATT(f) & tb, mp, cap);
 	}
 
 	b = pieceb[ROOK] & cb;
 	while (b) {
 		f = pullLsb(&b);
-		regMoves(PREMOVE(f, ROOK), RMOVE(f), mp, 0);
-		if (CASTLE) {
+		regMoves(PREMOVE(f, ROOK), RATT(f) & tb, mp, cap);
+		if (!cap && CASTLE) {
 			if (c) {
 				if ((flags & 128) && (f == 63) && (RATT1(63) & BIT[60]))
 					if (!DUALATT(61, 62, c)) regMoves(PREMOVE(60, KING), BIT[62], mp, 0);
@@ -693,7 +710,7 @@ void generateQuiet(int c, int k, u64 pin, Movep* mp) {
 	b = pieceb[QUEEN] & cb;
 	while (b) {
 		f = pullLsb(&b);
-		regMoves(PREMOVE(f, QUEEN), RMOVE(f) | BMOVE(f), mp, 0);
+		regMoves(PREMOVE(f, QUEEN), (RATT(f) | BATT(f)) & tb, mp, cap);
 	}
 
 	b = pin & (pieceb[ROOK] | pieceb[BISHOP] | pieceb[QUEEN]); 
@@ -701,84 +718,13 @@ void generateQuiet(int c, int k, u64 pin, Movep* mp) {
 		f = pullLsb(&b);
 		int p = identPiece(f);
 		int t = p | getDir(f, k);
-		if ((t & 10) == 10) regMoves(PREMOVE(f, p), RMOVE1(f), mp, 0);
-		if ((t & 18) == 18) regMoves(PREMOVE(f, p), RMOVE2(f), mp, 0);
-		if ((t & 33) == 33) regMoves(PREMOVE(f, p), BMOVE3(f), mp, 0);
-		if ((t & 65) == 65) regMoves(PREMOVE(f, p), BMOVE4(f), mp, 0);
+		if ((t & 10) == 10) regMoves(PREMOVE(f, p), RATT1(f) & tb, mp, cap);
+		if ((t & 18) == 18) regMoves(PREMOVE(f, p), RATT2(f) & tb, mp, cap);
+		if ((t & 33) == 33) regMoves(PREMOVE(f, p), BATT3(f) & tb, mp, cap);
+		if ((t & 65) == 65) regMoves(PREMOVE(f, p), BATT4(f) & tb, mp, cap);
 	}
 
-	regKings(PREMOVE(k, KING), KMOVE(k), mp, c, 0);
-}
-
-void generateNoisy(int c, int k, u64 pin, Movep *mp) {
-	u64 m, b, a, f, cb = colorb[c] & (~pin);
-
-	b = pieceb[PAWN] & colorb[c];
-	while (b) {
-		f = pullLsb(&b);
-		u32 t = BIT[f] & pin ? getDir(f, k) : 144;
-		if (t & 8) continue;
-		if (t & 16) {
-			m = PMOVE(f, c); a = t & 128 ? PCAP(f, c) : 0;
-		} else if (t & 32) {
-			m = 0; a = PCA3(f, c);
-		} else { // if (t & 64)
-			m = 0; a = PCA4(f, c);
-		}
-		if (RANK7(f, c)) {
-			if (a) regMoves(PREMOVE(f, PAWN) | _PROM(QUEEN), a, mp, 1);
-			if (m) regMoves(PREMOVE(f, PAWN) | _PROM(QUEEN), m, mp, 0);
-		} else if (RANK6(f, c)) {
-			if (a) regMoves(PREMOVE(f, PAWN), a, mp, 1);
-			if (m) regMoves(PREMOVE(f, PAWN), m, mp, 0);
-		} else {
-			if (t & 128 && ENPASS && (BIT[ENPASS] & pcaps[(f) | ((c)<<6)])) {
-				BOARD ^= BIT[ENPASS ^ 8];
-				if (!(RATT1(f) & BIT[k]) || !(RATT1(f) & colorb[c^1] & RQU)) {
-					a = a | BIT[ENPASS];
-				}
-				BOARD ^= BIT[ENPASS ^ 8];
-			}
-			regMoves(PREMOVE(f, PAWN), a, mp, 1);
-		}
-	}
-
-	b = pieceb[KNIGHT] & cb;
-	while (b) {
-		f = pullLsb(&b);
-		regMoves(PREMOVE(f, KNIGHT), NCAP(f, c), mp, 1);
-	}
-
-	b = pieceb[BISHOP] & cb;
-	while (b) {
-		f = pullLsb(&b);
-		regMoves(PREMOVE(f, BISHOP), BCAP(f, c), mp, 1);
-	}
-
-	b = pieceb[ROOK] & cb;
-	while (b) {
-		f = pullLsb(&b);
-		regMoves(PREMOVE(f, ROOK), RCAP(f, c), mp, 1);
-	}
-
-	b = pieceb[QUEEN] & cb;
-	while (b) {
-		f = pullLsb(&b);
-		regMoves(PREMOVE(f, QUEEN), RCAP(f, c) | BCAP(f,c), mp, 1);
-	}
-
-	b = pin & (pieceb[ROOK] | pieceb[BISHOP] | pieceb[QUEEN]); 
-	while (b) {
-		f = pullLsb(&b);
-		int p = identPiece(f);
-		int t = p | getDir(f, k);
-		if ((t & 10) == 10) regMoves(PREMOVE(f, p), RCAP1(f, c), mp, 1);
-		if ((t & 18) == 18) regMoves(PREMOVE(f, p), RCAP2(f, c), mp, 1);
-		if ((t & 33) == 33) regMoves(PREMOVE(f, p), BCAP3(f, c), mp, 1);
-		if ((t & 65) == 65) regMoves(PREMOVE(f, p), BCAP4(f, c), mp, 1);
-	}
-
-	regKings(PREMOVE(k, KING), KCAP(k, c), mp, c, 1);
+	regKings(PREMOVE(k, KING), kmoves[k] & tb, mp, c, cap);
 }
 
 #define GENERATE(c, mp) generate(attacked(kingpos[c], c), c, mp, 1, 1)
@@ -787,8 +733,8 @@ int generate(u64 ch, int c, Movep *mp, int noisy, int quiet) {
 	u64 pin = pinnedPieces(k, c^1);
 	mp->n = 0;
 	if (ch) return generateCheckEsc(ch, ~pin, c, k, mp);
-	if (noisy) generateNoisy(c, k, pin, mp);
-	if (quiet) generateQuiet(c, k, pin, mp);
+	if (noisy) generateMoves(c, k, pin, mp, 1);
+	if (quiet) generateMoves(c, k, pin, mp, 0);
 	return 0;
 }
 
