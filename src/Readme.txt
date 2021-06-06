@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 03.Jun.2021, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 06.Jun.2021, ob112@web.de, http://brausch.org
 
-Version: 5.9.7
+Version: 5.9.8
 Protocol: CECP v2 (winboard/xboard)
 HashSize: 128MB
 Ponder: Yes
@@ -12,6 +12,9 @@ Evaluation: Just mobility and a very simple pawnprogressing evaluation
 LinesOfCode: 1450
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
+
+v5.9.8: changes since 5.9.7:
+Max history heuristics.
 
 v5.9.7: changes since 5.9.5:
 Refactor move generation.

@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 03.Jun.2021, ob112@web.de, http://brausch.org */
-#define VER "5.9.7"
+/* OliThink5 (c) Oliver Brausch 06.Jun.2021, ob112@web.de, http://brausch.org */
+#define VER "5.9.8"
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -28,7 +28,6 @@ enum { NOPE, HASH, NOISY, QUIET, EXIT };
 #define CNODES 0x1FFF
 const int pval[] = {0, 100, 290, 0, 100, 310, 500, 980};
 const int fval[] = {0, 0, 2, 0, 0, 3, 5, 9};
-const int pawnrun[] = {0, 0, 1, 8, 16, 32, 64, 128};
 
 #define FROM(x) ((x) & 63)
 #define TO(x) (((x) >> 6) & 63)
@@ -243,7 +242,7 @@ void _init_pawns(u64* moves, u64* caps, u64* freep, u64* filep, u64* helpp, int 
 	for (i = 0; i < 64; i++) {
 		int rank = i/8, file = i&7;
 		int m = i + (c ? -8 : 8);
-		pawnprg[i + (c << 6)] = pawnrun[c ? 7-rank : rank];
+		pawnprg[i + (c << 6)] = 1 << (c ? 7-rank : rank);
 		for (j = 0; j < 64; j++) {
 			int jrank = j/8, jfile = j&7;
 			int dfile = (jfile - file)*(jfile - file);
@@ -776,11 +775,11 @@ Move qpick(Movep* mp, int s) {
 }
 
 Move killer[128];
-long long history[0x2000];
+int history[0x2000];
 /* In normal search some basic move ordering heuristics are used */
 Move spick(Movep* mp, int s, int ply) {
 	Move m;
-	int i, pi = 0; long long vmax = -(1LL << 62);
+	int i, pi = 0, vmax = -(1 << 15);
 	for (i = s; i < mp->n; i++) {
 		m = mp->list[i];
 		if (m == killer[ply]) {
@@ -1063,7 +1062,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 	Movep mp; mp.nquiet = 0;
 	Pos pos; pos.hashb = 0;
 	int raising = !ch && ply >= 2 && wstat >= wstack[COUNT-2];
-	int first = NO_MOVE;  long long hismax = -1LL;
+	int first = NO_MOVE, hismax = -1;
 	for (n = HASH; n <= (ch ? NOISY : QUIET); n++) {
 		int nd = d - 1;
 		if (n == HASH) {
@@ -1099,7 +1098,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 				if (m == killer[ply]); //Don't reduce killers
 				else if (PIECE(m) == PAWN && !(pawnfree[TO(m) + (c << 6)] & pieceb[PAWN] & colorb[oc])); //Free pawns
 				else {
-					long long his = history[m & 0x1FFF];
+					int his = history[m & 0x1FFF];
 					if (his > hismax) hismax = his;
 					else if (d < 6 && (his < -1 || his*his < hismax)) { undoMove(0, c); restorePos(&pos, c); continue; }
 					else if (d >= 2) ext-= (d + 1)/3;
@@ -1125,11 +1124,11 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 					if (quiet) {
 						int his = MIN(d*d, 512);
 						killer[ply] = m;
-						history[m & 0x1FFF] += his;
+						history[m & 0x1FFF] += his - history[m & 0x1FFF]*his/512;
 
 						for (j = 0; j < mp.nquiet; j++) {
 							Move m2 = mp.quiets[j];
-							if (m2 != m) history[m2 & 0x1FFF] -= his;
+							if (m2 != m) history[m2 & 0x1FFF] += -his - history[m2 & 0x1FFF]*his/512;
 						}
 					}
 					n = EXIT; break;
