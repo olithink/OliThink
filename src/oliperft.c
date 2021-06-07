@@ -1,4 +1,4 @@
-/* OliPerft 1.0.8 - Bitboard Magic Move (c) Oliver Brausch 31.Oct.2020, ob112@web.de */
+/* OliPerft 1.0.9 - Bitboard Magic Move (c) Oliver Brausch 31.Oct.2020, ob112@web.de */
 /* oliperft 6 "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
 Nodes: 8229523927 ms: 11196 knps: 734975 (clang7 64bit AMD EPYC 7502P 1/32-Core Processor)
 Nodes: 8229523927 ms: 13954 knps: 589718 (clang10 OSX i7 8850H 2.6 GHz)
@@ -41,14 +41,14 @@ enum { EMPTY, PAWN, KNIGHT, KING, ENP, BISHOP, ROOK, QUEEN };
 #define _CAP(x) ((x) << 19)
 #define PREMOVE(f, p) ((f) | _ONMV(c) | _PIECE(p))
 
-#define RATT1(f) rays[((f) << 7) | key000(BOARD, f)]
-#define RATT2(f) rays[((f) << 7) | key090(BOARD, f) | 0x2000]
-#define BATT3(f) rays[((f) << 7) | key045(BOARD, f) | 0x4000]
-#define BATT4(f) rays[((f) << 7) | key135(BOARD, f) | 0x6000]
-#define RXRAY1(f) rays[((f) << 7) | key000(BOARD, f) | 0x8000]
-#define RXRAY2(f) rays[((f) << 7) | key090(BOARD, f) | 0xA000]
-#define BXRAY3(f) rays[((f) << 7) | key045(BOARD, f) | 0xC000]
-#define BXRAY4(f) rays[((f) << 7) | key135(BOARD, f) | 0xE000]
+#define RATT1(f) rays[((f) << 6) | key000(BOARD, f)]
+#define RATT2(f) rays[((f) << 6) | key090(BOARD, f) | 0x1000]
+#define BATT3(f) rays[((f) << 6) | key045(BOARD, f) | 0x2000]
+#define BATT4(f) rays[((f) << 6) | key135(BOARD, f) | 0x3000]
+#define RXRAY1(f) rays[((f) << 6) | key000(BOARD, f) | 0x4000]
+#define RXRAY2(f) rays[((f) << 6) | key090(BOARD, f) | 0x5000]
+#define BXRAY3(f) rays[((f) << 6) | key045(BOARD, f) | 0x6000]
+#define BXRAY4(f) rays[((f) << 6) | key135(BOARD, f) | 0x7000]
 
 #define RMOVE1(f) (RATT1(f) & ~BOARD)
 #define RMOVE2(f) (RATT2(f) & ~BOARD)
@@ -86,7 +86,7 @@ u64 hashb;
 
 static u64 BIT[64];
 static u64 hashxor[0x8000];
-static u64 rays[0x10000];
+static u64 rays[0x8000];
 static u64 nmoves[64];
 static u64 kmoves[64];
 static u64 pmoves[128];
@@ -197,8 +197,8 @@ void _init_rays(u64* ray, u64 (*rayFunc) (int, u64, int), int (*key)(u64, int)) 
 			u64 occ = (*rayFunc)(f, board, 2);
 			u64 xray = (*rayFunc)(f, board, 3);
 			int index = (*key)(board, f);
-			ray[(f << 7) + index] = occ | move;
-			ray[(f << 7) + index + 0x8000] = xray;
+			ray[(f << 6) + index] = occ | move;
+			ray[(f << 6) + index + 0x4000] = xray;
 		}
 	}
 }
@@ -263,18 +263,18 @@ int identColor(int f) {
 }
 
 int key000(u64 b, int f) {
-	return (int) ((b >> (f & 56)) & 0x7E);
+	return (int) ((b >> ((f & 56) +1) & 0x3F));
 }
 
 int key090(u64 b, int f) {
 	u64 _b = (b >> (f&7)) & 0x0101010101010101LL;
 	_b = _b * 0x0080402010080400LL;
-	return (int)(_b >> 57);
+	return (int)(_b >> 58);
 }
 
 int keyDiag(u64 _b) {
 	_b = _b * 0x0202020202020202LL;
-	return (int)(_b >> 57);
+	return (int)(_b >> 58);
 }
 
 u64 bmask45[64], bmask135[64];
@@ -782,9 +782,9 @@ int main(int argc, char **argv) {
 	crevoke[56] ^= BIT[9];
 
 	_init_rays(rays, _rook0, key000);
-	_init_rays(rays + 0x2000, _rook90, key090);
-	_init_rays(rays + 0x4000, _bishop45, key045);
-	_init_rays(rays + 0x6000, _bishop135, key135);
+	_init_rays(rays + 0x1000, _rook90, key090);
+	_init_rays(rays + 0x2000, _bishop45, key045);
+	_init_rays(rays + 0x3000, _bishop135, key135);
 	_init_shorts(nmoves, _knight);
 	_init_shorts(kmoves, _king);
 	_init_pawns(pmoves, pcaps, 0);
