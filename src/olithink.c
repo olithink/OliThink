@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 06.Jun.2021, ob112@web.de, http://brausch.org */
-#define VER "5.9.8a"
+/* OliThink5 (c) Oliver Brausch 10.Jun.2021, ob112@web.de, http://brausch.org */
+#define VER "5.9.8b"
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -854,7 +854,7 @@ int evalc(int c) {
 	b = pieceb[QUEEN] & cb;
 	while (b) {
 		f = pullLsb(&b);
-		a = BATT3(f) | BATT4(f) | RATT1(f) | RATT2(f);
+		a = BATT(f) | RATT(f);
 		if (a & kn) katt += MOBILITY(a & kn, mb) << 3;
 		mn += MOBILITY(a, mb) * egf * egf / 75 / 75;
 	}
@@ -926,8 +926,8 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 		if (cmat + 85 <= alpha) break;
 		best = eval(c);
 		if (best > alpha) {
-			alpha = best;
 			if (best >= beta) return beta;
+			alpha = best;
 		}
 	} while(0);
 
@@ -1117,8 +1117,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 			if (w > alpha) {
 				alpha = w, first = GOOD_MOVE;
 				pv[ply][ply] = m;
-				for (j = ply +1; pv[ply +1][j]; j++) pv[ply][j] = pv[ply +1][j];
-				pv[ply][j] = 0;
+				for (j = ply +1; (pv[ply][j] = pv[ply +1][j]); j++);
 
 				if (w >= beta) {
 					if (quiet) {
