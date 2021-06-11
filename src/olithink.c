@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 10.Jun.2021, ob112@web.de, http://brausch.org */
-#define VER "5.9.8b"
+#define VER "5.9.8c"
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -1047,7 +1047,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 	hstack[COUNT] = hp;
 	//Null Move - pvnode => null == 0
 	null = null && !ch && beta > -MAXSCORE+500 && d > 1 && wstat > alpha && (ply < 2 || (mstack[COUNT-2] >> 27));
-	if (null && bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], oc))) > 1) {
+	if (null && (colorb[c] & (~pieceb[PAWN]) & (~pieceb[KING]))) {
 		int R = (10 + d + nullvariance(wstat - alpha))/4;
 		doMove(0, c);
 		w = -search(0LL, oc, d-R, ply+1, -beta, 1-beta, 0, 0);
