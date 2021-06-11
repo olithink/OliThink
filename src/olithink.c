@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 06.Jun.2021, ob112@web.de, http://brausch.org */
-#define VER "5.9.8"
+/* OliThink5 (c) Oliver Brausch 11.Jun.2021, ob112@web.de, http://brausch.org */
+#define VER "5.9.9"
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -44,14 +44,14 @@ const int fval[] = {0, 0, 2, 0, 0, 3, 5, 9};
 #define _CAP(x) ((x) << 19)
 #define PREMOVE(f, p) ((f) | _ONMV(c) | _PIECE(p))
 
-#define RATT1(f) rays[((f) << 7) | key000(BOARD, f)]
-#define RATT2(f) rays[((f) << 7) | key090(BOARD, f) | 0x2000]
-#define BATT3(f) rays[((f) << 7) | key045(BOARD, f) | 0x4000]
-#define BATT4(f) rays[((f) << 7) | key135(BOARD, f) | 0x6000]
-#define RXRAY1(f) rays[((f) << 7) | key000(BOARD, f) | 0x8000]
-#define RXRAY2(f) rays[((f) << 7) | key090(BOARD, f) | 0xA000]
-#define BXRAY3(f) rays[((f) << 7) | key045(BOARD, f) | 0xC000]
-#define BXRAY4(f) rays[((f) << 7) | key135(BOARD, f) | 0xE000]
+#define RATT1(f) rays[((f) << 6) | key000(BOARD, f)]
+#define RATT2(f) rays[((f) << 6) | key090(BOARD, f) | 0x1000]
+#define BATT3(f) rays[((f) << 6) | key045(BOARD, f) | 0x2000]
+#define BATT4(f) rays[((f) << 6) | key135(BOARD, f) | 0x3000]
+#define RXRAY1(f) rays[((f) << 6) | key000(BOARD, f) | 0x4000]
+#define RXRAY2(f) rays[((f) << 6) | key090(BOARD, f) | 0x5000]
+#define BXRAY3(f) rays[((f) << 6) | key045(BOARD, f) | 0x6000]
+#define BXRAY4(f) rays[((f) << 6) | key135(BOARD, f) | 0x7000]
 
 #define RMOVE1(f) (RATT1(f) & ~BOARD)
 #define RMOVE2(f) (RATT2(f) & ~BOARD)
@@ -99,7 +99,7 @@ int wstack[0x400];
 
 static u64 BIT[64];
 static u64 hashxor[4096];
-static u64 rays[0x10000];
+static u64 rays[0x8000];
 static u64 pmoves[128];
 static u64 pcaps[384];
 static u64 nmoves[64];
@@ -305,8 +305,8 @@ void _init_rays(u64* ray, u64 (*rayFunc) (int, u64, int), int (*key)(u64, int)) 
 			u64 occ = (*rayFunc)(f, board, 2);
 			u64 xray = (*rayFunc)(f, board, 3);
 			int index = (*key)(board, f);
-			ray[(f << 7) + index] = occ | move;
-			ray[(f << 7) + index + 0x8000] = xray;
+			ray[(f << 6) + index] = occ | move;
+			ray[(f << 6) + index + 0x4000] = xray;
 		}
 	}
 }
@@ -396,18 +396,18 @@ int identPiece(int f) {
 }
 
 int key000(u64 b, int f) {
-	return (int) ((b >> (f & 56)) & 0x7E);
+	return (int) ((b >> ((f & 56) + 1)) & 0x3F);
 }
 
 int key090(u64 b, int f) {
 	u64 _b = (b >> (f&7)) & 0x0101010101010101LL;
 	_b = _b * 0x0080402010080400LL;
-	return (int)(_b >> 57);
+	return (int)(_b >> 58);
 }
 
 int keyDiag(u64 _b) {
 	_b = _b * 0x0202020202020202LL;
-	return (int)(_b >> 57);
+	return (int)(_b >> 58);
 }
 
 u64 bmask135[64], bmask45[64];
@@ -854,7 +854,7 @@ int evalc(int c) {
 	b = pieceb[QUEEN] & cb;
 	while (b) {
 		f = pullLsb(&b);
-		a = BATT3(f) | BATT4(f) | RATT1(f) | RATT2(f);
+		a = BATT(f) | RATT(f);
 		if (a & kn) katt += MOBILITY(a & kn, mb) << 3;
 		mn += MOBILITY(a, mb) * egf * egf / 75 / 75;
 	}
@@ -926,8 +926,8 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 		if (cmat + 85 <= alpha) break;
 		best = eval(c);
 		if (best > alpha) {
-			alpha = best;
 			if (best >= beta) return beta;
+			alpha = best;
 		}
 	} while(0);
 
@@ -1047,7 +1047,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 	hstack[COUNT] = hp;
 	//Null Move - pvnode => null == 0
 	null = null && !ch && beta > -MAXSCORE+500 && d > 1 && wstat > alpha && (ply < 2 || (mstack[COUNT-2] >> 27));
-	if (null && bitcnt(colorb[c] & (~pieceb[PAWN]) & (~pinnedPieces(kingpos[c], oc))) > 1) {
+	if (null && (colorb[c] & (~pieceb[PAWN]) & (~pieceb[KING]))) {
 		int R = (10 + d + nullvariance(wstat - alpha))/4;
 		doMove(0, c);
 		w = -search(0LL, oc, d-R, ply+1, -beta, 1-beta, 0, 0);
@@ -1117,8 +1117,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 			if (w > alpha) {
 				alpha = w, first = GOOD_MOVE;
 				pv[ply][ply] = m;
-				for (j = ply +1; pv[ply +1][j]; j++) pv[ply][j] = pv[ply +1][j];
-				pv[ply][j] = 0;
+				for (j = ply +1; (pv[ply][j] = pv[ply +1][j]); j++);
 
 				if (w >= beta) {
 					if (quiet) {
@@ -1412,9 +1411,9 @@ int main(int argc, char **argv) {
 	crevoke[56] ^= BIT[9];
 
 	_init_rays(rays, _rook0, key000);
-	_init_rays(rays + 0x2000, _rook90, key090);
-	_init_rays(rays + 0x4000, _bishop45, key045);
-	_init_rays(rays + 0x6000, _bishop135, key135);
+	_init_rays(rays + 0x1000, _rook90, key090);
+	_init_rays(rays + 0x2000, _bishop45, key045);
+	_init_rays(rays + 0x3000, _bishop135, key135);
 	_init_shorts(nmoves, _knight);
 	_init_shorts(kmoves, _king);
 	_init_pawns(pmoves, pcaps, pawnfree, pawnfile, pawnhelp, 0);
