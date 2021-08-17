@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 08.Jul.2021, ob112@web.de, http://brausch.org */
-#define VER "5.10.0"
+/* OliThink5 (c) Oliver Brausch 18.Aug.2021, ob112@web.de, http://brausch.org */
+#define VER "5.10.1"
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -21,7 +21,7 @@ typedef int Move;
 enum { EMPTY, PAWN, KNIGHT, KING, ENP, BISHOP, ROOK, QUEEN };
 enum { LOWER, EXACT, UPPER };
 enum { NO_MOVE, ANY_MOVE, GOOD_MOVE };
-enum { NOPE, HASH, NOISY, QUIET, EXIT };
+enum { HASH, NOISY, QUIET, EXIT };
 
 #define HSIZE 0x800000LL
 #define HMASK (HSIZE-1)
@@ -31,49 +31,49 @@ const int pval[] = {0, 100, 290, 0, 100, 310, 500, 980};
 const int fval[] = {0, 0, 2, 0, 0, 3, 5, 9};
 const int cornbase[] = {4, 4, 2, 1, 0, 0 ,0};
 
-#define FROM(x) ((x) & 63)
-#define TO(x) (((x) >> 6) & 63)
-#define ONMV(x) (((x) >> 12) & 1)
-#define PROM(x) (((x) >> 13) & 7)
-#define PIECE(x) (((x) >> 16) & 7)
-#define CAP(x) (((x) >> 19) & 7)
+#define FROM(x) (x & 63)
+#define TO(x) ((x >> 6) & 63)
+#define ONMV(x) ((x >> 12) & 1)
+#define PIECE(x) ((x >> 13) & 7)
+#define PROM(x) ((x >> 16) & 7)
+#define CAP(x) ((x >> 19) & 7)
 #define MAXSCORE 16384
 
-#define _TO(x) ((x) << 6)
-#define _ONMV(x) ((x) << 12)
-#define _PROM(x) ((x) << 13)
-#define _PIECE(x) ((x) << 16)
-#define _CAP(x) ((x) << 19)
+#define _TO(x) (x << 6)
+#define _ONMV(x) (x << 12)
+#define _PIECE(x) (x << 13)
+#define _PROM(x) (x << 16)
+#define _CAP(x) (x << 19)
 #define PREMOVE(f, p) ((f) | _ONMV(c) | _PIECE(p))
 
-#define RATT1(f) rays[((f) << 6) | key000(BOARD, f)]
-#define RATT2(f) rays[((f) << 6) | key090(BOARD, f) | 0x1000]
-#define BATT3(f) rays[((f) << 6) | key045(BOARD, f) | 0x2000]
-#define BATT4(f) rays[((f) << 6) | key135(BOARD, f) | 0x3000]
-#define RXRAY1(f) rays[((f) << 6) | key000(BOARD, f) | 0x4000]
-#define RXRAY2(f) rays[((f) << 6) | key090(BOARD, f) | 0x5000]
-#define BXRAY3(f) rays[((f) << 6) | key045(BOARD, f) | 0x6000]
-#define BXRAY4(f) rays[((f) << 6) | key135(BOARD, f) | 0x7000]
+#define RATT1(f) rays[(f << 6) | key000(BOARD, f)]
+#define RATT2(f) rays[(f << 6) | key090(BOARD, f) | 0x1000]
+#define BATT3(f) rays[(f << 6) | key045(BOARD, f) | 0x2000]
+#define BATT4(f) rays[(f << 6) | key135(BOARD, f) | 0x3000]
+#define RXRAY1(f) rays[(f << 6) | key000(BOARD, f) | 0x4000]
+#define RXRAY2(f) rays[(f << 6) | key090(BOARD, f) | 0x5000]
+#define BXRAY3(f) rays[(f << 6) | key045(BOARD, f) | 0x6000]
+#define BXRAY4(f) rays[(f << 6) | key135(BOARD, f) | 0x7000]
 
 #define RATT(f) (RATT1(f) | RATT2(f))
 #define BATT(f) (BATT3(f) | BATT4(f))
-#define RCAP(f, c) (RATT(f) & P.color[(c)^1])
-#define BCAP(f, c) (BATT(f) & P.color[(c)^1])
+#define RCAP(f, c) (RATT(f) & P.color[c^1])
+#define BCAP(f, c) (BATT(f) & P.color[c^1])
 
 #define KMOVE(x) (kmoves[x] & ~BOARD)
-#define NCAP(x, c) (nmoves[x] & P.color[(c)^1])
-#define KCAP(x, c) (kmoves[x] & P.color[(c)^1])
+#define NCAP(x, c) (nmoves[x] & P.color[c^1])
+#define KCAP(x, c) (kmoves[x] & P.color[c^1])
 #define PMOVE(x, c) (pmoves[c][x] & ~BOARD)
 #define POCC(x, c) (pcaps[c][x] & BOARD)
-#define PCAP(x, c) (pcaps[c][x] & P.color[(c)^1])
-#define PCA3(x, c) (pcaps[c][(x) | 64] & (P.color[(c)^1] | (BIT[ENPASS] & ((c) ? 0xFF0000 : 0xFF0000000000))))
-#define PCA4(x, c) (pcaps[c][(x) | 128] & (P.color[(c)^1] | (BIT[ENPASS] & ((c) ? 0xFF0000 : 0xFF0000000000))))
+#define PCAP(x, c) (pcaps[c][x] & P.color[c^1])
+#define PCA3(x, c) (pcaps[c][(x) | 64] & (P.color[c^1] | (BIT[ENPASS] & (c ? 0xFF0000 : 0xFF0000000000))))
+#define PCA4(x, c) (pcaps[c][(x) | 128] & (P.color[c^1] | (BIT[ENPASS] & (c ? 0xFF0000 : 0xFF0000000000))))
 
 #define ENPASS (flags & 63)
 #define CASTLE(c) (flags & (320 << (c)))
 #define COUNT (count & 0x3FF)
-#define MEVAL(w) ((w) > MAXSCORE-500 ? (200001+MAXSCORE-(w))/2 : (w) < 500-MAXSCORE ? (-200000-MAXSCORE-(w))/2 : (w))
-#define NOMATEMAT(c) ((P.sf[c] <= 4 || (P.sf[c] <= 8 && P.sf[c] <= P.sf[c^1] + 3)) && (P.piece[PAWN] & P.color[c]) == 0)
+#define MEVAL(w) (w > MAXSCORE-500 ? (200001+MAXSCORE-w)/2 : w < 500-MAXSCORE ? (-200000-MAXSCORE-w)/2 : w)
+#define NOMATEMAT(c) ((P.sf[c] <= 4 || (P.sf[c] <= 8 && P.sf[c] <= P.sf[c^1] + 3)) && !(P.piece[PAWN] & P.color[c]))
 
 typedef struct {
 	int n;
@@ -107,10 +107,10 @@ static u64 rankb[8], fileb[8];
 static u64 whitesq, maxtime, starttime, eval1, nodes, qnodes;
 static u32 crevoke[64], count, flags, ics = 0, ponder = 0, pondering = 0, analyze = 0;
 static Move pv[128][128], pon = 0, bkmove[BKSIZE*32], killer[128];
+static int wstack[0x400], history[0x10000];
+static int kmobil[64], bishcorn[64];
 static int _knight[8] = {-17,-10,6,15,17,10,-6,-15};
 static int _king[8] = {-9,-1,7,8,9,1,-7,-8};
-static int wstack[0x400], history[0x2000];
-static int kmobil[64], bishcorn[64];
 static int book, bkflag[BKSIZE], bkcount[3];
 static int sabort, onmove, random, engine =-1, sd = 64, ttime = 30000, mps = 0, inc = 0, post = 1, st = 0;
 static char irbuf[256], base[16];
@@ -155,13 +155,12 @@ void _parse_fen(char *fen, int reset) {
 		}
 	}
 	onmove = mv == 'b' ? 1 : 0;
-	flags = i = 0;
+	flags = i = 0, count = (fullm - 1)*2 + onmove + (halfm << 10);
 	while ((s = cas[i++])) {
 		int b = s == 'K' ? 6 : s == 'k' ? 7 : s == 'Q' ? 8 : s == 'q' ? 9 : 0;
 		if (b) flags |= BIT[b];
 	}
 	if (enps[0] >= 'a' && enps[0] <= 'h' && enps[1] >= '1' && enps[1] <= '8') flags |= 8*(enps[1] -'1') + enps[0] -'a';
-	count = (fullm - 1)*2 + onmove + (halfm << 10);
 	for (i = 0; i < (int)COUNT; i++) hstack[i] = 0LL;
 	if (reset) memset(hashDB, 0, sizeof(hashDB));
 	BOARD = P.color[0] | P.color[1];
@@ -739,7 +738,7 @@ Move spick(Movep* mp, int s, int ply) {
 			pi = i;
 			break;
 		}
-		if (vmax < history[m & 0x1FFF]) vmax = history[m & 0x1FFF], pi = i;
+		if (vmax < history[m & 0xFFFF]) vmax = history[m & 0xFFFF], pi = i;
 	}
 	m = mp->list[pi];
 	if (pi != s) mp->list[pi] = mp->list[s];
@@ -766,7 +765,7 @@ inline int kmobilf(int c) {
 	return sfo < 14 ? km : km * (16 - sfo) /4;
 }
 
-#define MOBILITY(a, mb) (bitcnt(a) + bitcnt((a) & (mb)))
+#define MOBILITY(a, mb) (bitcnt(a) + (mb ? bitcnt((a) & mb) : 0))
 /* The eval for Color c. It's almost only mobility. Pinned pieces are still awarded for limiting opposite's king */
 int evalc(int c) {
 	int f, mn = 0, katt = 0, oc = c^1, egf = 10400/(80 + P.sf[c] + P.sf[oc]) + random;
@@ -900,8 +899,7 @@ int inputSearch() {
 	if (analyze) { if (ex <= -1) return ex; else ex = 0; }
 	if (!ponder || ex || engine != onmove) pondering = analyze;
 	if (!ex) irbuf[0] = 0;
-	if (ex < -1) return ex;
-	if (ex != -1) return !pondering;
+	if (ex != -1) return ex < -1 ? ex : !pondering;
 	ex = parseMove(irbuf, ONMV(pon), pon);
 	if (!ex || ex == -1) return -1;
 	irbuf[0] = 0; pon = 0;
@@ -975,7 +973,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 		doMove(0, c);
 		w = -search(0LL, oc, d-R, ply+1, -beta, 1-beta, 0, 0);
 		undoMove(0, c);
-		if (!sabort && w >= beta) return w >= MAXSCORE-500 ? beta : w;
+		if (!sabort && w >= beta) return beta;
 	}
 
 	if (d >= 4 && !hmove) { // Internal Iterative Reduction (IIR)
@@ -1015,18 +1013,14 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 			doMove(m, c);
 			if (quiet) mp.quiets[mp.nquiet++] = m;
 			u64 nch = attacked(P.king[oc], oc);
-			if (nch || pvnode || ch);
+			if (nch || pvnode || ch || (PIECE(m) == PAWN && !(pawnfree[c][TO(m)] & P.piece[PAWN] & P.color[oc])));
 			else if (n == NOISY && d >= 2 && !PROM(m) && swap(m) < 0) ext-= (d + 1)/(3+raising); //Reduce bad exchanges
-			else if (n == QUIET) { //LMR
-				if (m == killer[ply]); //Don't reduce killers
-				else if (PIECE(m) == PAWN && !(pawnfree[c][TO(m)] & P.piece[PAWN] & P.color[oc])); //Free pawns
-				else {
-					int his = history[m & 0x1FFF];
-					if (his > hismax) hismax = his;
-					else if (d < 6 && (his < -1 || his*his < hismax)) {
-						undoMove(0, c); memcpy(&P, &pos, sizeof(Pos)); continue;
-					} else if (d >= 2) ext-= (d + 1)/3;
-				}
+			else if (n == QUIET && m != killer[ply]) { // LMR, but don't reduce killers
+				int his = history[m & 0xFFFF];
+				if (his > hismax) hismax = his;
+				else if (d < 6 && (his < 0 || his*his < hismax)) {
+					undoMove(0, c); memcpy(&P, &pos, sizeof(Pos)); continue;
+				} else if (d >= 2) ext-= (d + 1)/3;
 			}
 
 			int firstPVNode = first == NO_MOVE && pvnode;
@@ -1046,11 +1040,11 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 					if (quiet) {
 						int his = MIN(d*d, 512);
 						killer[ply] = m;
-						history[m & 0x1FFF] += his - history[m & 0x1FFF]*his/512;
+						history[m & 0xFFFF] += his - history[m & 0xFFFF]*his/512;
 
-						for (j = 0; j < mp.nquiet; j++) {
+						for (j = 0; j < mp.nquiet - 1; j++) {
 							Move m2 = mp.quiets[j];
-							if (m2 != m) history[m2 & 0x1FFF] += -his - history[m2 & 0x1FFF]*his/512;
+							history[m2 & 0xFFFF] += -his - history[m2 & 0xFFFF]*his/512;
 						}
 					}
 					n = EXIT; break;
@@ -1058,7 +1052,6 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 			} else if (first == NO_MOVE) first = ANY_MOVE;
 		}
 	}
-	if (sabort) return alpha;
 	if (first == NO_MOVE) alpha = ch || sem ? -MAXSCORE + ply : 0;
 
 	char type = UPPER;
