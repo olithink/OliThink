@@ -1,6 +1,6 @@
 ### Hi there 👋
 
-OliThink(5) is a free and open source chess engine.
+OliThink(5) is a free and open source chess engine. License: MIT
 
 One of the main aims was to create a strong engine with minimalistic and clear code. OliThink has no chess knowledge except mobility. The size of the source code has never exceeded 50kByte.
 Everything in the code is unique, there is no copy of other engines.
