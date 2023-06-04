@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 18.Aug.2021, ob112@web.de, http://brausch.org */
-#define VER "5.10.1"
+/* OliThink5 (c) Oliver Brausch 04.Jun.2023, ob112@web.de, http://brausch.org */
+#define VER "5.10.2"
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -413,12 +413,12 @@ u64 pinnedPieces(int k, int oc) {
 	u64 pin = 0LL, b = ((RXRAY1(k) | RXRAY2(k)) & P.color[oc]) & RQU;
 	while (b) {
 		int t = pullLsb(&b);
-		pin |= RATT(k) & RATT(t) & P.color[oc ^ 1];
+		pin |= RATT(k) & RATT(t) & P.color[oc^1];
 	}
 	b = ((BXRAY3(k) | BXRAY4(k)) & P.color[oc]) & BQU;
 	while (b) {
 		int t = pullLsb(&b);
-		pin |= BATT(k) & BATT(t) & P.color[oc ^ 1];
+		pin |= BATT(k) & BATT(t) & P.color[oc^1];
 	}
 	return pin;
 }
@@ -454,8 +454,8 @@ void move(Move m, int c, int d) {
 			flags &= crevoke[t];
 		}
 		P.piece[a] ^= BIT[t];
-		P.color[c ^ 1] ^= BIT[t];
-		P.hash ^= hashxor[t | a << 6 | (c ^ 1) << 9];
+		P.color[c^1] ^= BIT[t];
+		P.hash ^= hashxor[t | a << 6 | (c^1) << 9];
 		count &= 0x3FF; //Reset Fifty Counter
 		MAT += changeMat(m, c, d);
 	}
@@ -540,8 +540,7 @@ int generateCheckEsc(u64 ch, u64 apin, int c, int k, Movep *mp) {
 
 	cc = attacked(bf, c^1) & apin;  //Can we capture the checker?
 	while (cc) {
-		int cf = pullLsb(&cc);
-		int p = identPiece(cf);
+		int cf = pullLsb(&cc), p = identPiece(cf);
 		if (p == PAWN && RANK[c][cf] == 7) regPromotions(cf, c, ch, mp, 1, 1);
 		else regMoves(PREMOVE(cf, p), ch, mp, 1);
 	}
@@ -579,18 +578,23 @@ int generateCheckEsc(u64 ch, u64 apin, int c, int k, Movep *mp) {
 	return 1;
 }
 
-void generatePinned(int c, int k, u64 pin, Movep* mp, u64 tb, int cap) {
+#define GSLIDES(p, m) for (b = P.piece[p] & cb; b;) { int f = pullLsb(&b); regMoves(PREMOVE(f, p), m & tb, mp, q); }
+void generateSlides(int c, int k, u64 pin, Movep* mp, u64 tb, u64 cb, int q) {
 	u64 b;
-	for (b = pin & (P.piece[ROOK] | P.piece[BISHOP] | P.piece[QUEEN]); b;) {
+	GSLIDES(KNIGHT, nmoves[f]);
+	GSLIDES(ROOK, RATT(f));
+	GSLIDES(BISHOP, BATT(f));
+	GSLIDES(QUEEN, (RATT(f) | BATT(f)));
+
+	if (pin) for (b = pin & (P.piece[ROOK] | P.piece[BISHOP] | P.piece[QUEEN]); b;) {
 		int f = pullLsb(&b), p = identPiece(f), t = p | getDir(f, k);
-		if ((t & 10) == 10) regMoves(PREMOVE(f, p), RATT1(f) & tb, mp, cap);
-		if ((t & 18) == 18) regMoves(PREMOVE(f, p), RATT2(f) & tb, mp, cap);
-		if ((t & 33) == 33) regMoves(PREMOVE(f, p), BATT3(f) & tb, mp, cap);
-		if ((t & 65) == 65) regMoves(PREMOVE(f, p), BATT4(f) & tb, mp, cap);
+		if ((t & 10) == 10) regMoves(PREMOVE(f, p), RATT1(f) & tb, mp, q);
+		if ((t & 18) == 18) regMoves(PREMOVE(f, p), RATT2(f) & tb, mp, q);
+		if ((t & 33) == 33) regMoves(PREMOVE(f, p), BATT3(f) & tb, mp, q);
+		if ((t & 65) == 65) regMoves(PREMOVE(f, p), BATT4(f) & tb, mp, q);
 	}
 }
 
-#define GSLIDES(p, m, q) for (b = P.piece[p] & cb; b;) { f = pullLsb(&b); regMoves(PREMOVE(f, p), (m) & tb, mp, q); }
 void generateQuiet(int c, int k, u64 pin, Movep* mp) {
 	int f, r; u64 b, cb = P.color[c] & (~pin), tb = ~BOARD;
 
@@ -614,27 +618,22 @@ void generateQuiet(int c, int k, u64 pin, Movep* mp) {
 	if (CASTLE(c)) {
 		for (b = P.piece[ROOK] & cb; b;) {
 			f = pullLsb(&b);
-			if (f == 63 && c && (flags & 128) && !(BOARD & (3LL << 61)))
+			if (f == 63 && (flags & 128) && !(BOARD & (3LL << 61)))
 				if (!DUALATT(61, 62, c)) regMoves(PREMOVE(60, KING), 1LL << 62, mp, 0);
-			if (f == 56 && c && (flags & 512) && !(BOARD & (7LL << 57)))
+			if (f == 56 && (flags & 512) && !(BOARD & (7LL << 57)))
 				if (!DUALATT(59, 58, c)) regMoves(PREMOVE(60, KING), 1LL << 58, mp, 0);
-			if (f == 7 && !c && (flags & 64) && !(BOARD & (3LL << 5)))
+			if (f == 7 && (flags & 64) && !(BOARD & (3LL << 5)))
 				if (!DUALATT(5, 6, c)) regMoves(PREMOVE(4, KING), 1LL << 6, mp, 0);
-			if (f == 0 && !c && (flags & 256) && !(BOARD & (7LL << 1)))
+			if (f == 0 && (flags & 256) && !(BOARD & (7LL << 1)))
 				if (!DUALATT(3, 2, c)) regMoves(PREMOVE(4, KING), 1LL << 2, mp, 0);
 		}
 	}
 
-	GSLIDES(KNIGHT, nmoves[f], 0);
-	GSLIDES(ROOK, RATT(f), 0);
-	GSLIDES(BISHOP, BATT(f), 0);
-	GSLIDES(QUEEN, RATT(f) | BATT(f), 0);
-
-	if (pin) generatePinned(c, k, pin, mp, tb, 0);
+	generateSlides(c, k, pin, mp, tb, cb, 0);
 }
 
 void generateNoisy(int c, int k, u64 pin, Movep *mp) {
-	int f, r; u64 b, cb = P.color[c] & (~pin), tb = P.color[c ^ 1];
+	int f, r; u64 b, cb = P.color[c] & (~pin), tb = P.color[c^1];
 
 	regKings(PREMOVE(k, KING), kmoves[k] & tb, mp, c, 1);
 
@@ -644,16 +643,13 @@ void generateNoisy(int c, int k, u64 pin, Movep *mp) {
 		if (t == 8) continue; else r = RANK[c][f];
 		u64 m = t & 16 ? PMOVE(f, c) : 0;
 		u64 a = (t == 17) ? PCAP(f, c) : (t == 32) ? PCA3(f, c) : (t == 64) ? PCA4(f, c) : 0LL;
-		if (r == 7) {
-			if (a) regMoves(PREMOVE(f, PAWN) | _PROM(QUEEN), a, mp, 1);
-			if (m) regMoves(PREMOVE(f, PAWN) | _PROM(QUEEN), m, mp, 0);
-		} else if (r == 6) {
-			if (a) regMoves(PREMOVE(f, PAWN), a, mp, 1);
-			if (m) regMoves(PREMOVE(f, PAWN), m, mp, 0);
+		if (r >= 6) {
+			if (a) regMoves(PREMOVE(f, PAWN) | (r == 7 ? _PROM(QUEEN) : 0), a, mp, 1);
+			if (m) regMoves(PREMOVE(f, PAWN) | (r == 7 ? _PROM(QUEEN) : 0), m, mp, 0);
 		} else {
 			if (t == 17 && ENPASS && (BIT[ENPASS] & pcaps[c][f])) {
 				BOARD ^= BIT[ENPASS ^ 8];
-				if (!(RATT1(f) & BIT[k]) || !(RATT1(f) & P.color[c ^ 1] & RQU)) {
+				if (!(RATT1(f) & BIT[k]) || !(RATT1(f) & P.color[c^1] & RQU)) {
 					a = a | BIT[ENPASS];
 				}
 				BOARD ^= BIT[ENPASS ^ 8];
@@ -661,13 +657,7 @@ void generateNoisy(int c, int k, u64 pin, Movep *mp) {
 			regMoves(PREMOVE(f, PAWN), a, mp, 1);
 		}
 	}
-
-	GSLIDES(KNIGHT, nmoves[f], 1);
-	GSLIDES(ROOK, RATT(f), 1);
-	GSLIDES(BISHOP, BATT(f), 1);
-	GSLIDES(QUEEN, RATT(f) | BATT(f), 1);
-
-	if (pin) generatePinned(c, k, pin, mp, tb, 1);
+	generateSlides(c, k, pin, mp, tb, cb, 1);
 }
 
 #define GENERATE(c, mp) generate(attacked(P.king[c], c), c, mp, 1, 1)
@@ -700,10 +690,10 @@ int swap(Move m) { //SEE
 		else if ((temp = P.piece[BISHOP] & P.color[c] & attacks)) piece = BISHOP;
 		else if ((temp = P.piece[ROOK] & P.color[c] & attacks)) piece = ROOK;
 		else if ((temp = P.piece[QUEEN] & P.color[c] & attacks)) piece = QUEEN;
-		else if ((temp = P.piece[KING] & P.color[c] & attacks)) { nc += !(P.color[c ^ 1] & attacks); break; }
+		else if ((temp = P.piece[KING] & P.color[c] & attacks)) { nc += !(P.color[c^1] & attacks); break; }
 		else break;
 
-		BOARD ^= temp & -(long long)temp;
+		BOARD ^= temp & -temp;
 	} while (pval[piece] >= s_list[nc++]);
 
 	while (--nc)
@@ -757,7 +747,7 @@ u64 mobilityb(int c) {
 }
 
 inline int kmobilf(int c) {
-	int km = kmobil[P.king[c]] << 3, sfo = P.sf[c ^ 1];
+	int km = kmobil[P.king[c]], sfo = P.sf[c^1];
 	if (!P.sf[c] && sfo == 5 && P.piece[BISHOP] && !P.piece[PAWN]) { // BNK_vs_k
 		int bc = bishcorn[P.king[c]] << 5;
 		if (P.piece[BISHOP] & whitesq) km += bc; else km -= bc;
@@ -766,7 +756,7 @@ inline int kmobilf(int c) {
 }
 
 #define MOBILITY(a, mb) (bitcnt(a) + (mb ? bitcnt((a) & mb) : 0))
-/* The eval for Color c. It's almost only mobility. Pinned pieces are still awarded for limiting opposite's king */
+/* The eval for Color c. It's almost only mobility. */
 int evalc(int c) {
 	int f, mn = 0, katt = 0, oc = c^1, egf = 10400/(80 + P.sf[c] + P.sf[oc]) + random;
 	u64 b, a, cb = P.color[c], ocb = P.color[oc], mb = P.sf[c] ? mobilityb(c) : 0LL;
@@ -793,8 +783,7 @@ int evalc(int c) {
 
 	b = P.piece[KNIGHT] & cb;
 	while (b) {
-		f = pullLsb(&b);
-		a = nmoves[f];
+		a = nmoves[pullLsb(&b)];
 		if (a & kn) katt += MOBILITY(a & kn, mb) << 3;
 		mn += MOBILITY(a, mb) << 2;
 	}
@@ -835,8 +824,7 @@ int eval(int c) {
 	int ev = evalc(c) - evalc(c^1);
 	eval1++;
 
-	if ((MAT < 0 && NOMATEMAT(1)) || (MAT > 0 && NOMATEMAT(0)))
-		return ev;
+	if ((MAT < 0 && NOMATEMAT(1)) || (MAT > 0 && NOMATEMAT(0))) return ev;
 
 	return ev + (c ? -MAT : MAT);
 }
@@ -862,21 +850,19 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 	Pos pos; pos.hash = 0;
 	for (i = 0; i < mp.n; i++) {
 		Move m = qpick(&mp, i);
-		if (!ch && !PROM(m) && pval[PIECE(m)] > pval[CAP(m)] && swap(m) < 0) continue;
+		if (!ch && pval[PIECE(m)] > pval[CAP(m)] && swap(m) < 0) continue;
 
 		if (!pos.hash) memcpy(&pos, &P, sizeof(Pos));
 		doMove(m, c);
 		qnodes++;
 
-		int w = -quiesce(attacked(P.king[c ^ 1], c ^ 1), c ^ 1, ply + 1, -beta, -alpha);
+		int w = -quiesce(attacked(P.king[c^1], c^1), c^1, ply + 1, -beta, -alpha);
 
 		undoMove(0, c); memcpy(&P, &pos, sizeof(Pos));
 
 		if (w > best) {
-			best = w;
-			if (w > alpha) {
-				alpha = w;
-				if (w >= beta) return beta;
+			if ((best = w) > alpha) {
+				if ((alpha = w) >= beta) return beta;
 			}
 		}
 	}
@@ -976,9 +962,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 		if (!sabort && w >= beta) return beta;
 	}
 
-	if (d >= 4 && !hmove) { // Internal Iterative Reduction (IIR)
-		d--;
-	}
+	if (d >= 4 && !hmove) d--; // Internal Iterative Reduction (IIR)
 
 	Movep mp; mp.nquiet = 0;
 	Pos pos; pos.hash = 0;
@@ -1014,7 +998,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 			if (quiet) mp.quiets[mp.nquiet++] = m;
 			u64 nch = attacked(P.king[oc], oc);
 			if (nch || pvnode || ch || (PIECE(m) == PAWN && !(pawnfree[c][TO(m)] & P.piece[PAWN] & P.color[oc])));
-			else if (n == NOISY && d >= 2 && !PROM(m) && swap(m) < 0) ext-= (d + 1)/(3+raising); //Reduce bad exchanges
+			else if (n == NOISY && d >= 2 && swap(m) < 0) ext-= (d + 1)/(3+raising); //Reduce bad exchanges
 			else if (n == QUIET && m != killer[ply]) { // LMR, but don't reduce killers
 				int his = history[m & 0xFFFF];
 				if (his > hismax) hismax = his;
@@ -1055,7 +1039,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 	if (first == NO_MOVE) alpha = ch || sem ? -MAXSCORE + ply : 0;
 
 	char type = UPPER;
-	if (first == GOOD_MOVE) type = (char)(alpha >= beta ? LOWER : EXACT), hmove = pv[ply][ply]; // Found good move
+	if (first == GOOD_MOVE) type = alpha >= beta ? LOWER : EXACT, hmove = pv[ply][ply]; // Found good move
 
 	if (!sem) hashDB[hp & HMASK] = (entry) {.key = hp, .move = hmove, .value = alpha, .depth = d, .type = type};
 
@@ -1330,7 +1314,7 @@ int main(int argc, char **argv) {
 	_init_pawns(pmoves[0], pcaps[0], pawnfree[0], pawnfile[0], pawnhelp[0], pawnprg[0], 0);
 	_init_pawns(pmoves[1], pcaps[1], pawnfree[1], pawnfile[1], pawnhelp[1], pawnprg[1], 1);
 
-	for (i = 0; i < 64; i++) kmobil[i] = MAX(bitcnt(nmoves[i]), 3);
+	for (i = 0; i < 64; i++) kmobil[i] = MAX(bitcnt(nmoves[i]), 3) << 3;
 	for (i = 0; i < 32; i++) bishcorn[i] = bishcorn[63-i] = (i&7) < 4 ? cornbase[(i&7) +i/8] : -cornbase[7-(i&7) +i/8];
 	_newGame();
 
