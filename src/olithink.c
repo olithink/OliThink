@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 04.Jun.2023, ob112@web.de, http://brausch.org */
-#define VER "5.10.2"
+/* OliThink5 (c) Oliver Brausch 10.Jun.2023, ob112@web.de, http://brausch.org */
+#define VER "5.10.3"
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -850,7 +850,7 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 	Pos pos; pos.hash = 0;
 	for (i = 0; i < mp.n; i++) {
 		Move m = qpick(&mp, i);
-		if (!ch && pval[PIECE(m)] > pval[CAP(m)] && swap(m) < 0) continue;
+		if (!ch && !PROM(m) && pval[PIECE(m)] > pval[CAP(m)] && swap(m) < 0) continue;
 
 		if (!pos.hash) memcpy(&pos, &P, sizeof(Pos));
 		doMove(m, c);
@@ -896,7 +896,7 @@ int isDraw(u64 hp, int nrep) {
 	if (count > 0xFFF) { //fifty > 3
 		int i, c = 0, n = COUNT - (count >> 10);
 		if (count >= 0x400*100) return 2; //100 plies
-		for (i = COUNT - 2; i >= n; i--) 
+		for (i = COUNT - 2; i >= n; i-=2)
 			if (hstack[i] == hp && ++c == nrep) return 1; 
 	} else if (!(P.piece[PAWN] | RQU)) { //Check for mating material
 		if (bitcnt(BOARD) <= 3) return 3;
