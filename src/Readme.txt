@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 10.Jun.2023, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 11.Jun.2023, ob112@web.de, http://brausch.org
 
-Version: 5.10.3
+Version: 5.10.4
 Protocol: CECP v2 (winboard/xboard)
 HashSize: 128MB
 Ponder: Yes
@@ -12,6 +12,9 @@ Evaluation: Just mobility and a very simple pawnprogressing evaluation
 LinesOfCode: 1343
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
+
+v5.10.4: changes since 5.10.3:
+Reduce mobility score in corner
 
 v5.10.3: changes since 5.10.2:
 Revert change in qsearch pruning. Two steps repetiton detection.
