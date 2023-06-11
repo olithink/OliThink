@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 10.Jun.2023, ob112@web.de, http://brausch.org */
-#define VER "5.10.3"
+/* OliThink5 (c) Oliver Brausch 11.Jun.2023, ob112@web.de, http://brausch.org */
+#define VER "5.10.4"
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -104,7 +104,7 @@ static u64 hstack[0x400], mstack[0x400], hashxor[0x1000], rays[0x8000];
 static u64 pmoves[2][64],pawnprg[2][64], pawnfree[2][64], pawnfile[2][64], pawnhelp[2][64], RANK[2][64], pcaps[2][192];
 static u64 BIT[64], nmoves[64], kmoves[64], bmask135[64], bmask45[64];
 static u64 rankb[8], fileb[8];
-static u64 whitesq, maxtime, starttime, eval1, nodes, qnodes;
+static u64 whitesq, centr, maxtime, starttime, eval1, nodes, qnodes;
 static u32 crevoke[64], count, flags, ics = 0, ponder = 0, pondering = 0, analyze = 0;
 static Move pv[128][128], pon = 0, bkmove[BKSIZE*32], killer[128];
 static int wstack[0x400], history[0x10000];
@@ -759,7 +759,7 @@ inline int kmobilf(int c) {
 /* The eval for Color c. It's almost only mobility. */
 int evalc(int c) {
 	int f, mn = 0, katt = 0, oc = c^1, egf = 10400/(80 + P.sf[c] + P.sf[oc]) + random;
-	u64 b, a, cb = P.color[c], ocb = P.color[oc], mb = P.sf[c] ? mobilityb(c) : 0LL;
+	u64 b, a, cb = P.color[c], ocb = P.color[oc], mb = P.sf[c] ? mobilityb(c) & centr : 0LL;
 	u64 kn = kmoves[P.king[oc]] & (~P.piece[PAWN]);
 
 	b = P.piece[PAWN] & cb;
@@ -1314,7 +1314,7 @@ int main(int argc, char **argv) {
 	_init_pawns(pmoves[0], pcaps[0], pawnfree[0], pawnfile[0], pawnhelp[0], pawnprg[0], 0);
 	_init_pawns(pmoves[1], pcaps[1], pawnfree[1], pawnfile[1], pawnhelp[1], pawnprg[1], 1);
 
-	for (i = 0; i < 64; i++) kmobil[i] = MAX(bitcnt(nmoves[i]), 3) << 3;
+	for (i = 0; i < 64; i++) n = bitcnt(nmoves[i]), kmobil[i] = MAX(n, 3) << 3, centr |= n >= 4 ? BIT[i] : 0L;
 	for (i = 0; i < 32; i++) bishcorn[i] = bishcorn[63-i] = (i&7) < 4 ? cornbase[(i&7) +i/8] : -cornbase[7-(i&7) +i/8];
 	_newGame();
 
