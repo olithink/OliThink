@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 11.Jun.2023, ob112@web.de, http://brausch.org */
-#define VER "5.10.4"
+/* OliThink5 (c) Oliver Brausch 12.Jun.2023, ob112@web.de, http://brausch.org */
+#define VER "5.10.5"
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -598,8 +598,6 @@ void generateSlides(int c, int k, u64 pin, Movep* mp, u64 tb, u64 cb, int q) {
 void generateQuiet(int c, int k, u64 pin, Movep* mp) {
 	int f, r; u64 b, cb = P.color[c] & (~pin), tb = ~BOARD;
 
-	regKings(PREMOVE(k, KING), kmoves[k] & tb, mp, c, 0);
-
 	for (b = P.piece[PAWN] & P.color[c]; b;) {
 		f = pullLsb(&b);
 		u32 t = BIT[f] & pin ? getDir(f, k) : 17;
@@ -630,12 +628,12 @@ void generateQuiet(int c, int k, u64 pin, Movep* mp) {
 	}
 
 	generateSlides(c, k, pin, mp, tb, cb, 0);
+	regKings(PREMOVE(k, KING), kmoves[k] & tb, mp, c, 0);
+
 }
 
 void generateNoisy(int c, int k, u64 pin, Movep *mp) {
 	int f, r; u64 b, cb = P.color[c] & (~pin), tb = P.color[c^1];
-
-	regKings(PREMOVE(k, KING), kmoves[k] & tb, mp, c, 1);
 
 	for (b = P.piece[PAWN] & P.color[c]; b;) {
 		f = pullLsb(&b);
@@ -658,6 +656,7 @@ void generateNoisy(int c, int k, u64 pin, Movep *mp) {
 		}
 	}
 	generateSlides(c, k, pin, mp, tb, cb, 1);
+	regKings(PREMOVE(k, KING), kmoves[k] & tb, mp, c, 1);
 }
 
 #define GENERATE(c, mp) generate(attacked(P.king[c], c), c, mp, 1, 1)
@@ -936,16 +935,16 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 
 	Move hmove = ply ? 0 : retPVMove(c, 0);
 
-	entry he = hashDB[hp & HMASK];
-	if (he.key == hp && !sem) {
-		if (he.depth >= d) {
-			if (he.type <= EXACT && he.value >= beta) return beta;
-			if (he.type >= EXACT && he.value <= alpha) return alpha;
+	entry* he = &hashDB[hp & HMASK];
+	if (he->key == hp && !sem) {
+		if (he->depth >= d) {
+			if (he->type <= EXACT && he->value >= beta) return beta;
+			if (he->type >= EXACT && he->value <= alpha) return alpha;
 		}
-		if (!hmove) hmove = he.move;
+		if (!hmove) hmove = he->move;
 	}
 
-	int wstat = wstack[COUNT] = ch ? -MAXSCORE+ply : he.key == hp ? he.value : eval(c);
+	int wstat = wstack[COUNT] = ch ? -MAXSCORE+ply : he->key == hp ? he->value : eval(c);
 	if (!ch && !pvnode && beta > -MAXSCORE+500) {
 		if (d <= 3 && wstat + 400 < beta) { w = quiesce(ch, c, ply, alpha, beta); if (w < beta) return w; }
 		if (d <= 8 && wstat - 88*d > beta) return wstat;
@@ -973,8 +972,8 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 		if (n == HASH) {
 			if (!hmove) continue;
 			mp.n = 1;
-			if (d >= 8 && ply && alpha > -MAXSCORE+500 && he.type == LOWER && he.depth >= d - 3) {
-				int bc = he.value - d;
+			if (d >= 8 && ply && alpha > -MAXSCORE+500 && he->type == LOWER && he->depth >= d - 3) {
+				int bc = he->value - d;
 				nd += search(ch, c, d >> 1, ply, bc-1, bc, 0, hmove) < bc;  // Singular extensions
 			}
 		} else if (n == NOISY) {
@@ -1041,7 +1040,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 	char type = UPPER;
 	if (first == GOOD_MOVE) type = alpha >= beta ? LOWER : EXACT, hmove = pv[ply][ply]; // Found good move
 
-	if (!sem) hashDB[hp & HMASK] = (entry) {.key = hp, .move = hmove, .value = alpha, .depth = d, .type = type};
+	if (!sem) *he = (entry) {.key = hp, .move = hmove, .value = alpha, .depth = d, .type = type};
 
 	return alpha;
 }
