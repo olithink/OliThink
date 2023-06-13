@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 11.Jun.2023, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 12.Jun.2023, ob112@web.de, http://brausch.org
 
-Version: 5.10.4
+Version: 5.10.5
 Protocol: CECP v2 (winboard/xboard)
 HashSize: 128MB
 Ponder: Yes
@@ -9,9 +9,12 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Reduction, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1343
+LinesOfCode: 1342
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
+
+v5.10.5: changes since 5.10.4:
+Generate King moves last. Hash pointer
 
 v5.10.4: changes since 5.10.3:
 Reduce mobility score in corner
