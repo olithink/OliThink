@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 12.Jun.2023, ob112@web.de, http://brausch.org */
-#define VER "5.10.5"
+#define VER "5.10.6a"
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -78,8 +78,6 @@ const int cornbase[] = {4, 4, 2, 1, 0, 0 ,0};
 typedef struct {
 	int n;
 	Move list[128];
-	int nquiet;
-	Move quiets[128];
 } Movep;
 
 typedef struct {
@@ -963,7 +961,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 
 	if (d >= 4 && !hmove) d--; // Internal Iterative Reduction (IIR)
 
-	Movep mp; mp.nquiet = 0;
+	Movep mp, mpq; mpq.n = 0;
 	Pos pos; pos.hash = 0;
 	int raising = !ch && ply >= 2 && wstat >= wstack[COUNT-2];
 	int first = NO_MOVE, hismax = -1;
@@ -986,7 +984,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 			if ((n != HASH && m == hmove) || m == sem) continue;
 
 			int quiet = !CAP(m) && !PROM(m);
-			if (!ch && quiet && alpha > -MAXSCORE+500 && mp.nquiet > 2*d*(raising+1)) {
+			if (!ch && quiet && alpha > -MAXSCORE+500 && mpq.n > 2*d*(raising+1)) {
 				n = EXIT; break; // LMP
 			}
 			if (n != HASH && first != NO_MOVE && alpha > -MAXSCORE+500 && d <= 8 && swap(m) < -d*60) continue;
@@ -994,7 +992,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 			int ext = 0;
 			if (!pos.hash) memcpy(&pos, &P, sizeof(Pos));
 			doMove(m, c);
-			if (quiet) mp.quiets[mp.nquiet++] = m;
+			if (quiet) mpq.list[mpq.n++] = m;
 			u64 nch = attacked(P.king[oc], oc);
 			if (nch || pvnode || ch || (PIECE(m) == PAWN && !(pawnfree[c][TO(m)] & P.piece[PAWN] & P.color[oc])));
 			else if (n == NOISY && d >= 2 && swap(m) < 0) ext-= (d + 1)/(3+raising); //Reduce bad exchanges
@@ -1025,8 +1023,8 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 						killer[ply] = m;
 						history[m & 0xFFFF] += his - history[m & 0xFFFF]*his/512;
 
-						for (j = 0; j < mp.nquiet - 1; j++) {
-							Move m2 = mp.quiets[j];
+						for (j = 0; j < mpq.n - 1; j++) {
+							Move m2 = mpq.list[j];
 							history[m2 & 0xFFFF] += -his - history[m2 & 0xFFFF]*his/512;
 						}
 					}
