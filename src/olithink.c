@@ -1,5 +1,5 @@
 /* OliThink5 (c) Oliver Brausch 12.Jun.2023, ob112@web.de, http://brausch.org */
-#define VER "5.10.6a"
+#define VER "5.10.6b"
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -827,22 +827,20 @@ int eval(int c) {
 }
 
 int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
-	int i, best = -MAXSCORE;
+	int i;
 
 	if (ply == 127) return eval(c);
 	if (!ch) do {
 		int cmat = (c ? -MAT : MAT);
 		if (cmat - 125 >= beta) return beta;
 		if (cmat + 85 <= alpha) break;
-		best = eval(c);
-		if (best > alpha) {
-			if (best >= beta) return beta;
-			alpha = best;
-		}
+		int w = eval(c);
+		if (w >= beta) return beta;
+		if (w > alpha) alpha = w;
 	} while(0);
 
 	Movep mp; generate(ch, c, &mp, 1, 0);
-	if (ch && mp.n == 0) return -MAXSCORE+ply;
+	if (mp.n == 0) return ch ? -MAXSCORE+ply : alpha;
 
 	Pos pos; pos.hash = 0;
 	for (i = 0; i < mp.n; i++) {
@@ -857,13 +855,10 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 
 		undoMove(0, c); memcpy(&P, &pos, sizeof(Pos));
 
-		if (w > best) {
-			if ((best = w) > alpha) {
-				if ((alpha = w) >= beta) return beta;
-			}
-		}
+		if (w >= beta) return beta;
+		if (w > alpha) alpha = w;
 	}
-	return best > -MAXSCORE ? best : eval(c);
+	return alpha;
 }
 
 int retPVMove(int c, int ply) {
