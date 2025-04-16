@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 08.Jul.2021, ob112@web.de, http://brausch.org */
-#define VER "5.10.0"
+/* OliThink5 (c) Oliver Brausch 17.Apr.2025, ob112@web.de, http://brausch.org */
+#define VER "5.11.0"
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -21,7 +21,7 @@ typedef int Move;
 enum { EMPTY, PAWN, KNIGHT, KING, ENP, BISHOP, ROOK, QUEEN };
 enum { LOWER, EXACT, UPPER };
 enum { NO_MOVE, ANY_MOVE, GOOD_MOVE };
-enum { NOPE, HASH, NOISY, QUIET, EXIT };
+enum { HASH, NOISY, QUIET, EXIT };
 
 #define HSIZE 0x800000LL
 #define HMASK (HSIZE-1)
@@ -31,55 +31,53 @@ const int pval[] = {0, 100, 290, 0, 100, 310, 500, 980};
 const int fval[] = {0, 0, 2, 0, 0, 3, 5, 9};
 const int cornbase[] = {4, 4, 2, 1, 0, 0 ,0};
 
-#define FROM(x) ((x) & 63)
-#define TO(x) (((x) >> 6) & 63)
-#define ONMV(x) (((x) >> 12) & 1)
-#define PROM(x) (((x) >> 13) & 7)
-#define PIECE(x) (((x) >> 16) & 7)
-#define CAP(x) (((x) >> 19) & 7)
+#define FROM(x) (x & 63)
+#define TO(x) ((x >> 6) & 63)
+#define ONMV(x) ((x >> 12) & 1)
+#define PROM(x) ((x >> 13) & 7)
+#define PIECE(x) ((x >> 16) & 7)
+#define CAP(x) ((x >> 19) & 7)
 #define MAXSCORE 16384
 
-#define _TO(x) ((x) << 6)
-#define _ONMV(x) ((x) << 12)
-#define _PROM(x) ((x) << 13)
-#define _PIECE(x) ((x) << 16)
-#define _CAP(x) ((x) << 19)
+#define _TO(x) (x << 6)
+#define _ONMV(x) (x << 12)
+#define _PROM(x) (x << 13)
+#define _PIECE(x) (x << 16)
+#define _CAP(x) (x << 19)
 #define PREMOVE(f, p) ((f) | _ONMV(c) | _PIECE(p))
 
-#define RATT1(f) rays[((f) << 6) | key000(BOARD, f)]
-#define RATT2(f) rays[((f) << 6) | key090(BOARD, f) | 0x1000]
-#define BATT3(f) rays[((f) << 6) | key045(BOARD, f) | 0x2000]
-#define BATT4(f) rays[((f) << 6) | key135(BOARD, f) | 0x3000]
-#define RXRAY1(f) rays[((f) << 6) | key000(BOARD, f) | 0x4000]
-#define RXRAY2(f) rays[((f) << 6) | key090(BOARD, f) | 0x5000]
-#define BXRAY3(f) rays[((f) << 6) | key045(BOARD, f) | 0x6000]
-#define BXRAY4(f) rays[((f) << 6) | key135(BOARD, f) | 0x7000]
+#define RATT1(f) rays[(f << 6) | key000(BOARD, f)]
+#define RATT2(f) rays[(f << 6) | key090(BOARD, f) | 0x1000]
+#define BATT3(f) rays[(f << 6) | key045(BOARD, f) | 0x2000]
+#define BATT4(f) rays[(f << 6) | key135(BOARD, f) | 0x3000]
+#define RXRAY1(f) rays[(f << 6) | key000(BOARD, f) | 0x4000]
+#define RXRAY2(f) rays[(f << 6) | key090(BOARD, f) | 0x5000]
+#define BXRAY3(f) rays[(f << 6) | key045(BOARD, f) | 0x6000]
+#define BXRAY4(f) rays[(f << 6) | key135(BOARD, f) | 0x7000]
 
 #define RATT(f) (RATT1(f) | RATT2(f))
 #define BATT(f) (BATT3(f) | BATT4(f))
-#define RCAP(f, c) (RATT(f) & P.color[(c)^1])
-#define BCAP(f, c) (BATT(f) & P.color[(c)^1])
+#define RCAP(f, c) (RATT(f) & P.color[c^1])
+#define BCAP(f, c) (BATT(f) & P.color[c^1])
 
 #define KMOVE(x) (kmoves[x] & ~BOARD)
-#define NCAP(x, c) (nmoves[x] & P.color[(c)^1])
-#define KCAP(x, c) (kmoves[x] & P.color[(c)^1])
+#define NCAP(x, c) (nmoves[x] & P.color[c^1])
+#define KCAP(x, c) (kmoves[x] & P.color[c^1])
 #define PMOVE(x, c) (pmoves[c][x] & ~BOARD)
 #define POCC(x, c) (pcaps[c][x] & BOARD)
-#define PCAP(x, c) (pcaps[c][x] & P.color[(c)^1])
-#define PCA3(x, c) (pcaps[c][(x) | 64] & (P.color[(c)^1] | (BIT[ENPASS] & ((c) ? 0xFF0000 : 0xFF0000000000))))
-#define PCA4(x, c) (pcaps[c][(x) | 128] & (P.color[(c)^1] | (BIT[ENPASS] & ((c) ? 0xFF0000 : 0xFF0000000000))))
+#define PCAP(x, c) (pcaps[c][x] & P.color[c^1])
+#define PCA3(x, c) (pcaps[c][(x) | 64] & (P.color[c^1] | (BIT[ENPASS] & (c ? 0xFF0000 : 0xFF0000000000))))
+#define PCA4(x, c) (pcaps[c][(x) | 128] & (P.color[c^1] | (BIT[ENPASS] & (c ? 0xFF0000 : 0xFF0000000000))))
 
 #define ENPASS (flags & 63)
 #define CASTLE(c) (flags & (320 << (c)))
 #define COUNT (count & 0x3FF)
-#define MEVAL(w) ((w) > MAXSCORE-500 ? (200001+MAXSCORE-(w))/2 : (w) < 500-MAXSCORE ? (-200000-MAXSCORE-(w))/2 : (w))
+#define MEVAL(w) (w > MAXSCORE-500 ? (200001+MAXSCORE-w)/2 : w < 500-MAXSCORE ? (-200000-MAXSCORE-w)/2 : (w))
 #define NOMATEMAT(c) ((P.sf[c] <= 4 || (P.sf[c] <= 8 && P.sf[c] <= P.sf[c^1] + 3)) && (P.piece[PAWN] & P.color[c]) == 0)
 
 typedef struct {
 	int n;
 	Move list[128];
-	int nquiet;
-	Move quiets[128];
 } Movep;
 
 typedef struct {
@@ -104,13 +102,13 @@ static u64 hstack[0x400], mstack[0x400], hashxor[0x1000], rays[0x8000];
 static u64 pmoves[2][64],pawnprg[2][64], pawnfree[2][64], pawnfile[2][64], pawnhelp[2][64], RANK[2][64], pcaps[2][192];
 static u64 BIT[64], nmoves[64], kmoves[64], bmask135[64], bmask45[64];
 static u64 rankb[8], fileb[8];
-static u64 whitesq, maxtime, starttime, eval1, nodes, qnodes;
+static u64 whitesq, centr, maxtime, starttime, eval1, nodes, qnodes;
 static u32 crevoke[64], count, flags, ics = 0, ponder = 0, pondering = 0, analyze = 0;
 static Move pv[128][128], pon = 0, bkmove[BKSIZE*32], killer[128];
-static int _knight[8] = {-17,-10,6,15,17,10,-6,-15};
-static int _king[8] = {-9,-1,7,8,9,1,-7,-8};
 static int wstack[0x400], history[0x2000];
 static int kmobil[64], bishcorn[64];
+static int _knight[8] = {-17,-10,6,15,17,10,-6,-15};
+static int _king[8] = {-9,-1,7,8,9,1,-7,-8};
 static int book, bkflag[BKSIZE], bkcount[3];
 static int sabort, onmove, random, engine =-1, sd = 64, ttime = 30000, mps = 0, inc = 0, post = 1, st = 0;
 static char irbuf[256], base[16];
@@ -128,8 +126,8 @@ int protV2(char*,int);
 
 int _getpiece(char s, int *c) {
 	int i;
-	for (i = 1; i < 8; i++) 
-		if (pieceChar[i] == s) { *c = 0; return i; } 
+	for (i = 1; i < 8; i++)
+		if (pieceChar[i] == s) { *c = 0; return i; }
 		else if (pieceChar[i] == s-32) { *c = 1; return i; }
 	return 0;
 }
@@ -155,13 +153,12 @@ void _parse_fen(char *fen, int reset) {
 		}
 	}
 	onmove = mv == 'b' ? 1 : 0;
-	flags = i = 0;
+	flags = i = 0, count = (fullm - 1)*2 + onmove + (halfm << 10);
 	while ((s = cas[i++])) {
 		int b = s == 'K' ? 6 : s == 'k' ? 7 : s == 'Q' ? 8 : s == 'q' ? 9 : 0;
 		if (b) flags |= BIT[b];
 	}
 	if (enps[0] >= 'a' && enps[0] <= 'h' && enps[1] >= '1' && enps[1] <= '8') flags |= 8*(enps[1] -'1') + enps[0] -'a';
-	count = (fullm - 1)*2 + onmove + (halfm << 10);
 	for (i = 0; i < (int)COUNT; i++) hstack[i] = 0LL;
 	if (reset) memset(hashDB, 0, sizeof(hashDB));
 	BOARD = P.color[0] | P.color[1];
@@ -205,7 +202,7 @@ void _newGame() {
 				bkmove[n*32 + j] = 0;
 				if (j) bkcount[bkflag[n]]++;
 				if (++n == BKSIZE) break;
-			} 
+			}
 		}
 		fclose(in);
 	}
@@ -263,7 +260,7 @@ u64 _occ_free_board(int bc, int del, u64 free) {
 	int i;
 	u64 low, perm = free;
 	for (i = 0; i < bc; i++) {
-		low = free & (-free); // Lowest bit 
+		low = free & (-free); // Lowest bit
 		free &= (~low);
 		if (!(BIT[i] & del)) perm &= (~low);
 	}
@@ -414,12 +411,12 @@ u64 pinnedPieces(int k, int oc) {
 	u64 pin = 0LL, b = ((RXRAY1(k) | RXRAY2(k)) & P.color[oc]) & RQU;
 	while (b) {
 		int t = pullLsb(&b);
-		pin |= RATT(k) & RATT(t) & P.color[oc ^ 1];
+		pin |= RATT(k) & RATT(t) & P.color[oc^1];
 	}
 	b = ((BXRAY3(k) | BXRAY4(k)) & P.color[oc]) & BQU;
 	while (b) {
 		int t = pullLsb(&b);
-		pin |= BATT(k) & BATT(t) & P.color[oc ^ 1];
+		pin |= BATT(k) & BATT(t) & P.color[oc^1];
 	}
 	return pin;
 }
@@ -455,8 +452,8 @@ void move(Move m, int c, int d) {
 			flags &= crevoke[t];
 		}
 		P.piece[a] ^= BIT[t];
-		P.color[c ^ 1] ^= BIT[t];
-		P.hash ^= hashxor[t | a << 6 | (c ^ 1) << 9];
+		P.color[c^1] ^= BIT[t];
+		P.hash ^= hashxor[t | a << 6 | (c^1) << 9];
 		count &= 0x3FF; //Reset Fifty Counter
 		MAT += changeMat(m, c, d);
 	}
@@ -541,8 +538,7 @@ int generateCheckEsc(u64 ch, u64 apin, int c, int k, Movep *mp) {
 
 	cc = attacked(bf, c^1) & apin;  //Can we capture the checker?
 	while (cc) {
-		int cf = pullLsb(&cc);
-		int p = identPiece(cf);
+		int cf = pullLsb(&cc), p = identPiece(cf);
 		if (p == PAWN && RANK[c][cf] == 7) regPromotions(cf, c, ch, mp, 1, 1);
 		else regMoves(PREMOVE(cf, p), ch, mp, 1);
 	}
@@ -580,22 +576,25 @@ int generateCheckEsc(u64 ch, u64 apin, int c, int k, Movep *mp) {
 	return 1;
 }
 
-void generatePinned(int c, int k, u64 pin, Movep* mp, u64 tb, int cap) {
+#define GSLIDES(p, m) for (b = P.piece[p] & cb; b;) { int f = pullLsb(&b); regMoves(PREMOVE(f, p), m & tb, mp, q); }
+void generateSlides(int c, int k, u64 pin, Movep* mp, u64 tb, u64 cb, int q) {
 	u64 b;
-	for (b = pin & (P.piece[ROOK] | P.piece[BISHOP] | P.piece[QUEEN]); b;) {
+	GSLIDES(KNIGHT, nmoves[f]);
+	GSLIDES(ROOK, RATT(f));
+	GSLIDES(BISHOP, BATT(f));
+	GSLIDES(QUEEN, (RATT(f) | BATT(f)));
+
+	if (pin) for (b = pin & (P.piece[ROOK] | P.piece[BISHOP] | P.piece[QUEEN]); b;) {
 		int f = pullLsb(&b), p = identPiece(f), t = p | getDir(f, k);
-		if ((t & 10) == 10) regMoves(PREMOVE(f, p), RATT1(f) & tb, mp, cap);
-		if ((t & 18) == 18) regMoves(PREMOVE(f, p), RATT2(f) & tb, mp, cap);
-		if ((t & 33) == 33) regMoves(PREMOVE(f, p), BATT3(f) & tb, mp, cap);
-		if ((t & 65) == 65) regMoves(PREMOVE(f, p), BATT4(f) & tb, mp, cap);
+		if ((t & 10) == 10) regMoves(PREMOVE(f, p), RATT1(f) & tb, mp, q);
+		if ((t & 18) == 18) regMoves(PREMOVE(f, p), RATT2(f) & tb, mp, q);
+		if ((t & 33) == 33) regMoves(PREMOVE(f, p), BATT3(f) & tb, mp, q);
+		if ((t & 65) == 65) regMoves(PREMOVE(f, p), BATT4(f) & tb, mp, q);
 	}
 }
 
-#define GSLIDES(p, m, q) for (b = P.piece[p] & cb; b;) { f = pullLsb(&b); regMoves(PREMOVE(f, p), (m) & tb, mp, q); }
 void generateQuiet(int c, int k, u64 pin, Movep* mp) {
 	int f, r; u64 b, cb = P.color[c] & (~pin), tb = ~BOARD;
-
-	regKings(PREMOVE(k, KING), kmoves[k] & tb, mp, c, 0);
 
 	for (b = P.piece[PAWN] & P.color[c]; b;) {
 		f = pullLsb(&b);
@@ -615,29 +614,23 @@ void generateQuiet(int c, int k, u64 pin, Movep* mp) {
 	if (CASTLE(c)) {
 		for (b = P.piece[ROOK] & cb; b;) {
 			f = pullLsb(&b);
-			if (f == 63 && c && (flags & 128) && !(BOARD & (3LL << 61)))
+			if (f == 63 && (flags & 128) && !(BOARD & (3LL << 61)))
 				if (!DUALATT(61, 62, c)) regMoves(PREMOVE(60, KING), 1LL << 62, mp, 0);
-			if (f == 56 && c && (flags & 512) && !(BOARD & (7LL << 57)))
+			if (f == 56 && (flags & 512) && !(BOARD & (7LL << 57)))
 				if (!DUALATT(59, 58, c)) regMoves(PREMOVE(60, KING), 1LL << 58, mp, 0);
-			if (f == 7 && !c && (flags & 64) && !(BOARD & (3LL << 5)))
+			if (f == 7 && (flags & 64) && !(BOARD & (3LL << 5)))
 				if (!DUALATT(5, 6, c)) regMoves(PREMOVE(4, KING), 1LL << 6, mp, 0);
-			if (f == 0 && !c && (flags & 256) && !(BOARD & (7LL << 1)))
+			if (f == 0 && (flags & 256) && !(BOARD & (7LL << 1)))
 				if (!DUALATT(3, 2, c)) regMoves(PREMOVE(4, KING), 1LL << 2, mp, 0);
 		}
 	}
 
-	GSLIDES(KNIGHT, nmoves[f], 0);
-	GSLIDES(ROOK, RATT(f), 0);
-	GSLIDES(BISHOP, BATT(f), 0);
-	GSLIDES(QUEEN, RATT(f) | BATT(f), 0);
-
-	if (pin) generatePinned(c, k, pin, mp, tb, 0);
+	generateSlides(c, k, pin, mp, tb, cb, 0);
+	regKings(PREMOVE(k, KING), kmoves[k] & tb, mp, c, 0);
 }
 
 void generateNoisy(int c, int k, u64 pin, Movep *mp) {
-	int f, r; u64 b, cb = P.color[c] & (~pin), tb = P.color[c ^ 1];
-
-	regKings(PREMOVE(k, KING), kmoves[k] & tb, mp, c, 1);
+	int f, r; u64 b, cb = P.color[c] & (~pin), tb = P.color[c^1];
 
 	for (b = P.piece[PAWN] & P.color[c]; b;) {
 		f = pullLsb(&b);
@@ -645,16 +638,13 @@ void generateNoisy(int c, int k, u64 pin, Movep *mp) {
 		if (t == 8) continue; else r = RANK[c][f];
 		u64 m = t & 16 ? PMOVE(f, c) : 0;
 		u64 a = (t == 17) ? PCAP(f, c) : (t == 32) ? PCA3(f, c) : (t == 64) ? PCA4(f, c) : 0LL;
-		if (r == 7) {
-			if (a) regMoves(PREMOVE(f, PAWN) | _PROM(QUEEN), a, mp, 1);
-			if (m) regMoves(PREMOVE(f, PAWN) | _PROM(QUEEN), m, mp, 0);
-		} else if (r == 6) {
-			if (a) regMoves(PREMOVE(f, PAWN), a, mp, 1);
-			if (m) regMoves(PREMOVE(f, PAWN), m, mp, 0);
+		if (r >= 6) {
+			if (a) regMoves(PREMOVE(f, PAWN) | (r == 7 ? _PROM(QUEEN) : 0), a, mp, 1);
+			if (m) regMoves(PREMOVE(f, PAWN) | (r == 7 ? _PROM(QUEEN) : 0), m, mp, 0);
 		} else {
 			if (t == 17 && ENPASS && (BIT[ENPASS] & pcaps[c][f])) {
 				BOARD ^= BIT[ENPASS ^ 8];
-				if (!(RATT1(f) & BIT[k]) || !(RATT1(f) & P.color[c ^ 1] & RQU)) {
+				if (!(RATT1(f) & BIT[k]) || !(RATT1(f) & P.color[c^1] & RQU)) {
 					a = a | BIT[ENPASS];
 				}
 				BOARD ^= BIT[ENPASS ^ 8];
@@ -662,13 +652,8 @@ void generateNoisy(int c, int k, u64 pin, Movep *mp) {
 			regMoves(PREMOVE(f, PAWN), a, mp, 1);
 		}
 	}
-
-	GSLIDES(KNIGHT, nmoves[f], 1);
-	GSLIDES(ROOK, RATT(f), 1);
-	GSLIDES(BISHOP, BATT(f), 1);
-	GSLIDES(QUEEN, RATT(f) | BATT(f), 1);
-
-	if (pin) generatePinned(c, k, pin, mp, tb, 1);
+	generateSlides(c, k, pin, mp, tb, cb, 1);
+	regKings(PREMOVE(k, KING), kmoves[k] & tb, mp, c, 1);
 }
 
 #define GENERATE(c, mp) generate(attacked(P.king[c], c), c, mp, 1, 1)
@@ -701,10 +686,10 @@ int swap(Move m) { //SEE
 		else if ((temp = P.piece[BISHOP] & P.color[c] & attacks)) piece = BISHOP;
 		else if ((temp = P.piece[ROOK] & P.color[c] & attacks)) piece = ROOK;
 		else if ((temp = P.piece[QUEEN] & P.color[c] & attacks)) piece = QUEEN;
-		else if ((temp = P.piece[KING] & P.color[c] & attacks)) { nc += !(P.color[c ^ 1] & attacks); break; }
+		else if ((temp = P.piece[KING] & P.color[c] & attacks)) { nc += !(P.color[c^1] & attacks); break; }
 		else break;
 
-		BOARD ^= temp & -(long long)temp;
+		BOARD ^= temp & -temp;
 	} while (pval[piece] >= s_list[nc++]);
 
 	while (--nc)
@@ -753,12 +738,12 @@ inline u64 pawnAttack(int c) {
 
 u64 mobilityb(int c) {
 	u64 b = c ? rankb[6] | (BOARD << 8) : rankb[1] | (BOARD >> 8);
-	b &= b & P.color[c] & P.piece[PAWN];
+	b &= P.color[c] & P.piece[PAWN];
 	return ~(b | pawnAttack(c^1));
 }
 
 inline int kmobilf(int c) {
-	int km = kmobil[P.king[c]] << 3, sfo = P.sf[c ^ 1];
+	int km = kmobil[P.king[c]], sfo = P.sf[c^1];
 	if (!P.sf[c] && sfo == 5 && P.piece[BISHOP] && !P.piece[PAWN]) { // BNK_vs_k
 		int bc = bishcorn[P.king[c]] << 5;
 		if (P.piece[BISHOP] & whitesq) km += bc; else km -= bc;
@@ -766,11 +751,11 @@ inline int kmobilf(int c) {
 	return sfo < 14 ? km : km * (16 - sfo) /4;
 }
 
-#define MOBILITY(a, mb) (bitcnt(a) + bitcnt((a) & (mb)))
-/* The eval for Color c. It's almost only mobility. Pinned pieces are still awarded for limiting opposite's king */
+#define MOBILITY(a, mb) (bitcnt(a) + bitcnt(a & mb))
+/* The eval for Color c. It's almost only mobility. */
 int evalc(int c) {
 	int f, mn = 0, katt = 0, oc = c^1, egf = 10400/(80 + P.sf[c] + P.sf[oc]) + random;
-	u64 b, a, cb = P.color[c], ocb = P.color[oc], mb = P.sf[c] ? mobilityb(c) : 0LL;
+	u64 b, a, cb = P.color[c], ocb = P.color[oc], mb = P.sf[c] ? mobilityb(c) & centr : 0LL;
 	u64 kn = kmoves[P.king[oc]] & (~P.piece[PAWN]);
 
 	b = P.piece[PAWN] & cb;
@@ -794,8 +779,7 @@ int evalc(int c) {
 
 	b = P.piece[KNIGHT] & cb;
 	while (b) {
-		f = pullLsb(&b);
-		a = nmoves[f];
+		a = nmoves[pullLsb(&b)];
 		if (a & kn) katt += MOBILITY(a & kn, mb) << 3;
 		mn += MOBILITY(a, mb) << 2;
 	}
@@ -836,8 +820,7 @@ int eval(int c) {
 	int ev = evalc(c) - evalc(c^1);
 	eval1++;
 
-	if ((MAT < 0 && NOMATEMAT(1)) || (MAT > 0 && NOMATEMAT(0)))
-		return ev;
+	if ((MAT < 0 && NOMATEMAT(1)) || (MAT > 0 && NOMATEMAT(0))) return ev;
 
 	return ev + (c ? -MAT : MAT);
 }
@@ -851,33 +834,29 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 		if (cmat - 125 >= beta) return beta;
 		if (cmat + 85 <= alpha) break;
 		best = eval(c);
-		if (best > alpha) {
-			if (best >= beta) return beta;
-			alpha = best;
-		}
+		if (best >= beta) return beta;
+		if (best > alpha) alpha = best;
 	} while(0);
 
 	Movep mp; generate(ch, c, &mp, 1, 0);
-	if (ch && mp.n == 0) return -MAXSCORE+ply;
+	if (mp.n == 0) return ch ? -MAXSCORE+ply : best > -MAXSCORE ? best : eval(c);
 
 	Pos pos; pos.hash = 0;
 	for (i = 0; i < mp.n; i++) {
 		Move m = qpick(&mp, i);
-		if (!ch && !PROM(m) && pval[PIECE(m)] > pval[CAP(m)] && swap(m) < 0) continue;
+		if (!ch && pval[PIECE(m)] > pval[CAP(m)] && swap(m) < 0) continue;
 
 		if (!pos.hash) memcpy(&pos, &P, sizeof(Pos));
 		doMove(m, c);
 		qnodes++;
 
-		int w = -quiesce(attacked(P.king[c ^ 1], c ^ 1), c ^ 1, ply + 1, -beta, -alpha);
+		int w = -quiesce(attacked(P.king[c^1], c^1), c^1, ply + 1, -beta, -alpha);
 
 		undoMove(0, c); memcpy(&P, &pos, sizeof(Pos));
 
 		if (w > best) {
-			best = w;
-			if (w > alpha) {
-				alpha = w;
-				if (w >= beta) return beta;
+			if ((best = w) > alpha) {
+				if ((alpha = w) >= beta) return beta;
 			}
 		}
 	}
@@ -912,8 +891,8 @@ int isDraw(u64 hp, int nrep) {
 	if (count > 0xFFF) { //fifty > 3
 		int i, c = 0, n = COUNT - (count >> 10);
 		if (count >= 0x400*100) return 2; //100 plies
-		for (i = COUNT - 2; i >= n; i--) 
-			if (hstack[i] == hp && ++c == nrep) return 1; 
+		for (i = COUNT - 2; i >= n; i--)
+			if (hstack[i] == hp && ++c == nrep) return 1;
 	} else if (!(P.piece[PAWN] | RQU)) { //Check for mating material
 		if (bitcnt(BOARD) <= 3) return 3;
 	}
@@ -945,23 +924,23 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 
 	if (ch) d++; // Check extension
 	if (d <= 0 || ply > 100) return quiesce(ch, c, ply, alpha, beta);
-		
+
 	if (alpha < -MAXSCORE+ply) alpha = -MAXSCORE+ply;
 	if (beta > MAXSCORE-ply-1) beta = MAXSCORE-ply-1;
 	if (alpha >= beta) return alpha;
 
 	Move hmove = ply ? 0 : retPVMove(c, 0);
 
-	entry he = hashDB[hp & HMASK];
-	if (he.key == hp && !sem) {
-		if (he.depth >= d) {
-			if (he.type <= EXACT && he.value >= beta) return beta;
-			if (he.type >= EXACT && he.value <= alpha) return alpha;
+	entry* he = &hashDB[hp & HMASK];
+	if (he->key == hp && !sem) {
+		if (he->depth >= d) {
+			if (he->type <= EXACT && he->value >= beta) return beta;
+			if (he->type >= EXACT && he->value <= alpha) return alpha;
 		}
-		if (!hmove) hmove = he.move;
+		if (!hmove) hmove = he->move;
 	}
 
-	int wstat = wstack[COUNT] = ch ? -MAXSCORE+ply : he.key == hp ? he.value : eval(c);
+	int wstat = wstack[COUNT] = ch ? -MAXSCORE+ply : he->key == hp ? he->value : eval(c);
 	if (!ch && !pvnode && beta > -MAXSCORE+500) {
 		if (d <= 3 && wstat + 400 < beta) { w = quiesce(ch, c, ply, alpha, beta); if (w < beta) return w; }
 		if (d <= 8 && wstat - 88*d > beta) return wstat;
@@ -975,14 +954,12 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 		doMove(0, c);
 		w = -search(0LL, oc, d-R, ply+1, -beta, 1-beta, 0, 0);
 		undoMove(0, c);
-		if (!sabort && w >= beta) return w >= MAXSCORE-500 ? beta : w;
+		if (!sabort && w >= beta) return beta;
 	}
 
-	if (d >= 4 && !hmove) { // Internal Iterative Reduction (IIR)
-		d--;
-	}
+	if (d >= 4 && !hmove) d--; // Internal Iterative Reduction (IIR)
 
-	Movep mp; mp.nquiet = 0;
+	Movep mp, mpq; mpq.n = 0;
 	Pos pos; pos.hash = 0;
 	int raising = !ch && ply >= 2 && wstat >= wstack[COUNT-2];
 	int first = NO_MOVE, hismax = -1;
@@ -991,8 +968,8 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 		if (n == HASH) {
 			if (!hmove) continue;
 			mp.n = 1;
-			if (d >= 8 && ply && alpha > -MAXSCORE+500 && he.type == LOWER && he.depth >= d - 3) {
-				int bc = he.value - d;
+			if (d >= 8 && ply && alpha > -MAXSCORE+500 && he->type == LOWER && he->depth >= d - 3) {
+				int bc = he->value - d;
 				nd += search(ch, c, d >> 1, ply, bc-1, bc, 0, hmove) < bc;  // Singular extensions
 			}
 		} else if (n == NOISY) {
@@ -1005,28 +982,24 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 			if ((n != HASH && m == hmove) || m == sem) continue;
 
 			int quiet = !CAP(m) && !PROM(m);
-			if (!ch && quiet && alpha > -MAXSCORE+500 && mp.nquiet > 2*d*(raising+1)) {
+			if (!ch && quiet && alpha > -MAXSCORE+500 && mpq.n > 2*d*(raising+1)) {
 				n = EXIT; break; // LMP
 			}
-			if (n != HASH && first != NO_MOVE && alpha > -MAXSCORE+500 && d <= 8 && swap(m) < -d*60) continue;
+			if (n != HASH && alpha > -MAXSCORE+500 && d <= 8 && swap(m) < -d*60) continue;
 
 			int ext = 0;
 			if (!pos.hash) memcpy(&pos, &P, sizeof(Pos));
 			doMove(m, c);
-			if (quiet) mp.quiets[mp.nquiet++] = m;
+			if (quiet) mpq.list[mpq.n++] = m;
 			u64 nch = attacked(P.king[oc], oc);
-			if (nch || pvnode || ch);
-			else if (n == NOISY && d >= 2 && !PROM(m) && swap(m) < 0) ext-= (d + 1)/(3+raising); //Reduce bad exchanges
-			else if (n == QUIET) { //LMR
-				if (m == killer[ply]); //Don't reduce killers
-				else if (PIECE(m) == PAWN && !(pawnfree[c][TO(m)] & P.piece[PAWN] & P.color[oc])); //Free pawns
-				else {
-					int his = history[m & 0x1FFF];
-					if (his > hismax) hismax = his;
-					else if (d < 6 && (his < -1 || his*his < hismax)) {
-						undoMove(0, c); memcpy(&P, &pos, sizeof(Pos)); continue;
-					} else if (d >= 2) ext-= (d + 1)/3;
-				}
+			if (nch || pvnode || ch || (PIECE(m) == PAWN && !(pawnfree[c][TO(m)] & P.piece[PAWN] & P.color[oc])));
+			else if (n == NOISY && d >= 2 && swap(m) < 0) ext-= (d + 1)/(3+raising); //Reduce bad exchanges
+			else if (n == QUIET && m != killer[ply]) { // LMR, but don't reduce killers
+				int his = history[m & 0x1FFF];
+				if (his > hismax) hismax = his;
+				else if (d < 6 && (his < -1 || his*his < hismax)) {
+					undoMove(0, c); memcpy(&P, &pos, sizeof(Pos)); continue;
+				} else if (d >= 2) ext-= (d + 1)/3;
 			}
 
 			int firstPVNode = first == NO_MOVE && pvnode;
@@ -1048,9 +1021,9 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 						killer[ply] = m;
 						history[m & 0x1FFF] += his - history[m & 0x1FFF]*his/512;
 
-						for (j = 0; j < mp.nquiet; j++) {
-							Move m2 = mp.quiets[j];
-							if (m2 != m) history[m2 & 0x1FFF] += -his - history[m2 & 0x1FFF]*his/512;
+						for (j = 0; j < mpq.n - 1; j++) {
+							Move m2 = mpq.list[j];
+							history[m2 & 0x1FFF] += -his - history[m2 & 0x1FFF]*his/512;
 						}
 					}
 					n = EXIT; break;
@@ -1058,20 +1031,19 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 			} else if (first == NO_MOVE) first = ANY_MOVE;
 		}
 	}
-	if (sabort) return alpha;
 	if (first == NO_MOVE) alpha = ch || sem ? -MAXSCORE + ply : 0;
 
 	char type = UPPER;
-	if (first == GOOD_MOVE) type = (char)(alpha >= beta ? LOWER : EXACT), hmove = pv[ply][ply]; // Found good move
+	if (first == GOOD_MOVE) type = alpha >= beta ? LOWER : EXACT, hmove = pv[ply][ply]; // Found good move
 
-	if (!sem) hashDB[hp & HMASK] = (entry) {.key = hp, .move = hmove, .value = alpha, .depth = d, .type = type};
+	if (!sem) *he = (entry) {.key = hp, .move = hmove, .value = alpha, .depth = d, .type = type};
 
 	return alpha;
 }
 
 int execMove(Move m) {
 	doMove(m, onmove);
-	onmove ^= 1; 
+	onmove ^= 1;
 	int i, c = onmove;
 	if (book) for (i = 0; i < BKSIZE; i++) {
 		if (bkflag[i] < 2 && (bkmove[i*32 + COUNT - 1] != m || bkmove[i*32 + COUNT] == 0)) {
@@ -1337,7 +1309,7 @@ int main(int argc, char **argv) {
 	_init_pawns(pmoves[0], pcaps[0], pawnfree[0], pawnfile[0], pawnhelp[0], pawnprg[0], 0);
 	_init_pawns(pmoves[1], pcaps[1], pawnfree[1], pawnfile[1], pawnhelp[1], pawnprg[1], 1);
 
-	for (i = 0; i < 64; i++) kmobil[i] = MAX(bitcnt(nmoves[i]), 3);
+	for (i = 0; i < 64; i++) n = bitcnt(nmoves[i]), kmobil[i] = MAX(n, 3) << 3, centr |= n >= 4 ? BIT[i] : 0L;
 	for (i = 0; i < 32; i++) bishcorn[i] = bishcorn[63-i] = (i&7) < 4 ? cornbase[(i&7) +i/8] : -cornbase[7-(i&7) +i/8];
 	_newGame();
 
