@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 17.Apr.2025, ob112@web.de, http://brausch.org */
-#define VER "5.11.0"
+/* OliThink5 (c) Oliver Brausch 04.Mai.2025, ob112@web.de, http://brausch.org */
+#define VER "5.11.1"
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -471,10 +471,8 @@ void move(Move m, int c, int d) {
 		if (P.king[c] == f) P.king[c] = t; else P.king[c] = f;
 		flags &= ~(320 << c); // Lose castling rights
 		if (((f^t)&3) == 2) { // Castle
-			if (t == 6) { f = 7; t = 5; }
-			else if (t == 2) { f = 0; t = 3; }
-			else if (t == 62) { f = 63; t = 61; }
-			else { f = 56; t = 59; }
+			t = (f < t) ? f + 1 : f - 1;
+			f = (f < t) ? f + 3 : f - 4;
 			P.color[c] ^= BIT[f] | BIT[t];
 			P.piece[ROOK] ^= BIT[f] | BIT[t];
 			P.hash ^= hashxor[f | ROOK << 6 | c << 9];
@@ -731,7 +729,7 @@ Move spick(Movep* mp, int s, int ply) {
 	return m;
 }
 
-inline u64 pawnAttack(int c) {
+u64 pawnAttack(int c) {
 	u64 p = P.color[c] & P.piece[PAWN];
 	return c ? (p &~ fileb[7]) >> 7 | (p &~ fileb[0]) >> 9 : (p &~ fileb[0]) << 7 | (p &~ fileb[7]) << 9;
 }
@@ -742,7 +740,7 @@ u64 mobilityb(int c) {
 	return ~(b | pawnAttack(c^1));
 }
 
-inline int kmobilf(int c) {
+int kmobilf(int c) {
 	int km = kmobil[P.king[c]], sfo = P.sf[c^1];
 	if (!P.sf[c] && sfo == 5 && P.piece[BISHOP] && !P.piece[PAWN]) { // BNK_vs_k
 		int bc = bishcorn[P.king[c]] << 5;
@@ -772,15 +770,15 @@ int evalc(int c) {
 		}
 
 		a = POCC(f, c);
-		if (a) ppos += bitcnt(a & P.piece[PAWN] & cb) << 2;
-		if (a & kn) katt += MOBILITY(a & kn, mb) << 3;
+		if (a) ppos += bitcnt(a & cb) << 2;
+		if (a & kn) katt += bitcnt(a & kn);
 		mn += ppos;
 	}
 
 	b = P.piece[KNIGHT] & cb;
 	while (b) {
 		a = nmoves[pullLsb(&b)];
-		if (a & kn) katt += MOBILITY(a & kn, mb) << 3;
+		if (a & kn) katt += bitcnt(a & kn);
 		mn += MOBILITY(a, mb) << 2;
 	}
 
@@ -790,7 +788,7 @@ int evalc(int c) {
 	while (b) {
 		f = pullLsb(&b);
 		a = BATT(f) | RATT(f);
-		if (a & kn) katt += MOBILITY(a & kn, mb) << 3;
+		if (a & kn) katt += bitcnt(a & kn);
 		mn += MOBILITY(a, mb) * egf * egf / 75 / 75;
 	}
 
@@ -799,7 +797,7 @@ int evalc(int c) {
 	while (b) {
 		f = pullLsb(&b);
 		a = BATT(f);
-		if (a & kn) katt += MOBILITY(a & kn, mb) << 3;
+		if (a & kn) katt += bitcnt(a & kn);
 		mn += MOBILITY(a, mb) << 2;
 	}
 
@@ -808,12 +806,12 @@ int evalc(int c) {
 	while (b) {
 		f = pullLsb(&b);
 		a = RATT(f);
-		if (a & kn) katt += MOBILITY(a & kn, mb) << 3;
+		if (a & kn) katt += bitcnt(a & kn);
 		mn += (MOBILITY(a, mb) << 1) * egf / 75;
 	}
 
 	BOARD = cb | ocb;
-	return mn + kmobilf(c) + katt * (P.sf[c] + 3) / 15; //Reduce the bonus for attacking king squares
+	return mn + kmobilf(c) + katt * (P.sf[c] + 3); //Reduce the bonus for attacking king squares
 }
 
 int eval(int c) {
@@ -891,7 +889,7 @@ int isDraw(u64 hp, int nrep) {
 	if (count > 0xFFF) { //fifty > 3
 		int i, c = 0, n = COUNT - (count >> 10);
 		if (count >= 0x400*100) return 2; //100 plies
-		for (i = COUNT - 2; i >= n; i--)
+		for (i = COUNT - 2; i >= n; i-=2)
 			if (hstack[i] == hp && ++c == nrep) return 1;
 	} else if (!(P.piece[PAWN] | RQU)) { //Check for mating material
 		if (bitcnt(BOARD) <= 3) return 3;
