@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 04.Mai.2025, ob112@web.de, http://brausch.org */
-#define VER "5.11.1"
+/* OliThink5 (c) Oliver Brausch 12.Mai.2025, ob112@web.de, http://brausch.org */
+#define VER "5.11.2"
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -102,7 +102,7 @@ static u64 hstack[0x400], mstack[0x400], hashxor[0x1000], rays[0x8000];
 static u64 pmoves[2][64],pawnprg[2][64], pawnfree[2][64], pawnfile[2][64], pawnhelp[2][64], RANK[2][64], pcaps[2][192];
 static u64 BIT[64], nmoves[64], kmoves[64], bmask135[64], bmask45[64];
 static u64 rankb[8], fileb[8];
-static u64 whitesq, centr, maxtime, starttime, eval1, nodes, qnodes;
+static u64 whitesq, centr, centr2, maxtime, starttime, eval1, nodes, qnodes;
 static u32 crevoke[64], count, flags, ics = 0, ponder = 0, pondering = 0, analyze = 0;
 static Move pv[128][128], pon = 0, bkmove[BKSIZE*32], killer[128];
 static int wstack[0x400], history[0x2000];
@@ -749,7 +749,7 @@ int kmobilf(int c) {
 	return sfo < 14 ? km : km * (16 - sfo) /4;
 }
 
-#define MOBILITY(a, mb) (bitcnt(a) + bitcnt(a & mb))
+#define MOBILITY(a, mb) (bitcnt(a) + bitcnt(a & mb) + bitcnt(a & mb & centr2))
 /* The eval for Color c. It's almost only mobility. */
 int evalc(int c) {
 	int f, mn = 0, katt = 0, oc = c^1, egf = 10400/(80 + P.sf[c] + P.sf[oc]) + random;
@@ -761,7 +761,7 @@ int evalc(int c) {
 		f = pullLsb(&b);
 
 		/* The only non-mobility eval is the detection of free pawns/hanging pawns */
-		int ppos = pawnprg[c][f] * egf * egf / 100 / 100;
+		int ppos = pawnprg[c][f] * egf * egf / 96 / 96;
 		if (!(pawnfree[c][f] & P.piece[PAWN] & ocb)) ppos <<= 1; //Free run?
 
 		if (!(pawnhelp[c][f] & P.piece[PAWN] & cb)) { // No support
@@ -789,7 +789,7 @@ int evalc(int c) {
 		f = pullLsb(&b);
 		a = BATT(f) | RATT(f);
 		if (a & kn) katt += bitcnt(a & kn);
-		mn += MOBILITY(a, mb) * egf * egf / 75 / 75;
+		mn += MOBILITY(a, mb) * egf * egf / 80 / 80;
 	}
 
 	BOARD ^= RQU & ocb; //Opposite Queen & Rooks don't block mobility for bishop
@@ -807,11 +807,11 @@ int evalc(int c) {
 		f = pullLsb(&b);
 		a = RATT(f);
 		if (a & kn) katt += bitcnt(a & kn);
-		mn += (MOBILITY(a, mb) << 1) * egf / 75;
+		mn += MOBILITY(a, mb) * egf / 40;
 	}
 
 	BOARD = cb | ocb;
-	return mn + kmobilf(c) + katt * (P.sf[c] + 3); //Reduce the bonus for attacking king squares
+	return mn + kmobilf(c) + katt * (P.sf[c] + 2); //Adapt bonus for attacking king squares
 }
 
 int eval(int c) {
@@ -891,10 +891,8 @@ int isDraw(u64 hp, int nrep) {
 		if (count >= 0x400*100) return 2; //100 plies
 		for (i = COUNT - 2; i >= n; i-=2)
 			if (hstack[i] == hp && ++c == nrep) return 1;
-	} else if (!(P.piece[PAWN] | RQU)) { //Check for mating material
-		if (bitcnt(BOARD) <= 3) return 3;
 	}
-	return 0;
+	return (!P.piece[PAWN] && !RQU && bitcnt(BOARD) <= 3) ? 3 : 0; //Check for mating material
 }
 
 const int nullvar[] = {13, 43, 149, 519, 1809, 6311, 22027};
@@ -952,7 +950,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 		doMove(0, c);
 		w = -search(0LL, oc, d-R, ply+1, -beta, 1-beta, 0, 0);
 		undoMove(0, c);
-		if (!sabort && w >= beta) return beta;
+		if (w >= beta) return beta;
 	}
 
 	if (d >= 4 && !hmove) d--; // Internal Iterative Reduction (IIR)
@@ -1192,7 +1190,7 @@ int calc(int tm) {
 		if (pondering) continue;
 		if (d >= MAXSCORE - w) break;
 		if (t1 < searchtime || d == 1) continue;
-		if (bestm == pv[0][0] || t1 > searchtime*2) break;
+		if (bestm == pv[0][0] || t1 > searchtime*3) break;
 	}
 	if (analyze) return 1;
 	pondering = 0;
@@ -1307,7 +1305,8 @@ int main(int argc, char **argv) {
 	_init_pawns(pmoves[0], pcaps[0], pawnfree[0], pawnfile[0], pawnhelp[0], pawnprg[0], 0);
 	_init_pawns(pmoves[1], pcaps[1], pawnfree[1], pawnfile[1], pawnhelp[1], pawnprg[1], 1);
 
-	for (i = 0; i < 64; i++) n = bitcnt(nmoves[i]), kmobil[i] = MAX(n, 3) << 3, centr |= n >= 4 ? BIT[i] : 0L;
+	for (i = 0; i < 64; i++) n = bitcnt(nmoves[i]), kmobil[i] = MAX(n, 3) << 3;
+	for (i = 0; i < 64; i++) n = bitcnt(nmoves[i]), centr |= n >= 4 ? BIT[i] : 0L, centr2 |= n >= 8 ? BIT[i] : 0L;
 	for (i = 0; i < 32; i++) bishcorn[i] = bishcorn[63-i] = (i&7) < 4 ? cornbase[(i&7) +i/8] : -cornbase[7-(i&7) +i/8];
 	_newGame();
 
