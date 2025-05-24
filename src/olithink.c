@@ -1,5 +1,5 @@
-/* OliThink5 (c) Oliver Brausch 12.Mai.2025, ob112@web.de, http://brausch.org */
-#define VER "5.11.2"
+#define VER "5.11.3"
+/* OliThink5 (c) Oliver Brausch 24.Mai.2025, ob112@web.de, http://brausch.org */
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -23,11 +23,10 @@ enum { LOWER, EXACT, UPPER };
 enum { NO_MOVE, ANY_MOVE, GOOD_MOVE };
 enum { HASH, NOISY, QUIET, EXIT };
 
-#define HSIZE 0x800000LL
-#define HMASK (HSIZE-1)
-#define CNODES 0x1FFF
+#define HMASK 0x7FFFFFLL
+#define CNODES 0x3FFF
 #define BKSIZE 8192
-const int pval[] = {0, 100, 290, 0, 100, 310, 500, 980};
+const int pval[] = {0, 100, 290, 0, 100, 310, 500, 950};
 const int fval[] = {0, 0, 2, 0, 0, 3, 5, 9};
 const int cornbase[] = {4, 4, 2, 1, 0, 0 ,0};
 
@@ -97,7 +96,7 @@ typedef struct {
 } Pos;
 
 static Pos P;
-static entry hashDB[HSIZE];
+static entry hashDB[HMASK+1];
 static u64 hstack[0x400], mstack[0x400], hashxor[0x1000], rays[0x8000];
 static u64 pmoves[2][64],pawnprg[2][64], pawnfree[2][64], pawnfile[2][64], pawnhelp[2][64], RANK[2][64], pcaps[2][192];
 static u64 BIT[64], nmoves[64], kmoves[64], bmask135[64], bmask45[64];
@@ -320,23 +319,23 @@ u64 _bishop135(int f, u64 board, int t) {
 
 #ifdef _WIN32
 u64 getTime() {
-	return GetTickCount();
+    return GetTickCount();
 }
 
 int bioskey() {
-	static int init = 0, pipe;
-	static HANDLE inh;
-	DWORD dw;
+    static int init = 0, pipe;
+    static HANDLE inh;
+    DWORD dw;
 
-	if (!init) {
-		init = 1;
-		inh = GetStdHandle(STD_INPUT_HANDLE);
-		pipe = !GetConsoleMode(inh, &dw);
-	}
-	if (pipe) {
-		if (!PeekNamedPipe(inh, NULL, 0, NULL, &dw, NULL)) return 1;
-		return dw;
-	} else return _kbhit();
+    if (!init) {
+        init = 1;
+        inh = GetStdHandle(STD_INPUT_HANDLE);
+        pipe = !GetConsoleMode(inh, &dw);
+    }
+    if (pipe) {
+        if (!PeekNamedPipe(inh, NULL, 0, NULL, &dw, NULL)) return 1;
+        return dw;
+    } else return _kbhit();
 }
 #else
 u64 getTime() {
@@ -753,7 +752,7 @@ int kmobilf(int c) {
 /* The eval for Color c. It's almost only mobility. */
 int evalc(int c) {
 	int f, mn = 0, katt = 0, oc = c^1, egf = 10400/(80 + P.sf[c] + P.sf[oc]) + random;
-	u64 b, a, cb = P.color[c], ocb = P.color[oc], mb = P.sf[c] ? mobilityb(c) & centr : 0LL;
+	u64 b, a, cb = P.color[c], ocb = P.color[oc], mb = mobilityb(c) & centr;
 	u64 kn = kmoves[P.king[oc]] & (~P.piece[PAWN]);
 
 	b = P.piece[PAWN] & cb;
@@ -770,15 +769,15 @@ int evalc(int c) {
 		}
 
 		a = POCC(f, c);
-		if (a) ppos += bitcnt(a & cb) << 2;
-		if (a & kn) katt += bitcnt(a & kn);
+		ppos += bitcnt(a & cb) << 2;
+		katt += bitcnt(a & kn);
 		mn += ppos;
 	}
 
 	b = P.piece[KNIGHT] & cb;
 	while (b) {
 		a = nmoves[pullLsb(&b)];
-		if (a & kn) katt += bitcnt(a & kn);
+		katt += bitcnt(a & kn);
 		mn += MOBILITY(a, mb) << 2;
 	}
 
@@ -788,7 +787,7 @@ int evalc(int c) {
 	while (b) {
 		f = pullLsb(&b);
 		a = BATT(f) | RATT(f);
-		if (a & kn) katt += bitcnt(a & kn);
+		katt += bitcnt(a & kn);
 		mn += MOBILITY(a, mb) * egf * egf / 80 / 80;
 	}
 
@@ -797,7 +796,7 @@ int evalc(int c) {
 	while (b) {
 		f = pullLsb(&b);
 		a = BATT(f);
-		if (a & kn) katt += bitcnt(a & kn);
+		katt += bitcnt(a & kn);
 		mn += MOBILITY(a, mb) << 2;
 	}
 
@@ -806,7 +805,7 @@ int evalc(int c) {
 	while (b) {
 		f = pullLsb(&b);
 		a = RATT(f);
-		if (a & kn) katt += bitcnt(a & kn);
+		katt += bitcnt(a & kn);
 		mn += MOBILITY(a, mb) * egf / 40;
 	}
 
@@ -937,7 +936,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 	}
 
 	int wstat = wstack[COUNT] = ch ? -MAXSCORE+ply : he->key == hp ? he->value : eval(c);
-	if (!ch && !pvnode && beta > -MAXSCORE+500) {
+	if (!ch && !pvnode) {
 		if (d <= 3 && wstat + 400 < beta) { w = quiesce(ch, c, ply, alpha, beta); if (w < beta) return w; }
 		if (d <= 8 && wstat - 88*d > beta) return wstat;
 	}
@@ -964,7 +963,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 		if (n == HASH) {
 			if (!hmove) continue;
 			mp.n = 1;
-			if (d >= 8 && ply && alpha > -MAXSCORE+500 && he->type == LOWER && he->depth >= d - 3) {
+			if (d >= 8 && ply && he->type == LOWER && he->depth >= d - 3) {
 				int bc = he->value - d;
 				nd += search(ch, c, d >> 1, ply, bc-1, bc, 0, hmove) < bc;  // Singular extensions
 			}
@@ -978,10 +977,10 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 			if ((n != HASH && m == hmove) || m == sem) continue;
 
 			int quiet = !CAP(m) && !PROM(m);
-			if (!ch && quiet && alpha > -MAXSCORE+500 && mpq.n > 2*d*(raising+1)) {
+			if (!ch && quiet && mpq.n > 2*d*(raising+1)) {
 				n = EXIT; break; // LMP
 			}
-			if (n != HASH && alpha > -MAXSCORE+500 && d <= 8 && swap(m) < -d*60) continue;
+			if (n != HASH && alpha > -MAXSCORE+500 && d < 8 && swap(m) < -d*60) continue;
 
 			int ext = 0;
 			if (!pos.hash) memcpy(&pos, &P, sizeof(Pos));
@@ -993,7 +992,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 			else if (n == QUIET && m != killer[ply]) { // LMR, but don't reduce killers
 				int his = history[m & 0x1FFF];
 				if (his > hismax) hismax = his;
-				else if (d < 6 && (his < -1 || his*his < hismax)) {
+				else if (d < 5 && (his < -1 || his*his < hismax)) {
 					undoMove(0, c); memcpy(&P, &pos, sizeof(Pos)); continue;
 				} else if (d >= 2) ext-= (d + 1)/3;
 			}
@@ -1305,7 +1304,7 @@ int main(int argc, char **argv) {
 	_init_pawns(pmoves[0], pcaps[0], pawnfree[0], pawnfile[0], pawnhelp[0], pawnprg[0], 0);
 	_init_pawns(pmoves[1], pcaps[1], pawnfree[1], pawnfile[1], pawnhelp[1], pawnprg[1], 1);
 
-	for (i = 0; i < 64; i++) n = bitcnt(nmoves[i]), kmobil[i] = MAX(n, 3) << 3;
+	for (i = 0; i < 64; i++) n = bitcnt(nmoves[i]), kmobil[i] = MAX(n, 3) * 10;
 	for (i = 0; i < 64; i++) n = bitcnt(nmoves[i]), centr |= n >= 4 ? BIT[i] : 0L, centr2 |= n >= 8 ? BIT[i] : 0L;
 	for (i = 0; i < 32; i++) bishcorn[i] = bishcorn[63-i] = (i&7) < 4 ? cornbase[(i&7) +i/8] : -cornbase[7-(i&7) +i/8];
 	_newGame();
