@@ -1,7 +1,9 @@
-/* OliPerft 1.0.9 - Bitboard Magic Move (c) Oliver Brausch 31.Oct.2020, ob112@web.de */
+/* OliPerft 1.0.10 - Bitboard Magic Move (c) Oliver Brausch 07.Jun.2025, ob112@web.de */
 /* oliperft 6 "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
-Nodes: 8229523927 ms: 11196 knps: 734975 (clang7 64bit AMD EPYC 7502P 1/32-Core Processor)
-Nodes: 8229523927 ms: 13954 knps: 589718 (clang10 OSX i7 8850H 2.6 GHz)
+Nodes: 8229523927 ms: 5427 knps: 1516124 (clang14 64bit 13th Gen Intel(R) Core(TM) i5-13500 1/14-Core)
+Nodes: 8229523927 ms: 11196 knps: 734975 (clang7 64bit AMD EPYC 7502P 1/32-Core Processor) (1.0.9)
+Nodes: 8229523927 ms: 12141 knps: 677773 (clang14 OSX i9 9980HK 2.4 GHz)
+Nodes: 8229523927 ms: 13954 knps: 589718 (clang10 OSX i7 8850H 2.6 GHz) (1.0.9)
 Nodes: 8229523927 ms: 40610 knps: 202647 (VS2005 64bit AMD64 4600+) (1.0.2)
 Nodes: 8229523927 ms: 64860 knps: 126881 (VS2005 32bit AMD64 4600+) (1.0.2)
 Nodes: 8229523927 ms: 97251 knps: 84621 (gcc4 32bit AMD Opteron 1210HE) (1.0.2)
@@ -24,31 +26,30 @@ typedef int Move;
 
 enum { EMPTY, PAWN, KNIGHT, KING, ENP, BISHOP, ROOK, QUEEN };
 
-#define HSIZE 0x400000LL
-#define HMASK (HSIZE-1)
+#define HMASK 0x3FFFFFLL
 #define HINV ~HMASK
-#define FROM(x) ((x) & 63)
-#define TO(x) (((x) >> 6) & 63)
-#define ONMV(x) (((x) >> 12) & 1)
-#define PROM(x) (((x) >> 13) & 7)
-#define PIECE(x) (((x) >> 16) & 7)
-#define CAP(x) (((x) >> 19) & 7)
+#define FROM(x) (x & 63)
+#define TO(x) ((x >> 6) & 63)
+#define ONMV(x) ((x >> 12) & 1)
+#define PROM(x) ((x >> 13) & 7)
+#define PIECE(x) ((x >> 16) & 7)
+#define CAP(x) ((x >> 19) & 7)
 
-#define _TO(x) ((x) << 6)
-#define _ONMV(x) ((x) << 12)
-#define _PROM(x) ((x) << 13)
-#define _PIECE(x) ((x) << 16)
-#define _CAP(x) ((x) << 19)
+#define _TO(x) (x << 6)
+#define _ONMV(x) (x << 12)
+#define _PROM(x) (x << 13)
+#define _PIECE(x) (x << 16)
+#define _CAP(x) (x << 19)
 #define PREMOVE(f, p) ((f) | _ONMV(c) | _PIECE(p))
 
-#define RATT1(f) rays[((f) << 6) | key000(BOARD, f)]
-#define RATT2(f) rays[((f) << 6) | key090(BOARD, f) | 0x1000]
-#define BATT3(f) rays[((f) << 6) | key045(BOARD, f) | 0x2000]
-#define BATT4(f) rays[((f) << 6) | key135(BOARD, f) | 0x3000]
-#define RXRAY1(f) rays[((f) << 6) | key000(BOARD, f) | 0x4000]
-#define RXRAY2(f) rays[((f) << 6) | key090(BOARD, f) | 0x5000]
-#define BXRAY3(f) rays[((f) << 6) | key045(BOARD, f) | 0x6000]
-#define BXRAY4(f) rays[((f) << 6) | key135(BOARD, f) | 0x7000]
+#define RATT1(f) rays[(f << 6) | key000(BOARD, f)]
+#define RATT2(f) rays[(f << 6) | key090(BOARD, f) | 0x1000]
+#define BATT3(f) rays[(f << 6) | key045(BOARD, f) | 0x2000]
+#define BATT4(f) rays[(f << 6) | key135(BOARD, f) | 0x3000]
+#define RXRAY1(f) rays[(f << 6) | key000(BOARD, f) | 0x4000]
+#define RXRAY2(f) rays[(f << 6) | key090(BOARD, f) | 0x5000]
+#define BXRAY3(f) rays[(f << 6) | key045(BOARD, f) | 0x6000]
+#define BXRAY4(f) rays[(f << 6) | key135(BOARD, f) | 0x7000]
 
 #define RMOVE1(f) (RATT1(f) & ~BOARD)
 #define RMOVE2(f) (RATT2(f) & ~BOARD)
@@ -67,13 +68,13 @@ enum { EMPTY, PAWN, KNIGHT, KING, ENP, BISHOP, ROOK, QUEEN };
 
 #define NMOVE(x) (nmoves[x] & ~BOARD)
 #define KMOVE(x) (kmoves[x] & ~BOARD)
-#define NCAP(x, c) (nmoves[x] & colorb[(c)^1])
-#define KCAP(x, c) (kmoves[x] & colorb[(c)^1])
-#define PMOVE(x, c) (pmoves[(x) | ((c)<<6)] & ~BOARD)
-#define POCC(x, c) (pcaps[(x) | ((c)<<6)] & BOARD)
-#define PCAP(x, c) (pcaps[(x) | ((c)<<6)] & colorb[(c)^1])
-#define PCA3(x, c) (pcaps[(x) | ((c)<<6) | 128] & (colorb[(c)^1] | (BIT[ENPASS] & ((c) ? 0xFF0000 : 0xFF0000000000))))
-#define PCA4(x, c) (pcaps[(x) | ((c)<<6) | 256] & (colorb[(c)^1] | (BIT[ENPASS] & ((c) ? 0xFF0000 : 0xFF0000000000))))
+#define NCAP(x, c) (nmoves[x] & colorb[c^1])
+#define KCAP(x, c) (kmoves[x] & colorb[c^1])
+#define PMOVE(x, c) (pmoves[c][x] & ~BOARD)
+#define POCC(x, c) (pcaps[c][x] & BOARD)
+#define PCAP(x, c) (pcaps[c][x] & colorb[c^1])
+#define PCA3(x, c) (pcaps[c][(x) | 64] & (colorb[c^1] | (BIT[ENPASS] & (c ? 0xFF0000 : 0xFF0000000000))))
+#define PCA4(x, c) (pcaps[c][(x) | 128] & (colorb[c^1] | (BIT[ENPASS] & (c ? 0xFF0000 : 0xFF0000000000))))
 
 #define RANK7(f, c) (((f) & 0x38) == ((c) ? 0x08 : 0x30))
 #define RANK4(f, c) (((f) & 0x38) == ((c) ? 0x20 : 0x18))
@@ -81,7 +82,7 @@ enum { EMPTY, PAWN, KNIGHT, KING, ENP, BISHOP, ROOK, QUEEN };
 #define ENPASS (flags & 63)
 #define CASTLE (flags & 960)
 
-u64 hashDB[HSIZE], num[128];
+u64 hashDB[HMASK+1], num[128];
 u64 hashb;
 
 static u64 BIT[64];
@@ -89,8 +90,8 @@ static u64 hashxor[0x8000];
 static u64 rays[0x8000];
 static u64 nmoves[64];
 static u64 kmoves[64];
-static u64 pmoves[128];
-static u64 pcaps[384];
+static u64 pmoves[2][64];
+static u64 pcaps[2][192];
 static int crevoke[64];
 static int _knight[8] = {-17,-10,6,15,17,10,-6,-15};
 static int _king[8] = {-9,-1,7,8,9,1,-7,-8};
@@ -152,13 +153,13 @@ void _init_pawns(u64* moves, u64* caps, int c) {
 			m = i + (c ? -9 : 7);
 			if (m < 0 || m > 63) continue;
 			caps[i] |= BIT[m];
-			caps[i + 128*(2 - c)] |= BIT[m];
+			caps[i + 64*(2 - c)] |= BIT[m];
 		}
 		if ((i&7) < 7) {
 			m = i + (c ? -7 : 9);
 			if (m < 0 || m > 63) continue;
 			caps[i] |= BIT[m];
-			caps[i + 128*(c + 1)] |= BIT[m];
+			caps[i + 64*(c + 1)] |= BIT[m];
 		}
 	}
 }
@@ -193,48 +194,47 @@ void _init_rays(u64* ray, u64 (*rayFunc) (int, u64, int), int (*key)(u64, int)) 
 		int iperm = 1 << (bc = bitcnt(mmask));
 		for (i = 0; i < iperm; i++) {
 			u64 board = _occ_free_board(bc, i, mmask);
-			u64 move = (*rayFunc)(f, board, 1);
-			u64 occ = (*rayFunc)(f, board, 2);
-			u64 xray = (*rayFunc)(f, board, 3);
+			u64 occ = (*rayFunc)(f, board, 0);
+			u64 xray = (*rayFunc)(f, board, 1);
 			int index = (*key)(board, f);
-			ray[(f << 6) + index] = occ | move;
+			ray[(f << 6) + index] = occ;
 			ray[(f << 6) + index + 0x4000] = xray;
 		}
 	}
 }
 
 #define RAYMACRO { if (BIT[i] & board) \
-	{ if (b) { xray |= BIT[i]; break; } else { occ |= BIT[i]; b = 1; } } if (!b) free |= BIT[i]; }
+	{ if (b) { xray |= BIT[i]; break; } else { occ |= BIT[i]; b = 1; } } if (!b) occ |= BIT[i]; }
 u64 _rook0(int f, u64 board, int t) {
-	u64 free = 0LL, occ = 0LL, xray = 0LL;
+	u64 occ = 0LL, xray = 0LL;
 	int i, b;
 	for (b = 0, i = f+1; i < 64 && i%8 != 0; i++) RAYMACRO
 	for (b = 0, i = f-1; i >= 0 && i%8 != 7; i--) RAYMACRO
-	return (t < 2) ? free : (t == 2 ? occ : xray);
+	return t ? xray : occ;
 }
 
 u64 _rook90(int f, u64 board, int t) {
-	u64 free = 0LL, occ = 0LL, xray = 0LL;
+	u64 occ = 0LL, xray = 0LL;
 	int i, b;
 	for (b = 0, i = f-8; i >= 0; i-=8) RAYMACRO
 	for (b = 0, i = f+8; i < 64; i+=8) RAYMACRO
-	return (t < 2) ? free : (t == 2 ? occ : xray);
+	return t ? xray : occ;
 }
 
 u64 _bishop45(int f, u64 board, int t) {
-	u64 free = 0LL, occ = 0LL, xray = 0LL;
+	u64 occ = 0LL, xray = 0LL;
 	int i, b;
 	for (b = 0, i = f+9; i < 64 && (i%8 != 0); i+=9) RAYMACRO
 	for (b = 0, i = f-9; i >= 0 && (i%8 != 7); i-=9) RAYMACRO
-	return (t < 2) ? free : (t == 2 ? occ : xray);
+	return t ? xray : occ;
 }
 
 u64 _bishop135(int f, u64 board, int t) {
-	u64 free = 0LL, occ = 0LL, xray = 0LL;
+	u64 occ = 0LL, xray = 0LL;
 	int i, b;
 	for (b = 0, i = f-7; i >= 0 && (i%8 != 0); i-=7) RAYMACRO
 	for (b = 0, i = f+7; i < 64 && (i%8 != 7); i+=7) RAYMACRO
-	return (t < 2) ? free : (t == 2 ? occ : xray);
+	return t ? xray : occ;
 }
 
 u64 getTime() {
@@ -268,22 +268,16 @@ int key000(u64 b, int f) {
 
 int key090(u64 b, int f) {
 	u64 _b = (b >> (f&7)) & 0x0101010101010101LL;
-	_b = _b * 0x0080402010080400LL;
-	return (int)(_b >> 58);
-}
-
-int keyDiag(u64 _b) {
-	_b = _b * 0x0202020202020202LL;
-	return (int)(_b >> 58);
+	return (int)((_b * 0x0080402010080400LL) >> 58);
 }
 
 u64 bmask45[64], bmask135[64];
 int key045(u64 b, int f) {
-	return keyDiag(b & bmask45[f]);
+	return (int)(((b & bmask45[f]) * 0x0202020202020202LL) >> 58);
 }
 
 int key135(u64 b, int f) {
-	return keyDiag(b & bmask135[f]);
+	return (int)(((b & bmask135[f]) * 0x0202020202020202LL) >> 58);
 }
 
 #define DUALATT(x, y, c) (battacked(x, c) || battacked(y, c))
@@ -291,17 +285,13 @@ int battacked(int f, int c) {
 	if (PCAP(f, c) & pieceb[PAWN]) return 1;
 	if (NCAP(f, c) & pieceb[KNIGHT]) return 1;
 	if (KCAP(f, c) & pieceb[KING]) return 1;
-	if (RCAP1(f, c) & RQU) return 1;
-	if (RCAP2(f, c) & RQU) return 1;
-	if (BCAP3(f, c) & BQU) return 1;
-	if (BCAP4(f, c) & BQU) return 1;
+	if (RCAP(f, c) & RQU) return 1;
+	if (BCAP(f, c) & BQU) return 1;
 	return 0;
 }
 
 u64 reach(int f, int c) {
-	return (NCAP(f, c) & pieceb[KNIGHT])
-		| (RCAP1(f, c) & RQU) | (RCAP2(f, c) & RQU)
-		| (BCAP3(f, c) & BQU) | (BCAP4(f, c) & BQU);
+	return (NCAP(f, c) & pieceb[KNIGHT]) | (RCAP(f, c) & RQU) | (BCAP(f, c) & BQU);
 }
 
 u64 attacked(int f, int c) {
@@ -367,7 +357,7 @@ void move(Move m, int c) {
 	if (a) {
 		if (a == ENP) { // Enpassant Capture
 			t = (t&7) | (f&56); a = PAWN;
-		} else if (a == ROOK && CASTLE) { //Revoke castling rights.
+		} else if (a == ROOK) { //Revoke castling rights.
 			flags &= crevoke[t];
 		}
 		pieceb[a] ^= BIT[t];
@@ -397,7 +387,7 @@ void move(Move m, int c) {
 			hashb ^= hashxor[f | ROOK << 6 | c << 9];
 			hashb ^= hashxor[t | ROOK << 6 | c << 9];
 		}
-	} else if (p == ROOK && CASTLE) {
+	} else if (p == ROOK) {
 		flags &= crevoke[f];
 	}
 	BOARD = colorb[0] | colorb[1];
@@ -525,7 +515,7 @@ int generateMoves(int c, Movep *mp) {
 		if (RANK7(f, c)) {
 			registerProms(f, c, a, m, mp);
 		} else {
-			if (t & 128 && ENPASS && (BIT[ENPASS] & pcaps[(f) | ((c)<<6)])) {
+			if (t & 128 && ENPASS && (BIT[ENPASS] & pcaps[c][f])) {
 				BOARD ^= BIT[ENPASS^8];
 				if (!(RATT1(f) & BIT[kingpos[c]]) || !(RATT1(f) & colorb[c^1] & RQU)) {
 					a |= BIT[ENPASS];
@@ -548,14 +538,14 @@ int generateMoves(int c, Movep *mp) {
 		registerMoves(PREMOVE(f, ROOK), RCAP(f, c), RMOVE(f), mp);
 		if (CASTLE && !ch) {
 			if (c) {
-				if ((flags & 128) && (f == 63) && (RATT1(63) & BIT[60]))
+				if (f == 63 && (flags & 128) && !(BOARD & (3LL << 61)))
 					if (!DUALATT(61, 62, c)) registerMoves(PREMOVE(60, KING), 0LL, BIT[62], mp);
-				if ((flags & 512) && (f == 56) && (RATT1(56) & BIT[60]))
+				if (f == 56 && (flags & 512) && !(BOARD & (7LL << 57)))
 					if (!DUALATT(59, 58, c)) registerMoves(PREMOVE(60, KING), 0LL, BIT[58], mp);
 			} else {
-				if ((flags & 64) && (f == 7) && (RATT1(7) & BIT[4]))
+				if (f == 7 && (flags & 64) && !(BOARD & (3LL << 5)))
 					if (!DUALATT(5, 6, c)) registerMoves(PREMOVE(4, KING), 0LL, BIT[6], mp);
-				if ((flags & 256) && (f == 0) && (RATT1(0) & BIT[4]))
+				if (f == 0 && (flags & 256) && !(BOARD & (7LL << 1)))
 					if (!DUALATT(3, 2, c)) registerMoves(PREMOVE(4, KING), 0LL, BIT[2], mp);
 			}
 		}
@@ -612,7 +602,7 @@ int countMoves(int c, Movep *mp) {
 		if (RANK7(f, c)) {
 			mp->n += bitcnt(a | m) << 2;
 		} else {
-			if (ENPASS && (BIT[ENPASS] & pcaps[(f) | ((c)<<6)])) {
+			if (ENPASS && (BIT[ENPASS] & pcaps[c][f])) {
 				BOARD ^= BIT[ENPASS^8];
 				if (!(RATT1(f) & BIT[kingpos[c]]) || !(RATT1(f) & colorb[c^1] & RQU)) {
 					a |= BIT[ENPASS];
@@ -741,7 +731,7 @@ void perft(int c, int d, int ply) {
 
 	Pos pos; pos.hashb = 0;
 	generateMoves(c, &mp);
-	int i, flagstore = flags, poff = ply << 8;
+	int i, flagstore = flags;
 	for (i = 0; i < mp.n; i++) {
 		Move m = mp.moves[i];
 
@@ -755,7 +745,7 @@ void perft(int c, int d, int ply) {
 		flags = flagstore;
 	}
 	n0 = num[ply+d] - n0;
-	if (n0 < HSIZE && n0 > n1) {
+	if (n0 < HMASK+1 && n0 > n1) {
 		hashDB[hb & HMASK] = (hb & HINV) | n0; 
 	}
 }
@@ -770,12 +760,11 @@ int main(int argc, char **argv) {
 
 	for (i = 0x8000, p = 1, n = 6364136223846793005LL; i--; hashxor[0x7FFF-i] = p = p*n +1LL);
 	for (i = 0; i < 64; i++) BIT[i] = 1LL << i;
-	for (i = 0; i < 128; i++) pmoves[i] = 0LL;
-	for (i = 0; i < 384; i++) pcaps[i] = 0LL;
-	for (i = 0; i < 64; i++) bmask45[i] = _bishop45(i, 0LL, 0) | BIT[i];
-	for (i = 0; i < 64; i++) bmask135[i] = _bishop135(i, 0LL, 0) | BIT[i];
+	for (i = 0; i < 128; i++) pmoves[0][i] = 0LL;
+	for (i = 0; i < 384; i++) pcaps[0][i] = 0LL;
+	for (i = 0; i < 64; i++) bmask45[i] = _bishop45(i, 0LL, 0), bmask135[i] = _bishop135(i, 0LL, 0);
 	for (i = 0; i < 64; i++) crevoke[i] = 0x3FF;
-	for (i = 0; i < HSIZE; i++) hashDB[i] = 0LL;
+	for (i = 0; i < HMASK+1; i++) hashDB[i] = 0LL;
 	crevoke[7] ^= BIT[6];
 	crevoke[63] ^= BIT[7];
 	crevoke[0] ^= BIT[8];
@@ -787,8 +776,8 @@ int main(int argc, char **argv) {
 	_init_rays(rays + 0x3000, _bishop135, key135);
 	_init_shorts(nmoves, _knight);
 	_init_shorts(kmoves, _king);
-	_init_pawns(pmoves, pcaps, 0);
-	_init_pawns(pmoves + 64, pcaps + 64, 1);
+	_init_pawns(pmoves[0], pcaps[0], 0);
+	_init_pawns(pmoves[1], pcaps[1], 1);
 
 	_parse_fen(sfen);
 	display64(0LL);
