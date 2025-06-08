@@ -1,5 +1,5 @@
-#define VER "5.11.3"
-/* OliThink5 (c) Oliver Brausch 24.Mai.2025, ob112@web.de, http://brausch.org */
+#define VER "5.11.4"
+/* OliThink5 (c) Oliver Brausch 08.Jun.2025, ob112@web.de, http://brausch.org */
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -376,28 +376,15 @@ int key090(u64 b, int f) {
 	return (int)((_b * 0x0080402010080400LL) >> 58);
 }
 
-int keyDiag(u64 _b) {
-	return (int)((_b * 0x0202020202020202LL) >> 58);
-}
-
 int key045(u64 b, int f) {
-	return keyDiag(b & bmask45[f]);
+	return (int)(((b & bmask45[f]) * 0x0202020202020202LL) >> 58);
 }
 
 int key135(u64 b, int f) {
-	return keyDiag(b & bmask135[f]);
+	return (int)(((b & bmask135[f]) * 0x0202020202020202LL) >> 58);
 }
 
-#define DUALATT(x, y, c) (battacked(x, c) || battacked(y, c))
-int battacked(int f, int c) {
-	if (PCAP(f, c) & P.piece[PAWN]) return 1;
-	if (NCAP(f, c) & P.piece[KNIGHT]) return 1;
-	if (KCAP(f, c) & P.piece[KING]) return 1;
-	if (RCAP(f, c) & RQU) return 1;
-	if (BCAP(f, c) & BQU) return 1;
-	return 0;
-}
-
+#define DUALATT(x, y, c) (attacked(x, c) | attacked(y, c) | ((KCAP(x, c) | KCAP(y, c)) & P.piece[KING]))
 u64 reach(int f, int c) {
 	return (NCAP(f, c) & P.piece[KNIGHT]) | (RCAP(f, c) & RQU) | (BCAP(f, c) & BQU);
 }
@@ -447,7 +434,7 @@ void move(Move m, int c, int d) {
 	if (a) {
 		if (a == ENP) { // Enpassant Capture
 			t = (t&7) | (f&56); a = PAWN;
-		} else if (a == ROOK && CASTLE(c^1)) { //Revoke castling rights.
+		} else if (a == ROOK) { //Revoke castling rights.
 			flags &= crevoke[t];
 		}
 		P.piece[a] ^= BIT[t];
@@ -477,7 +464,7 @@ void move(Move m, int c, int d) {
 			P.hash ^= hashxor[f | ROOK << 6 | c << 9];
 			P.hash ^= hashxor[t | ROOK << 6 | c << 9];
 		}
-	} else if (p == ROOK && CASTLE(c)) {
+	} else if (p == ROOK) {
 		flags &= crevoke[f];
 	}
 	BOARD = P.color[0] | P.color[1];
@@ -518,7 +505,7 @@ void regPromotions(int f, int c, u64 bt, Movep* mp, int cap, int queen) {
 void regKings(Move m, u64 bt, Movep* mp, int c, int cap) {
 	while (bt) {
 		int t = pullLsb(&bt);
-		if (battacked(t, c)) continue;
+		if (attacked(t, c) | (KCAP(t, c) & P.piece[KING])) continue;
 		mp->list[mp->n++] = m | _TO(t) | (cap ? _CAP(identPiece(t)) : 0LL);
 	}
 }
@@ -549,10 +536,10 @@ int generateCheckEsc(u64 ch, u64 apin, int c, int k, Movep *mp) {
 	if (ch & (nmoves[k] | kmoves[k])) return 1; //We can't move anything in between!
 
 	d = getDir(bf, k);
-	if (d == 8) fl = RATT1(bf) & RATT1(k) & ~BOARD;
-	else if (d == 16) fl = RATT2(bf) & RATT2(k) & ~BOARD;
-	else if (d == 32) fl = BATT3(bf) & BATT3(k) & ~BOARD;
-	else fl = BATT4(bf) & BATT4(k) & ~BOARD;
+	if (d == 8) fl = RATT1(bf) & RATT1(k);
+	else if (d == 16) fl = RATT2(bf) & RATT2(k);
+	else if (d == 32) fl = BATT3(bf) & BATT3(k);
+	else fl = BATT4(bf) & BATT4(k);
 
 	while (fl) {
 		int f = pullLsb(&fl);
@@ -935,17 +922,18 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 		if (!hmove) hmove = he->move;
 	}
 
-	int wstat = wstack[COUNT] = ch ? -MAXSCORE+ply : he->key == hp ? he->value : eval(c);
+	int wstat = wstack[COUNT] = ch ? -MAXSCORE : he->key == hp ? he->value : eval(c);
 	if (!ch && !pvnode) {
 		if (d <= 3 && wstat + 400 < beta) { w = quiesce(ch, c, ply, alpha, beta); if (w < beta) return w; }
-		if (d <= 8 && wstat - 88*d > beta) return wstat;
+		if (d <= 8 && wstat - 88*d > beta) return beta;
 	}
 
+	int raising = !ch && ply >= 2 && wstat >= wstack[COUNT-2] && wstack[COUNT-2] != -MAXSCORE;
 	hstack[COUNT] = hp;
 	//Null Move - pvnode => null == 0
 	null = null && !ch && beta > -MAXSCORE+500 && d > 1 && wstat > alpha && (ply < 2 || (mstack[COUNT-2] >> 27));
 	if (null && bitcnt(P.color[c] & (~P.piece[PAWN]) & (~pinnedPieces(P.king[c], oc))) > 1) {
-		int R = (10 + d + nullvariance(wstat - alpha))/4;
+		int R = (9 + d + nullvariance(wstat - alpha))/4 + raising;
 		doMove(0, c);
 		w = -search(0LL, oc, d-R, ply+1, -beta, 1-beta, 0, 0);
 		undoMove(0, c);
@@ -956,8 +944,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 
 	Movep mp, mpq; mpq.n = 0;
 	Pos pos; pos.hash = 0;
-	int raising = !ch && ply >= 2 && wstat >= wstack[COUNT-2];
-	int first = NO_MOVE, hismax = -1;
+	int first = NO_MOVE, hismax = -9999;
 	for (n = HASH; n <= (ch ? NOISY : QUIET); n++) {
 		int nd = d - 1;
 		if (n == HASH) {
@@ -992,15 +979,15 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 			else if (n == QUIET && m != killer[ply]) { // LMR, but don't reduce killers
 				int his = history[m & 0x1FFF];
 				if (his > hismax) hismax = his;
-				else if (d < 5 && (his < -1 || his*his < hismax)) {
+				else if (d < 5 && (his < 0 || his*his < hismax)) {
 					undoMove(0, c); memcpy(&P, &pos, sizeof(Pos)); continue;
 				} else if (d >= 2) ext-= (d + 1)/3;
 			}
 
 			int firstPVNode = first == NO_MOVE && pvnode;
 			if (!firstPVNode) w = -search(nch, oc, nd+ext, ply+1, -alpha-1, -alpha, 1, 0);
-			if (w > alpha && ext < 0) w = -search(nch, oc, nd, ply+1, -alpha-1, -alpha, 1, 0);
-			if ((w > alpha && w < beta) || firstPVNode) w = -search(nch, oc, nd, ply+1, -beta, -alpha, 0, 0);
+			if (ext < 0 && w > alpha) w = -search(nch, oc, nd, ply+1, -alpha-1, -alpha, 1, 0);
+			if (firstPVNode || (w > alpha && w < beta)) w = -search(nch, oc, nd, ply+1, -beta, -alpha, 0, 0);
 
 			undoMove(0, c); memcpy(&P, &pos, sizeof(Pos));
 			if (sabort) return alpha;
@@ -1285,8 +1272,8 @@ int main(int argc, char **argv) {
 	for (i = 0; i < 64; i++) BIT[i] = 1LL << i;
 	for (i = 0; i < 128; i++) pmoves[0][i] = pawnfree[0][i] = pawnfile[0][i] = pawnhelp[0][i] = 0LL;
 	for (i = 0; i < 384; i++) pcaps[0][i] = 0LL;
-	for (i = 0; i < 64; i++) bmask45[i] = _bishop45(i, 0LL, 0) | BIT[i];
-	for (i = 0; i < 64; i++) bmask135[i] = _bishop135(i, 0LL, 0) | BIT[i];
+	for (i = 0; i < 64; i++) bmask45[i] = _bishop45(i, 0LL, 0);
+	for (i = 0; i < 64; i++) bmask135[i] = _bishop135(i, 0LL, 0);
 	for (i = 0; i < 64; i++) crevoke[i] = 0x3FF, rankb[i/8] |= BIT[i], fileb[i&7] |= BIT[i];
 	for (i = 0; i < 64; i++) kmoves[i] = nmoves[i] = 0LL, RANK[0][i] = RANK[1][63-i] = 1 + (i >> 3);
 	for (i = 0; i < 64; i++) if ((i/8)%2 != (i&7)%2) whitesq |= BIT[i];
