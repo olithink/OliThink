@@ -1,4 +1,4 @@
-/* OliPerft 1.0.10 - Bitboard Magic Move (c) Oliver Brausch 07.Jun.2025, ob112@web.de */
+/* OliPerft 1.0.11 - Bitboard Magic Move (c) Oliver Brausch 10.Jun.2025, ob112@web.de */
 /* oliperft 6 "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
 Nodes: 8229523927 ms: 5427 knps: 1516124 (clang14 64bit 13th Gen Intel(R) Core(TM) i5-13500 1/14-Core)
 Nodes: 8229523927 ms: 11196 knps: 734975 (clang7 64bit AMD EPYC 7502P 1/32-Core Processor) (1.0.9)
@@ -42,14 +42,14 @@ enum { EMPTY, PAWN, KNIGHT, KING, ENP, BISHOP, ROOK, QUEEN };
 #define _CAP(x) (x << 19)
 #define PREMOVE(f, p) ((f) | _ONMV(c) | _PIECE(p))
 
-#define RATT1(f) rays[(f << 6) | key000(BOARD, f)]
-#define RATT2(f) rays[(f << 6) | key090(BOARD, f) | 0x1000]
-#define BATT3(f) rays[(f << 6) | key045(BOARD, f) | 0x2000]
-#define BATT4(f) rays[(f << 6) | key135(BOARD, f) | 0x3000]
-#define RXRAY1(f) rays[(f << 6) | key000(BOARD, f) | 0x4000]
-#define RXRAY2(f) rays[(f << 6) | key090(BOARD, f) | 0x5000]
-#define BXRAY3(f) rays[(f << 6) | key045(BOARD, f) | 0x6000]
-#define BXRAY4(f) rays[(f << 6) | key135(BOARD, f) | 0x7000]
+#define RATT1(f) raysRank[f&7][key000(BOARD, f)] & rmask0[f]
+#define RATT2(f) raysAFile[f>>3][key090(BOARD, f)] << (f&7)
+#define BATT3(f) raysRank[f&7][key045(BOARD, f)] & bmask45[f]
+#define BATT4(f) raysRank[f&7][key135(BOARD, f)] & bmask135[f]
+#define RXRAY1(f) (xrayRank[f&7][key000(BOARD, f)] & rmask0[f])
+#define RXRAY2(f) (xrayAFile[f>>3][key090(BOARD, f)] << (f&7))
+#define BXRAY3(f) (xrayRank[f&7][key045(BOARD, f)] & bmask45[f])
+#define BXRAY4(f) (xrayRank[f&7][key135(BOARD, f)] & bmask135[f])
 
 #define RMOVE1(f) (RATT1(f) & ~BOARD)
 #define RMOVE2(f) (RATT2(f) & ~BOARD)
@@ -87,7 +87,6 @@ u64 hashb;
 
 static u64 BIT[64];
 static u64 hashxor[0x8000];
-static u64 rays[0x8000];
 static u64 nmoves[64];
 static u64 kmoves[64];
 static u64 pmoves[2][64];
@@ -186,19 +185,19 @@ u64 _occ_free_board(int bc, int del, u64 free) {
 	}
 	return perm;
 }
-
-void _init_rays(u64* ray, u64 (*rayFunc) (int, u64, int), int (*key)(u64, int)) {
+u64 raysRank[8][64], raysAFile[8][64], xrayRank[8][64], xrayAFile[8][64];
+void _init_rays(u64* rays, u64* xrays, u64 (*rayFunc) (int, u64, int), int (*key)(u64, int), int file) {
 	int i, f, bc;
-	for (f = 0; f < 64; f++) {
+	for (f = 0; f < 64; f+=file) {
 		u64 mmask = (*rayFunc)(f, 0LL, 0) | BIT[f];
 		int iperm = 1 << (bc = bitcnt(mmask));
 		for (i = 0; i < iperm; i++) {
 			u64 board = _occ_free_board(bc, i, mmask);
 			u64 occ = (*rayFunc)(f, board, 0);
 			u64 xray = (*rayFunc)(f, board, 1);
-			int index = (*key)(board, f);
-			ray[(f << 6) + index] = occ;
-			ray[(f << 6) + index + 0x4000] = xray;
+			int index = (*key)(board, f), ix = (f/file)&7;
+			rays[ix*64+index] |= occ;
+			xrays[ix*64+index] |= xray;
 		}
 	}
 }
@@ -271,7 +270,7 @@ int key090(u64 b, int f) {
 	return (int)((_b * 0x0080402010080400LL) >> 58);
 }
 
-u64 bmask45[64], bmask135[64];
+u64 bmask45[64], bmask135[64], rmask0[64];
 int key045(u64 b, int f) {
 	return (int)(((b & bmask45[f]) * 0x0202020202020202LL) >> 58);
 }
@@ -763,6 +762,7 @@ int main(int argc, char **argv) {
 	for (i = 0; i < 128; i++) pmoves[0][i] = 0LL;
 	for (i = 0; i < 384; i++) pcaps[0][i] = 0LL;
 	for (i = 0; i < 64; i++) bmask45[i] = _bishop45(i, 0LL, 0), bmask135[i] = _bishop135(i, 0LL, 0);
+	for (i = 0; i < 64; i++) rmask0[i] = _rook0(i, 0LL, 0);
 	for (i = 0; i < 64; i++) crevoke[i] = 0x3FF;
 	for (i = 0; i < HMASK+1; i++) hashDB[i] = 0LL;
 	crevoke[7] ^= BIT[6];
@@ -770,10 +770,8 @@ int main(int argc, char **argv) {
 	crevoke[0] ^= BIT[8];
 	crevoke[56] ^= BIT[9];
 
-	_init_rays(rays, _rook0, key000);
-	_init_rays(rays + 0x1000, _rook90, key090);
-	_init_rays(rays + 0x2000, _bishop45, key045);
-	_init_rays(rays + 0x3000, _bishop135, key135);
+	_init_rays((u64*) raysRank, (u64*) xrayRank, _rook0, key000, 1);
+	_init_rays((u64*) raysAFile, (u64*) xrayAFile, _rook90, key090, 8);
 	_init_shorts(nmoves, _knight);
 	_init_shorts(kmoves, _king);
 	_init_pawns(pmoves[0], pcaps[0], 0);
