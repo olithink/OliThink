@@ -1,5 +1,5 @@
-#define VER "5.11.4"
-/* OliThink5 (c) Oliver Brausch 08.Jun.2025, ob112@web.de, http://brausch.org */
+#define VER "5.11.5"
+/* OliThink5 (c) Oliver Brausch 11.Jun.2025, ob112@web.de, http://brausch.org */
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -45,14 +45,14 @@ const int cornbase[] = {4, 4, 2, 1, 0, 0 ,0};
 #define _CAP(x) (x << 19)
 #define PREMOVE(f, p) ((f) | _ONMV(c) | _PIECE(p))
 
-#define RATT1(f) rays[(f << 6) | key000(BOARD, f)]
-#define RATT2(f) rays[(f << 6) | key090(BOARD, f) | 0x1000]
-#define BATT3(f) rays[(f << 6) | key045(BOARD, f) | 0x2000]
-#define BATT4(f) rays[(f << 6) | key135(BOARD, f) | 0x3000]
-#define RXRAY1(f) rays[(f << 6) | key000(BOARD, f) | 0x4000]
-#define RXRAY2(f) rays[(f << 6) | key090(BOARD, f) | 0x5000]
-#define BXRAY3(f) rays[(f << 6) | key045(BOARD, f) | 0x6000]
-#define BXRAY4(f) rays[(f << 6) | key135(BOARD, f) | 0x7000]
+#define RATT1(f) raysRank[f&7][key000(BOARD, f)] & rmask0[f]
+#define RATT2(f) raysAFile[f>>3][key090(BOARD, f)] << (f&7)
+#define BATT3(f) raysRank[f&7][key045(BOARD, f)] & bmask45[f]
+#define BATT4(f) raysRank[f&7][key135(BOARD, f)] & bmask135[f]
+#define RXRAY1(f) (xrayRank[f&7][key000(BOARD, f)] & rmask0[f])
+#define RXRAY2(f) (xrayAFile[f>>3][key090(BOARD, f)] << (f&7))
+#define BXRAY3(f) (xrayRank[f&7][key045(BOARD, f)] & bmask45[f])
+#define BXRAY4(f) (xrayRank[f&7][key135(BOARD, f)] & bmask135[f])
 
 #define RATT(f) (RATT1(f) | RATT2(f))
 #define BATT(f) (BATT3(f) | BATT4(f))
@@ -97,10 +97,10 @@ typedef struct {
 
 static Pos P;
 static entry hashDB[HMASK+1];
-static u64 hstack[0x400], mstack[0x400], hashxor[0x1000], rays[0x8000];
+static u64 hstack[0x400], mstack[0x400], hashxor[0x1000];
 static u64 pmoves[2][64],pawnprg[2][64], pawnfree[2][64], pawnfile[2][64], pawnhelp[2][64], RANK[2][64], pcaps[2][192];
-static u64 BIT[64], nmoves[64], kmoves[64], bmask135[64], bmask45[64];
-static u64 rankb[8], fileb[8];
+static u64 BIT[64], nmoves[64], kmoves[64], bmask135[64], bmask45[64], rmask0[64];
+static u64 rankb[8], fileb[8], raysRank[8][64], raysAFile[8][64], xrayRank[8][64], xrayAFile[8][64];
 static u64 whitesq, centr, centr2, maxtime, starttime, eval1, nodes, qnodes;
 static u32 crevoke[64], count, flags, ics = 0, ponder = 0, pondering = 0, analyze = 0;
 static Move pv[128][128], pon = 0, bkmove[BKSIZE*32], killer[128];
@@ -266,55 +266,54 @@ u64 _occ_free_board(int bc, int del, u64 free) {
 	return perm;
 }
 
-void _init_rays(u64* ray, u64 (*rayFunc) (int, u64, int), int (*key)(u64, int)) {
+void _init_rays(u64* rays, u64* xrays, u64 (*rayFunc) (int, u64, int), int (*key)(u64, int), int file) {
 	int i, f, bc;
-	for (f = 0; f < 64; f++) {
+	for (f = 0; f < 64; f+=file) {
 		u64 mmask = (*rayFunc)(f, 0LL, 0) | BIT[f];
 		int iperm = 1 << (bc = bitcnt(mmask));
 		for (i = 0; i < iperm; i++) {
 			u64 board = _occ_free_board(bc, i, mmask);
-			u64 move = (*rayFunc)(f, board, 1);
-			u64 occ = (*rayFunc)(f, board, 2);
-			u64 xray = (*rayFunc)(f, board, 3);
-			int index = (*key)(board, f);
-			ray[(f << 6) + index] = occ | move;
-			ray[(f << 6) + index + 0x4000] = xray;
+			u64 occ = (*rayFunc)(f, board, 0);
+			u64 xray = (*rayFunc)(f, board, 1);
+			int index = (*key)(board, f), ix = (f/file)&7;
+			rays[(ix << 6) + index] |= occ;
+			xrays[(ix << 6) + index] |= xray;
 		}
 	}
 }
 
 #define RAYMACRO { if (BIT[i] & board) \
-	{ if (b) { xray |= BIT[i]; break; } else { occ |= BIT[i]; b = 1; } } if (!b) free |= BIT[i]; }
+	{ if (b) { xray |= BIT[i]; break; } else { occ |= BIT[i]; b = 1; } } if (!b) occ |= BIT[i]; }
 u64 _rook0(int f, u64 board, int t) {
-	u64 free = 0LL, occ = 0LL, xray = 0LL;
+	u64 occ = 0LL, xray = 0LL;
 	int i, b;
 	for (b = 0, i = f+1; i < 64 && i%8 != 0; i++) RAYMACRO
 	for (b = 0, i = f-1; i >= 0 && i%8 != 7; i--) RAYMACRO
-	return (t < 2) ? free : (t == 2 ? occ : xray);
+	return t ? xray : occ;
 }
 
 u64 _rook90(int f, u64 board, int t) {
-	u64 free = 0LL, occ = 0LL, xray = 0LL;
+	u64 occ = 0LL, xray = 0LL;
 	int i, b;
 	for (b = 0, i = f-8; i >= 0; i-=8) RAYMACRO
 	for (b = 0, i = f+8; i < 64; i+=8) RAYMACRO
-	return (t < 2) ? free : (t == 2 ? occ : xray);
+	return t ? xray : occ;
 }
 
 u64 _bishop45(int f, u64 board, int t) {
-	u64 free = 0LL, occ = 0LL, xray = 0LL;
+	u64 occ = 0LL, xray = 0LL;
 	int i, b;
 	for (b = 0, i = f+9; i < 64 && (i%8 != 0); i+=9) RAYMACRO
 	for (b = 0, i = f-9; i >= 0 && (i%8 != 7); i-=9) RAYMACRO
-	return (t < 2) ? free : (t == 2 ? occ : xray);
+	return t ? xray : occ;
 }
 
 u64 _bishop135(int f, u64 board, int t) {
-	u64 free = 0LL, occ = 0LL, xray = 0LL;
+	u64 occ = 0LL, xray = 0LL;
 	int i, b;
 	for (b = 0, i = f-7; i >= 0 && (i%8 != 0); i-=7) RAYMACRO
 	for (b = 0, i = f+7; i < 64 && (i%8 != 7); i+=7) RAYMACRO
-	return (t < 2) ? free : (t == 2 ? occ : xray);
+	return t ? xray : occ;
 }
 
 #ifdef _WIN32
@@ -1272,8 +1271,8 @@ int main(int argc, char **argv) {
 	for (i = 0; i < 64; i++) BIT[i] = 1LL << i;
 	for (i = 0; i < 128; i++) pmoves[0][i] = pawnfree[0][i] = pawnfile[0][i] = pawnhelp[0][i] = 0LL;
 	for (i = 0; i < 384; i++) pcaps[0][i] = 0LL;
-	for (i = 0; i < 64; i++) bmask45[i] = _bishop45(i, 0LL, 0);
-	for (i = 0; i < 64; i++) bmask135[i] = _bishop135(i, 0LL, 0);
+	for (i = 0; i < 64; i++) bmask45[i] = _bishop45(i, 0LL, 0), bmask135[i] = _bishop135(i, 0LL, 0);
+	for (i = 0; i < 64; i++) rmask0[i] = _rook0(i, 0LL, 0);
 	for (i = 0; i < 64; i++) crevoke[i] = 0x3FF, rankb[i/8] |= BIT[i], fileb[i&7] |= BIT[i];
 	for (i = 0; i < 64; i++) kmoves[i] = nmoves[i] = 0LL, RANK[0][i] = RANK[1][63-i] = 1 + (i >> 3);
 	for (i = 0; i < 64; i++) if ((i/8)%2 != (i&7)%2) whitesq |= BIT[i];
@@ -1282,10 +1281,8 @@ int main(int argc, char **argv) {
 	crevoke[0] ^= BIT[8];
 	crevoke[56] ^= BIT[9];
 
-	_init_rays(rays, _rook0, key000);
-	_init_rays(rays + 0x1000, _rook90, key090);
-	_init_rays(rays + 0x2000, _bishop45, key045);
-	_init_rays(rays + 0x3000, _bishop135, key135);
+	_init_rays((u64*) raysRank, (u64*) xrayRank, _rook0, key000, 1);
+	_init_rays((u64*) raysAFile, (u64*) xrayAFile, _rook90, key090, 8);
 	_init_shorts(nmoves, _knight);
 	_init_shorts(kmoves, _king);
 	_init_pawns(pmoves[0], pcaps[0], pawnfree[0], pawnfile[0], pawnhelp[0], pawnprg[0], 0);
