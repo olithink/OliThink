@@ -1,5 +1,5 @@
-#define VER "5.11.5"
-/* OliThink5 (c) Oliver Brausch 11.Jun.2025, ob112@web.de, http://brausch.org */
+#define VER "5.11.6"
+/* OliThink5 (c) Oliver Brausch 03.Juk.2025, ob112@web.de, http://brausch.org */
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -45,25 +45,21 @@ const int cornbase[] = {4, 4, 2, 1, 0, 0 ,0};
 #define _CAP(x) (x << 19)
 #define PREMOVE(f, p) ((f) | _ONMV(c) | _PIECE(p))
 
-#define RATT1(f) raysRank[f&7][key000(BOARD, f)] & rmask0[f]
-#define RATT2(f) raysAFile[f>>3][key090(BOARD, f)] << (f&7)
-#define BATT3(f) raysRank[f&7][key045(BOARD, f)] & bmask45[f]
-#define BATT4(f) raysRank[f&7][key135(BOARD, f)] & bmask135[f]
-#define RXRAY1(f) (xrayRank[f&7][key000(BOARD, f)] & rmask0[f])
-#define RXRAY2(f) (xrayAFile[f>>3][key090(BOARD, f)] << (f&7))
-#define BXRAY3(f) (xrayRank[f&7][key045(BOARD, f)] & bmask45[f])
-#define BXRAY4(f) (xrayRank[f&7][key135(BOARD, f)] & bmask135[f])
+#define RATT1(f, occ) raysRank[f&7][key000(occ, f)] & rmask0[f]
+#define RATT2(f, occ) raysAFile[f>>3][key090(occ, f)] << (f&7)
+#define BATT3(f, occ) raysRank[f&7][key045(occ, f)] & bmask45[f]
+#define BATT4(f, occ) raysRank[f&7][key135(occ, f)] & bmask135[f]
+#define RXRAY1(f, occ) (xrayRank[f&7][key000(occ, f)] & rmask0[f])
+#define RXRAY2(f, occ) (xrayAFile[f>>3][key090(occ, f)] << (f&7))
+#define BXRAY3(f, occ) (xrayRank[f&7][key045(occ, f)] & bmask45[f])
+#define BXRAY4(f, occ) (xrayRank[f&7][key135(occ, f)] & bmask135[f])
 
-#define RATT(f) (RATT1(f) | RATT2(f))
-#define BATT(f) (BATT3(f) | BATT4(f))
-#define RCAP(f, c) (RATT(f) & P.color[c^1])
-#define BCAP(f, c) (BATT(f) & P.color[c^1])
+#define RATT(f, occ) (RATT1(f, occ) | RATT2(f, occ))
+#define BATT(f, occ) (BATT3(f, occ) | BATT4(f, occ))
 
-#define KMOVE(x) (kmoves[x] & ~BOARD)
-#define NCAP(x, c) (nmoves[x] & P.color[c^1])
+#define KMOVE(x, occ) (kmoves[x] & ~occ)
 #define KCAP(x, c) (kmoves[x] & P.color[c^1])
-#define PMOVE(x, c) (pmoves[c][x] & ~BOARD)
-#define POCC(x, c) (pcaps[c][x] & BOARD)
+#define PMOVE(x, c, occ) (pmoves[c][x] & ~occ)
 #define PCAP(x, c) (pcaps[c][x] & P.color[c^1])
 #define PCA3(x, c) (pcaps[c][(x) | 64] & (P.color[c^1] | (BIT[ENPASS] & (c ? 0xFF0000 : 0xFF0000000000))))
 #define PCA4(x, c) (pcaps[c][(x) | 128] & (P.color[c^1] | (BIT[ENPASS] & (c ? 0xFF0000 : 0xFF0000000000))))
@@ -109,7 +105,7 @@ static int kmobil[64], bishcorn[64];
 static int _knight[8] = {-17,-10,6,15,17,10,-6,-15};
 static int _king[8] = {-9,-1,7,8,9,1,-7,-8};
 static int book, bkflag[BKSIZE], bkcount[3];
-static int sabort, onmove, random, engine =-1, sd = 64, ttime = 30000, mps = 0, inc = 0, post = 1, st = 0;
+static int sabort, onmove, randm, engine =-1, sd = 64, ttime = 30000, mps = 0, inc = 0, post = 1, st = 0;
 static char irbuf[256], base[16];
 static char *sfen = "rnbqkbnr/pppppppp/////PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const char pieceChar[] = "*PNK.BRQ";
@@ -207,7 +203,7 @@ void _newGame() {
 	}
 	_parse_fen(sfen, 1);
 	if (bkcount[0] > 0 || bkcount[1] > 0) book = 1;
-	engine = 1; random = 0;
+	engine = 1; randm = 0;
 }
 
 void _init_pawns(u64* moves, u64* caps, u64* freep, u64* filep, u64* helpp, u64* prgp, int c) {
@@ -384,24 +380,24 @@ int key135(u64 b, int f) {
 }
 
 #define DUALATT(x, y, c) (attacked(x, c) | attacked(y, c) | ((KCAP(x, c) | KCAP(y, c)) & P.piece[KING]))
-u64 reach(int f, int c) {
-	return (NCAP(f, c) & P.piece[KNIGHT]) | (RCAP(f, c) & RQU) | (BCAP(f, c) & BQU);
+u64 reach(int f, int c, u64 occ) {
+	return ((nmoves[f] & P.piece[KNIGHT]) | (RATT(f, occ) & RQU) | (BATT(f, occ) & BQU)) & P.color[c^1];
 }
 
 u64 attacked(int f, int c) {
-	return (PCAP(f, c) & P.piece[PAWN]) | reach(f, c);
+	return (PCAP(f, c) & P.piece[PAWN]) | reach(f, c, BOARD);
 }
 
 u64 pinnedPieces(int k, int oc) {
-	u64 pin = 0LL, b = ((RXRAY1(k) | RXRAY2(k)) & P.color[oc]) & RQU;
+	u64 pin = 0LL, occ = BOARD, b = ((RXRAY1(k, occ) | RXRAY2(k, occ)) & P.color[oc]) & RQU;
 	while (b) {
 		int t = pullLsb(&b);
-		pin |= RATT(k) & RATT(t) & P.color[oc^1];
+		pin |= RATT(k, occ) & RATT(t, occ) & P.color[oc^1];
 	}
-	b = ((BXRAY3(k) | BXRAY4(k)) & P.color[oc]) & BQU;
+	b = ((BXRAY3(k, occ) | BXRAY4(k, occ)) & P.color[oc]) & BQU;
 	while (b) {
 		int t = pullLsb(&b);
-		pin |= BATT(k) & BATT(t) & P.color[oc^1];
+		pin |= BATT(k, occ) & BATT(t, occ) & P.color[oc^1];
 	}
 	return pin;
 }
@@ -510,11 +506,11 @@ void regKings(Move m, u64 bt, Movep* mp, int c, int cap) {
 }
 
 int generateCheckEsc(u64 ch, u64 apin, int c, int k, Movep *mp) {
-	u64 cc, fl;
+	u64 cc, fl, occ = BOARD;
 	int d, bf = bitcnt(ch);
-	BOARD ^= BIT[k];
+	BOARD ^= BIT[k]; // cannot use local occ here, because of method "attacked"
 	regKings(PREMOVE(k, KING), KCAP(k, c), mp, c, 1);
-	regKings(PREMOVE(k, KING), KMOVE(k), mp, c, 0);
+	regKings(PREMOVE(k, KING), KMOVE(k, occ), mp, c, 0);
 	BOARD ^= BIT[k];
 	if (bf > 1) return bf; //Doublecheck
 	bf = getLsb(ch);
@@ -535,14 +531,14 @@ int generateCheckEsc(u64 ch, u64 apin, int c, int k, Movep *mp) {
 	if (ch & (nmoves[k] | kmoves[k])) return 1; //We can't move anything in between!
 
 	d = getDir(bf, k);
-	if (d == 8) fl = RATT1(bf) & RATT1(k);
-	else if (d == 16) fl = RATT2(bf) & RATT2(k);
-	else if (d == 32) fl = BATT3(bf) & BATT3(k);
-	else fl = BATT4(bf) & BATT4(k);
+	if (d == 8) fl = RATT1(bf, occ) & RATT1(k, occ);
+	else if (d == 16) fl = RATT2(bf, occ) & RATT2(k, occ);
+	else if (d == 32) fl = BATT3(bf, occ) & BATT3(k, occ);
+	else fl = BATT4(bf, occ) & BATT4(k, occ);
 
 	while (fl) {
 		int f = pullLsb(&fl);
-		cc = reach(f, c^1) & apin;
+		cc = reach(f, c^1, occ) & apin;
 		while (cc) {
 			int cf = pullLsb(&cc);
 			regMoves(PREMOVE(cf, identPiece(cf)), BIT[f], mp, 0);
@@ -553,7 +549,7 @@ int generateCheckEsc(u64 ch, u64 apin, int c, int k, Movep *mp) {
 			if (RANK[c][bf] == 7) regPromotions(bf, c, BIT[f], mp, 0, 1);
 			else regMoves(PREMOVE(bf, PAWN), BIT[f], mp, 0);
 		}
-		if (RANK[c][f] == 4 && !(BOARD & BIT[bf]) && (BIT[c ? f + 16 : f - 16] & cc))
+		if (RANK[c][f] == 4 && !(occ & BIT[bf]) && (BIT[c ? f + 16 : f - 16] & cc))
 			regMoves(PREMOVE(c ? f+16 : f-16, PAWN), BIT[f], mp, 0);
 	}
 	return 1;
@@ -561,30 +557,30 @@ int generateCheckEsc(u64 ch, u64 apin, int c, int k, Movep *mp) {
 
 #define GSLIDES(p, m) for (b = P.piece[p] & cb; b;) { int f = pullLsb(&b); regMoves(PREMOVE(f, p), m & tb, mp, q); }
 void generateSlides(int c, int k, u64 pin, Movep* mp, u64 tb, u64 cb, int q) {
-	u64 b;
+	u64 b, occ = BOARD;
 	GSLIDES(KNIGHT, nmoves[f]);
-	GSLIDES(ROOK, RATT(f));
-	GSLIDES(BISHOP, BATT(f));
-	GSLIDES(QUEEN, (RATT(f) | BATT(f)));
+	GSLIDES(ROOK, RATT(f, occ));
+	GSLIDES(BISHOP, BATT(f, occ));
+	GSLIDES(QUEEN, (RATT(f, occ) | BATT(f, occ)));
 
-	if (pin) for (b = pin & (P.piece[ROOK] | P.piece[BISHOP] | P.piece[QUEEN]); b;) {
+	if (pin) for (b = pin & (RQU | P.piece[BISHOP]); b;) {
 		int f = pullLsb(&b), p = identPiece(f), t = p | getDir(f, k);
-		if ((t & 10) == 10) regMoves(PREMOVE(f, p), RATT1(f) & tb, mp, q);
-		if ((t & 18) == 18) regMoves(PREMOVE(f, p), RATT2(f) & tb, mp, q);
-		if ((t & 33) == 33) regMoves(PREMOVE(f, p), BATT3(f) & tb, mp, q);
-		if ((t & 65) == 65) regMoves(PREMOVE(f, p), BATT4(f) & tb, mp, q);
+		if ((t & 10) == 10) regMoves(PREMOVE(f, p), RATT1(f, occ) & tb, mp, q);
+		if ((t & 18) == 18) regMoves(PREMOVE(f, p), RATT2(f, occ) & tb, mp, q);
+		if ((t & 33) == 33) regMoves(PREMOVE(f, p), BATT3(f, occ) & tb, mp, q);
+		if ((t & 65) == 65) regMoves(PREMOVE(f, p), BATT4(f, occ) & tb, mp, q);
 	}
 }
 
 void generateQuiet(int c, int k, u64 pin, Movep* mp) {
-	int f, r; u64 b, cb = P.color[c] & (~pin), tb = ~BOARD;
+	int f, r; u64 b, cb = P.color[c] & (~pin), tb = ~BOARD, occ = BOARD;
 
 	for (b = P.piece[PAWN] & P.color[c]; b;) {
 		f = pullLsb(&b);
 		u32 t = BIT[f] & pin ? getDir(f, k) : 17;
 		if (t == 8) continue; else r = RANK[c][f];
-		u64 m = t & 16 ? PMOVE(f, c) : 0;
-		if (m && r == 2) m |= PMOVE(c ? f - 8 : f + 8, c);
+		u64 m = t & 16 ? PMOVE(f, c, occ) : 0;
+		if (m && r == 2) m |= PMOVE(c ? f - 8 : f + 8, c, occ);
 		if (r == 7) {
 			u64 a = (t == 17) ? PCAP(f, c) : (t == 32) ? PCA3(f, c) : (t == 64) ? PCA4(f, c) : 0LL;
 			if (a) regPromotions(f, c, a, mp, 1, 0);
@@ -597,13 +593,13 @@ void generateQuiet(int c, int k, u64 pin, Movep* mp) {
 	if (CASTLE(c)) {
 		for (b = P.piece[ROOK] & cb; b;) {
 			f = pullLsb(&b);
-			if (f == 63 && (flags & 128) && !(BOARD & (3LL << 61)))
+			if (f == 63 && (flags & 128) && !(occ & (3LL << 61)))
 				if (!DUALATT(61, 62, c)) regMoves(PREMOVE(60, KING), 1LL << 62, mp, 0);
-			if (f == 56 && (flags & 512) && !(BOARD & (7LL << 57)))
+			if (f == 56 && (flags & 512) && !(occ & (7LL << 57)))
 				if (!DUALATT(59, 58, c)) regMoves(PREMOVE(60, KING), 1LL << 58, mp, 0);
-			if (f == 7 && (flags & 64) && !(BOARD & (3LL << 5)))
+			if (f == 7 && (flags & 64) && !(occ & (3LL << 5)))
 				if (!DUALATT(5, 6, c)) regMoves(PREMOVE(4, KING), 1LL << 6, mp, 0);
-			if (f == 0 && (flags & 256) && !(BOARD & (7LL << 1)))
+			if (f == 0 && (flags & 256) && !(occ & (7LL << 1)))
 				if (!DUALATT(3, 2, c)) regMoves(PREMOVE(4, KING), 1LL << 2, mp, 0);
 		}
 	}
@@ -613,24 +609,24 @@ void generateQuiet(int c, int k, u64 pin, Movep* mp) {
 }
 
 void generateNoisy(int c, int k, u64 pin, Movep *mp) {
-	int f, r; u64 b, cb = P.color[c] & (~pin), tb = P.color[c^1];
+	int f, r; u64 b, cb = P.color[c] & (~pin), tb = P.color[c^1], occ = BOARD;
 
 	for (b = P.piece[PAWN] & P.color[c]; b;) {
 		f = pullLsb(&b);
 		u32 t = BIT[f] & pin ? getDir(f, k) : 17;
 		if (t == 8) continue; else r = RANK[c][f];
-		u64 m = t & 16 ? PMOVE(f, c) : 0;
+		u64 m = t & 16 ? PMOVE(f, c, occ) : 0;
 		u64 a = (t == 17) ? PCAP(f, c) : (t == 32) ? PCA3(f, c) : (t == 64) ? PCA4(f, c) : 0LL;
 		if (r >= 6) {
 			if (a) regMoves(PREMOVE(f, PAWN) | (r == 7 ? _PROM(QUEEN) : 0), a, mp, 1);
 			if (m) regMoves(PREMOVE(f, PAWN) | (r == 7 ? _PROM(QUEEN) : 0), m, mp, 0);
 		} else {
 			if (t == 17 && ENPASS && (BIT[ENPASS] & pcaps[c][f])) {
-				BOARD ^= BIT[ENPASS ^ 8];
-				if (!(RATT1(f) & BIT[k]) || !(RATT1(f) & P.color[c^1] & RQU)) {
+				occ ^= BIT[ENPASS ^ 8];
+				if (!(RATT1(f, occ) & BIT[k]) || !(RATT1(f, occ) & tb & RQU)) {
 					a = a | BIT[ENPASS];
 				}
-				BOARD ^= BIT[ENPASS ^ 8];
+				occ ^= BIT[ENPASS ^ 8];
 			}
 			regMoves(PREMOVE(f, PAWN), a, mp, 1);
 		}
@@ -652,62 +648,49 @@ int generate(u64 ch, int c, Movep *mp, int noisy, int quiet) {
 
 int swap(Move m) { //SEE
 	int s_list[32], f = FROM(m), t = TO(m), c = ONMV(m), piece = PIECE(m), nc = 1;
-	u64 temp, attacks = ((PCAP(t, 0) | PCAP(t, 1)) & P.piece[PAWN])
+	u64 temp, cAttacks, occ = BOARD, attacks = ((PCAP(t, 0) | PCAP(t, 1)) & P.piece[PAWN])
 						| (nmoves[t] & P.piece[KNIGHT]) | (kmoves[t] & P.piece[KING]);
 
 	s_list[0] = pval[CAP(m)];
-	BOARD &= ~BIT[f];
+	occ &= ~BIT[f];
 
 	do {
 		s_list[nc] = -s_list[nc - 1] + pval[piece];
 		c ^= 1;
-		attacks |= (BATT(t) & BQU) | (RATT(t) & RQU);
-		attacks &= BOARD;
+		attacks |= (BATT(t, occ) & BQU) | (RATT(t, occ) & RQU);
+		attacks &= occ;
+		if (!(cAttacks = attacks & P.color[c])) break;
 
-		if ((temp = P.piece[PAWN] & P.color[c] & attacks)) piece = PAWN;
-		else if ((temp = P.piece[KNIGHT] & P.color[c] & attacks)) piece = KNIGHT;
-		else if ((temp = P.piece[BISHOP] & P.color[c] & attacks)) piece = BISHOP;
-		else if ((temp = P.piece[ROOK] & P.color[c] & attacks)) piece = ROOK;
-		else if ((temp = P.piece[QUEEN] & P.color[c] & attacks)) piece = QUEEN;
-		else if ((temp = P.piece[KING] & P.color[c] & attacks)) { nc += !(P.color[c^1] & attacks); break; }
-		else break;
+		if ((temp = P.piece[PAWN] & cAttacks)) piece = PAWN;
+		else if ((temp = P.piece[KNIGHT] & cAttacks)) piece = KNIGHT;
+		else if ((temp = P.piece[BISHOP] & cAttacks)) piece = BISHOP;
+		else if ((temp = P.piece[ROOK] & cAttacks)) piece = ROOK;
+		else if ((temp = P.piece[QUEEN] & cAttacks)) piece = QUEEN;
+		else { nc += !(P.color[c^1] & attacks); break; } // KING
 
-		BOARD ^= temp & -temp;
+		occ ^= temp & -temp;
 	} while (pval[piece] >= s_list[nc++]);
 
 	while (--nc)
 		if (s_list[nc] > -s_list[nc - 1])
 			s_list[nc - 1] = -s_list[nc];
 
-	BOARD = P.color[0] | P.color[1];
 	return s_list[0];
 }
 
-/* In quiesce the list are ordered just for the value of the captured piece */
-Move qpick(Movep* mp, int s) {
+/* In normal search basic move ordering heuristics are used, in quiesce (ply < 0) value of captured piece */
+Move pick(Movep* mp, int s, int ply) {
 	Move m;
 	int i, t, pi = 0, vmax = -9999;
 	for (i = s; i < mp->n; i++) {
 		m = mp->list[i];
-		t = pval[CAP(m)] - fval[PIECE(m)];
-		if (t > vmax) vmax = t, pi = i;
-	}
-	m = mp->list[pi];
-	if (pi != s) mp->list[pi] = mp->list[s];
-	return m;
-}
-
-/* In normal search some basic move ordering heuristics are used */
-Move spick(Movep* mp, int s, int ply) {
-	Move m;
-	int i, pi = 0, vmax = -(1 << 15);
-	for (i = s; i < mp->n; i++) {
-		m = mp->list[i];
-		if (m == killer[ply]) {
+		if (ply < 0) {
+			t = pval[CAP(m)] - fval[PIECE(m)];
+		} else if (m == killer[ply]) {
 			pi = i;
 			break;
-		}
-		if (vmax < history[m & 0x1FFF]) vmax = history[m & 0x1FFF], pi = i;
+		} else t = history[m & 0x1FFF];
+		if (t > vmax) vmax = t, pi = i;
 	}
 	m = mp->list[pi];
 	if (pi != s) mp->list[pi] = mp->list[s];
@@ -719,8 +702,8 @@ u64 pawnAttack(int c) {
 	return c ? (p &~ fileb[7]) >> 7 | (p &~ fileb[0]) >> 9 : (p &~ fileb[0]) << 7 | (p &~ fileb[7]) << 9;
 }
 
-u64 mobilityb(int c) {
-	u64 b = c ? rankb[6] | (BOARD << 8) : rankb[1] | (BOARD >> 8);
+u64 mobilityb(int c, u64 occ) {
+	u64 b = c ? rankb[6] | (occ << 8) : rankb[1] | (occ >> 8);
 	b &= P.color[c] & P.piece[PAWN];
 	return ~(b | pawnAttack(c^1));
 }
@@ -737,8 +720,8 @@ int kmobilf(int c) {
 #define MOBILITY(a, mb) (bitcnt(a) + bitcnt(a & mb) + bitcnt(a & mb & centr2))
 /* The eval for Color c. It's almost only mobility. */
 int evalc(int c) {
-	int f, mn = 0, katt = 0, oc = c^1, egf = 10400/(80 + P.sf[c] + P.sf[oc]) + random;
-	u64 b, a, cb = P.color[c], ocb = P.color[oc], mb = mobilityb(c) & centr;
+	int f, mn = 0, katt = 0, oc = c^1, egf = 10400/(80 + P.sf[c] + P.sf[oc]) + randm;
+	u64 b, a, cb = P.color[c], ocb = P.color[oc], occ = BOARD, mb = mobilityb(c, occ) & centr;
 	u64 kn = kmoves[P.king[oc]] & (~P.piece[PAWN]);
 
 	b = P.piece[PAWN] & cb;
@@ -754,7 +737,7 @@ int evalc(int c) {
 			ppos -= (openfile ? 32 : 10); // Open file
 		}
 
-		a = POCC(f, c);
+		a = pcaps[c][f] & occ;
 		ppos += bitcnt(a & cb) << 2;
 		katt += bitcnt(a & kn);
 		mn += ppos;
@@ -767,35 +750,34 @@ int evalc(int c) {
 		mn += MOBILITY(a, mb) << 2;
 	}
 
-	BOARD ^= BIT[P.king[oc]]; //Opposite King doesn't block mobility at all
-	BOARD ^= P.piece[QUEEN] & cb; //Own Queen doesn't block mobility for anybody.
+	occ ^= BIT[P.king[oc]]; //Opposite King doesn't block mobility at all
+	occ ^= P.piece[QUEEN] & cb; //Own Queen doesn't block mobility for anybody.
 	b = P.piece[QUEEN] & cb;
 	while (b) {
 		f = pullLsb(&b);
-		a = BATT(f) | RATT(f);
+		a = BATT(f, occ) | RATT(f, occ);
 		katt += bitcnt(a & kn);
 		mn += MOBILITY(a, mb) * egf * egf / 80 / 80;
 	}
 
-	BOARD ^= RQU & ocb; //Opposite Queen & Rooks don't block mobility for bishop
+	occ ^= RQU & ocb; //Opposite Queen & Rooks don't block mobility for bishop
 	b = P.piece[BISHOP] & cb;
 	while (b) {
 		f = pullLsb(&b);
-		a = BATT(f);
+		a = BATT(f, occ);
 		katt += bitcnt(a & kn);
 		mn += MOBILITY(a, mb) << 2;
 	}
 
-	BOARD ^= P.piece[ROOK]; //Own Rooks and opposite Queen don't block mobility for rook
+	occ ^= P.piece[ROOK]; //Own Rooks and opposite Queen don't block mobility for rook
 	b = P.piece[ROOK] & cb;
 	while (b) {
 		f = pullLsb(&b);
-		a = RATT(f);
+		a = RATT(f, occ);
 		katt += bitcnt(a & kn);
 		mn += MOBILITY(a, mb) * egf / 40;
 	}
 
-	BOARD = cb | ocb;
 	return mn + kmobilf(c) + katt * (P.sf[c] + 2); //Adapt bonus for attacking king squares
 }
 
@@ -826,7 +808,7 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 
 	Pos pos; pos.hash = 0;
 	for (i = 0; i < mp.n; i++) {
-		Move m = qpick(&mp, i);
+		Move m = pick(&mp, i, -1);
 		if (!ch && pval[PIECE(m)] > pval[CAP(m)] && swap(m) < 0) continue;
 
 		if (!pos.hash) memcpy(&pos, &P, sizeof(Pos));
@@ -959,16 +941,14 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 			generate(ch, c, &mp, 0, 1);
 		}
 		for (i = 0; i < mp.n; i++) {
-			Move m = n == HASH ? hmove : n == NOISY ? qpick(&mp, i) : spick(&mp, i, ply);
+			Move m = n == HASH ? hmove : n == NOISY ? pick(&mp, i, -1) : pick(&mp, i, ply);
 			if ((n != HASH && m == hmove) || m == sem) continue;
-
-			int quiet = !CAP(m) && !PROM(m);
-			if (!ch && quiet && mpq.n > 2*d*(raising+1)) {
+			if (!ch && n == QUIET && mpq.n > 2*d*(raising+1)) {
 				n = EXIT; break; // LMP
 			}
 			if (n != HASH && alpha > -MAXSCORE+500 && d < 8 && swap(m) < -d*60) continue;
 
-			int ext = 0;
+			int ext = 0, quiet = !CAP(m) && !PROM(m);
 			if (!pos.hash) memcpy(&pos, &P, sizeof(Pos));
 			doMove(m, c);
 			if (quiet) mpq.list[mpq.n++] = m;
@@ -1148,15 +1128,12 @@ int calc(int tm) {
 			}
 		}
 	}
-	if ((!book || analyze) && random) random = analyze ? 0 : (int)(hashxor[starttime & 4095] & 0xF) % 6;
+	if ((!book || analyze) && randm) randm = analyze ? 0 : (int)(hashxor[starttime & 4095] & 0xF) % 6;
 	if (!book || analyze) for (d = 1; d <= sd; d++) {
 		int alpha = d > 6 ? w - 13 : -MAXSCORE, beta = d > 6 ? w + 13: MAXSCORE, delta = 18;
 		Move bestm = pv[0][0];
 
 		for (;;) {
-			if (alpha < -pval[QUEEN]*2) alpha = -MAXSCORE;
-			if (beta > pval[QUEEN]*2) beta = MAXSCORE;
-
 			w = search(ch, onmove, d, 0, alpha, beta, 0, 0);
 			if (sabort) break;
 
@@ -1240,7 +1217,7 @@ int protV2(char* buf, int parse) {
 	else if (!strncmp(buf,"result",6)) return -6; //result 0-1 {Black mates}
 	else if (!strncmp(buf,"st",2)) sscanf(buf+3,"%d",&st);
 	else if (!strncmp(buf,"?",1)) return 1;
-	else if (!strncmp(buf,"random",6)) random = 1;
+	else if (!strncmp(buf,"random",6)) randm = 1;
 	else if (!strncmp(buf,"rating",6) || !strncmp(buf,"name",4)) ics = 1; //ICS: rating <myrat> <oprat>, name <opname>
 	else if (!strncmp(buf,"perft",5)) { int i; for (i = 1; i <= sd && !bioskey(); i++) printPerft(onmove, i); }
 	else if (!strncmp(buf,"divide",6)) perft(onmove, sd, 1);
@@ -1288,7 +1265,7 @@ int main(int argc, char **argv) {
 	_init_pawns(pmoves[0], pcaps[0], pawnfree[0], pawnfile[0], pawnhelp[0], pawnprg[0], 0);
 	_init_pawns(pmoves[1], pcaps[1], pawnfree[1], pawnfile[1], pawnhelp[1], pawnprg[1], 1);
 
-	for (i = 0; i < 64; i++) n = bitcnt(nmoves[i]), kmobil[i] = MAX(n, 3) * 10;
+	for (i = 0; i < 64; i++) n = bitcnt(nmoves[i]), kmobil[i] = n == 2 ? 33 : n*10;
 	for (i = 0; i < 64; i++) n = bitcnt(nmoves[i]), centr |= n >= 4 ? BIT[i] : 0L, centr2 |= n >= 8 ? BIT[i] : 0L;
 	for (i = 0; i < 32; i++) bishcorn[i] = bishcorn[63-i] = (i&7) < 4 ? cornbase[(i&7) +i/8] : -cornbase[7-(i&7) +i/8];
 	_newGame();
