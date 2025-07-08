@@ -1,5 +1,5 @@
-#define VER "5.11.6"
-/* OliThink5 (c) Oliver Brausch 03.Juk.2025, ob112@web.de, http://brausch.org */
+#define VER "5.11.7a"
+/* OliThink5 (c) Oliver Brausch 04.Jul.2025, ob112@web.de, http://brausch.org */
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -751,7 +751,7 @@ int evalc(int c) {
 	}
 
 	occ ^= BIT[P.king[oc]]; //Opposite King doesn't block mobility at all
-	occ ^= P.piece[QUEEN] & cb; //Own Queen doesn't block mobility for anybody.
+	occ ^= P.piece[QUEEN]; //Queens don't block mobility for anybody.
 	b = P.piece[QUEEN] & cb;
 	while (b) {
 		f = pullLsb(&b);
@@ -760,7 +760,7 @@ int evalc(int c) {
 		mn += MOBILITY(a, mb) * egf * egf / 80 / 80;
 	}
 
-	occ ^= RQU & ocb; //Opposite Queen & Rooks don't block mobility for bishop
+	occ ^= P.piece[ROOK]; //Rooks don't block mobility for bishop
 	b = P.piece[BISHOP] & cb;
 	while (b) {
 		f = pullLsb(&b);
@@ -769,7 +769,6 @@ int evalc(int c) {
 		mn += MOBILITY(a, mb) << 2;
 	}
 
-	occ ^= P.piece[ROOK]; //Own Rooks and opposite Queen don't block mobility for rook
 	b = P.piece[ROOK] & cb;
 	while (b) {
 		f = pullLsb(&b);
