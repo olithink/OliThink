@@ -1,5 +1,5 @@
-#define VER "5.11.7a"
-/* OliThink5 (c) Oliver Brausch 04.Jul.2025, ob112@web.de, http://brausch.org */
+#define VER "5.11.7b"
+/* OliThink5 (c) Oliver Brausch 08.Jul.2025, ob112@web.de, http://brausch.org */
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -717,12 +717,12 @@ int kmobilf(int c) {
 	return sfo < 14 ? km : km * (16 - sfo) /4;
 }
 
-#define MOBILITY(a, mb) (bitcnt(a) + bitcnt(a & mb) + bitcnt(a & mb & centr2))
+#define MOBILITY(a, mb) (bitcnt(a) + bitcnt(a & mb) + bitcnt(a & mb & c3))
 /* The eval for Color c. It's almost only mobility. */
 int evalc(int c) {
 	int f, mn = 0, katt = 0, oc = c^1, egf = 10400/(80 + P.sf[c] + P.sf[oc]) + randm;
 	u64 b, a, cb = P.color[c], ocb = P.color[oc], occ = BOARD, mb = mobilityb(c, occ) & centr;
-	u64 kn = kmoves[P.king[oc]] & (~P.piece[PAWN]);
+	u64 kn = kmoves[P.king[oc]] & (~P.piece[PAWN]), c3 = centr2 | rankb[c ? 1 : 6];
 
 	b = P.piece[PAWN] & cb;
 	while (b) {
