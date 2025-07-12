@@ -1,6 +1,6 @@
-OliThink5 (c) Oliver Brausch 03.Jul.2025, ob112@web.de, http://brausch.org
+OliThink5 (c) Oliver Brausch 12.Jul.2025, ob112@web.de, http://brausch.org
 
-Version: 5.11.6
+Version: 5.11.7
 Protocol: CECP v2 (winboard/xboard)
 HashSize: 128MB
 Ponder: Yes
@@ -9,9 +9,12 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Reduction, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1295
+LinesOfCode: 1294
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
+
+v5.11.7: changes since 5.11.6:
+Simplify mobility eval. Rank seven.
 
 v5.11.6: changes since 5.11.5:
 Unify pick method. Reduce code. SEE refactor. Use local occupied. Corner eval for king.
