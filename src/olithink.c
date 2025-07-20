@@ -1,5 +1,5 @@
-#define VER "5.11.7"
-/* OliThink5 (c) Oliver Brausch 12.Jul.2025, ob112@web.de, http://brausch.org */
+#define VER "5.11.8a"
+/* OliThink5 (c) Oliver Brausch 21.Jul.2025, ob112@web.de, http://brausch.org */
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -932,7 +932,8 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 			mp.n = 1;
 			if (d >= 8 && ply && he->type == LOWER && he->depth >= d - 3) {
 				int bc = he->value - d;
-				nd += search(ch, c, d >> 1, ply, bc-1, bc, 0, hmove) < bc;  // Singular extensions
+				int ss = search(ch, c, d >> 1, ply, bc-1, bc, 0, hmove);  // Singular extensions
+				if (ss < bc) nd++; else if (ss >= beta) return (ss + beta)/2;
 			}
 		} else if (n == NOISY) {
 			generate(ch, c, &mp, 1, 0);
@@ -959,7 +960,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 				if (his > hismax) hismax = his;
 				else if (d < 5 && (his < 0 || his*his < hismax)) {
 					undoMove(0, c); memcpy(&P, &pos, sizeof(Pos)); continue;
-				} else if (d >= 2) ext-= (d + 1)/3;
+				} else ext-= (d + 1)/3;
 			}
 
 			int firstPVNode = first == NO_MOVE && pvnode;
@@ -1150,8 +1151,7 @@ int calc(int tm) {
 		if (sabort) break;
 		if (pondering) continue;
 		if (d >= MAXSCORE - w) break;
-		if (t1 < searchtime || d == 1) continue;
-		if (bestm == pv[0][0] || t1 > searchtime*3) break;
+		if (t1 > searchtime && d > 1 && (bestm == pv[0][0] || t1 > searchtime*3)) break;
 	}
 	if (analyze) return 1;
 	pondering = 0;
