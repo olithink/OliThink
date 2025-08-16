@@ -1,5 +1,5 @@
-#define VER "5.11.8"
-/* OliThink5 (c) Oliver Brausch 23.Jul.2025, ob112@web.de, http://brausch.org */
+#define VER "5.11.9"
+/* OliThink5 (c) Oliver Brausch 16.Aug.2025, ob112@web.de, http://brausch.org */
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -98,7 +98,7 @@ static u64 pmoves[2][64],pawnprg[2][64], pawnfree[2][64], pawnfile[2][64], pawnh
 static u64 BIT[64], nmoves[64], kmoves[64], bmask135[64], bmask45[64], rmask0[64];
 static u64 rankb[8], fileb[8], raysRank[8][64], raysAFile[8][64], xrayRank[8][64], xrayAFile[8][64];
 static u64 whitesq, centr, centr2, maxtime, starttime, eval1, nodes, qnodes;
-static u32 crevoke[64], count, flags, ics = 0, ponder = 0, pondering = 0, analyze = 0;
+static u32 crevoke[64], count, flags, ponder = 0, pondering = 0, analyze = 0;
 static Move pv[128][128], pon = 0, bkmove[BKSIZE*32], killer[128];
 static int wstack[0x400], history[0x2000];
 static int kmobil[64], bishcorn[64];
@@ -131,7 +131,7 @@ void _parse_fen(char *fen, int reset) {
 	char s, mv, pos[128], cas[5], enps[3];
 	int c, i, halfm = 0, fullm = 1, col = 0, row = 7;
 	memset(&P, 0, sizeof(P));
-	book = i = c = 0; cas[0] = enps[0] = 0;
+	book = i = c = 0; cas[0] = enps[0] = pv[0][0] = 0;
 	sscanf(fen, "%s %c %s %s %d %d", pos, &mv, cas, enps, &halfm, &fullm); if (fullm < 1) fullm = 1;
 	while ((s = pos[i++])) {
 		if (s == '/') {
@@ -823,16 +823,17 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 				if ((alpha = w) >= beta) return beta;
 			}
 		}
+		if (ch) break;
 	}
 	return best > -MAXSCORE ? best : eval(c);
 }
 
-int retPVMove(int c, int ply) {
+int retPVMove(int c) {
 	int i;
 	Movep mp; GENERATE(c, &mp);
 	for (i = 0; i < mp.n; i++) {
 		Move m = mp.list[i];
-		if (m == pv[0][ply]) return m;
+		if (m == pv[0][0]) return m;
 	}
 	return 0;
 }
@@ -840,14 +841,13 @@ int retPVMove(int c, int ply) {
 int inputSearch() {
 	fgets(irbuf,255,stdin);
 	int ex = protV2(irbuf, 0);
-	if (analyze) { if (ex <= -1) return ex; else ex = 0; }
-	if (!ponder || ex || engine != onmove) pondering = analyze;
+	if (analyze) return ex <= -1 ? ex : 1;
 	if (!ex) irbuf[0] = 0;
 	if (ex < -1) return ex;
-	if (ex != -1) return !pondering;
+	if (ex != -1) return !ponder;
 	ex = parseMove(irbuf, ONMV(pon), pon);
 	if (!ex || ex == -1) return -1;
-	irbuf[0] = 0; pon = 0;
+	irbuf[0] = 0; pon = pondering = 0;
 	return -(ttime < 50);
 }
 
@@ -876,7 +876,8 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 
 	if (ply) pv[ply][ply] = 0;
 	if ((++nodes & CNODES) == 0) {
-		while (bioskey() && !sabort) sabort = inputSearch();
+		while ((bioskey() && !sabort) || (pondering && !ponder && sabort != -2 && !analyze)
+			|| (engine == -1 && sabort != -1 && sabort != -2 && sabort != -3 && !analyze)) sabort = inputSearch();
 		if (!pondering && getTime() - starttime > maxtime) sabort = 1;
 	}
 	if (sabort) return alpha;
@@ -891,7 +892,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 	if (beta > MAXSCORE-ply-1) beta = MAXSCORE-ply-1;
 	if (alpha >= beta) return alpha;
 
-	Move hmove = ply ? 0 : retPVMove(c, 0);
+	Move hmove = ply ? 0 : retPVMove(c);
 
 	entry* he = &hashDB[hp & HMASK];
 	if (he->key == hp && !sem) {
@@ -903,6 +904,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 	}
 
 	int wstat = wstack[COUNT] = ch ? -MAXSCORE : he->key == hp ? he->value : eval(c);
+	if (!ch && he->key != hp) *he = (entry) {.key = hp, .move = hmove, .value = wstat, .depth = d, .type = LOWER};
 	if (!ch && !pvnode) {
 		if (d <= 3 && wstat + 400 < beta) { w = quiesce(ch, c, ply, alpha, beta); if (w < beta) return w; }
 		if (d <= 8 && wstat - 88*d > beta) return beta;
@@ -1144,33 +1146,29 @@ int calc(int tm) {
 		}
 
 		t1 = (u32)(getTime() - starttime);
-		if (post && pv[0][0] && (!sabort || (!analyze && sabort>=1)) && w > -MAXSCORE) {
+		if (post && pv[0][0] && (!sabort || (!analyze && sabort>=1)) && w > -MAXSCORE && (!pon || pondering)) {
 			printf("%2d %5d %6lu %9llu  ", d, MEVAL(w), (t1+4)/10, nodes + qnodes);
 			displaypv(); printf("\n");
 		}
 		if (sabort) break;
 		if (pondering) continue;
-		if (d >= MAXSCORE - w) break;
-		if (t1 > searchtime && d > 1 && (bestm == pv[0][0] || t1 > searchtime*3)) break;
+		if (d > 1 && t1 > searchtime*(bestm == pv[0][0] ? 1 : 3)) break;
 	}
-	if (analyze) return 1;
-	pondering = 0;
+	pondering = analyze;
 	if (sabort < -1) { pon = 0; return sabort; }
 	if (pon) {
 		undo();
 		pon = 0;
 		return engine != onmove;
 	}
+	if (engine == -1) return analyze;
 	printf("move "); displaym(pv[0][0]); printf("\n");
-
-	if (post && ics) printf("kibitz W: %d Nodes: %llu QNodes: %llu Evals: %llu ms: %lu knps: %llu\n",
-						MEVAL(w), nodes, qnodes, eval1, t1, (nodes+qnodes)/(t1+1));
 
 	return execMove(pv[0][0]);
 }
 
 int doponder(int c) {
-	pon = retPVMove(c, 0);
+	pon = retPVMove(c);
 	if (pon) {
 		pondering = 1;
 		if (execMove(pon)) {
@@ -1197,13 +1195,14 @@ u64 perft(int c, int d, int div) {
 
 void printPerft(int c, int i) { printf("Depth: %d Nodes: %lld%c\n", i, perft(c, i, 0), bioskey() ? '+' : ' '); }
 
-char comreturn[][9] = {"xboard", ".", "bk", "draw", "hint", "computer", "accepted", "rejected", // ignored
-						"quit", "new", "remove", "analyze", "exit", "force", "undo"}; // return 6-index
+char comreturn[][9] = {"xboard", ".", "bk", "draw", "hint", "computer", "accepted", "rejected", "rating", "name",// ign
+						"quit", "new", "remove", "undo"}; // return 8-index
 char* ft = "feature setboard=1 myname=\"OliThink "VER"\" variants=\"normal\" colors=0 ping=1 sigint=0 sigterm=0 done=1";
 int protV2(char* buf, int parse) {
 	if (!strncmp(buf,"protover",8)) printf("%s\n", ft);
-	else if (!strncmp(buf,"ping",4)) { buf[1] = 'o'; printf("%s", buf); fgets(buf,255,stdin); return protV2(buf, 0); }
-	else if (!strncmp(buf,"time",4)) { sscanf(buf+5,"%d",&ttime); maxtime = MIN(maxtime, ttime*9UL); }
+	else if (!strncmp(buf,"ping",4)) { buf[1] = 'o'; printf("%s", buf); }
+	else if (!strncmp(buf,"force",5)) pondering = 0, engine = -1;
+	else if (!strncmp(buf,"time",4)) { sscanf(buf+5,"%d",&ttime); st = 0; maxtime = MIN(maxtime, ttime*9UL); }
 	else if (!strncmp(buf,"otim",4));
 	else if (!strncmp(buf,"go",2)) engine = pondering ? onmove^1 : onmove;
 	else if (!strncmp(buf,"setboard",8)) if (parse) _parse_fen(buf+9, 1); else return -9;
@@ -1216,15 +1215,16 @@ int protV2(char* buf, int parse) {
 	else if (!strncmp(buf,"result",6)) return -6; //result 0-1 {Black mates}
 	else if (!strncmp(buf,"st",2)) sscanf(buf+3,"%d",&st);
 	else if (!strncmp(buf,"?",1)) return 1;
-	else if (!strncmp(buf,"random",6)) randm = 1;
-	else if (!strncmp(buf,"rating",6) || !strncmp(buf,"name",4)) ics = 1; //ICS: rating <myrat> <oprat>, name <opname>
+	else if (!strncmp(buf,"random",6)) randm = !randm;
+	else if (!strncmp(buf,"analyze",7)) analyze = pondering = 1, engine = -1;
+	else if (!strncmp(buf,"exit",4)) analyze = pondering = 0;
 	else if (!strncmp(buf,"perft",5)) { int i; for (i = 1; i <= sd && !bioskey(); i++) printPerft(onmove, i); }
 	else if (!strncmp(buf,"divide",6)) perft(onmove, sd, 1);
 	else if (strchr(buf, '/') != NULL && strlen(buf)>16) {
 		engine = -1; analyze = pondering = 1; if (parse) _parse_fen(buf, 1); else return -9; }
 	else if (buf[0] == 0 || buf[0] == '\n');
 	else {
-		int i; for (i = 0; i < 15 ; i++) if (!strncmp(buf, comreturn[i], strlen(comreturn[i]))) return i < 8 ? 0 : 6-i;
+		int i; for (i = 0; i < 14; i++) if (!strncmp(buf, comreturn[i], strlen(comreturn[i]))) return i < 10 ? 0 : 8-i;
 		return -1;
 	}
 	return 0;
@@ -1286,10 +1286,7 @@ int main(int argc, char **argv) {
 		if (ex == -2) break;
 		if (ex == -3) _newGame();
 		if (ex == -4) { undo(); undo(); }
-		if (ex == -5) analyze = pondering = 1, engine = -1;
-		if (ex == -6) analyze = pondering = 0;
-		if (ex == -7) pondering = 0, engine = -1;
-		if (ex == -8) undo();
+		if (ex == -5) undo();
 	}
 	return 0;
 }
