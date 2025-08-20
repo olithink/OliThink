@@ -1,7 +1,8 @@
 #define VER "5.11.9uci"
-/* OliThink5 (c) Oliver Brausch 19.Aug.2025, ob112@web.de, http://brausch.org (uci by Jim Abblet) */
+/* OliThink5 (c) Oliver Brausch 20.Aug.2025, ob112@web.de, http://brausch.org (uci by Jim Abblet) */
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #ifdef _WIN64
 #include <windows.h>
 #include <conio.h>
@@ -105,7 +106,7 @@ static int kmobil[64], bishcorn[64];
 static int _knight[8] = {-17,-10,6,15,17,10,-6,-15};
 static int _king[8] = {-9,-1,7,8,9,1,-7,-8};
 static int book, bkflag[BKSIZE], bkcount[3];
-static int sabort, onmove, randm, sd = 64, ttime = 30000, mps = 0, inc = 0, post = 1, st = 0;
+static int sabort, onmove, randm, sd = 64, ttime = 30000, mps = 0, inc = 0, post = 1, st = 0, movestogo = 0, thinking = 0;
 static char irbuf[256], base[16];
 static char *sfen = "rnbqkbnr/pppppppp/////PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const char pieceChar[] = "*PNK.BRQ";
@@ -344,7 +345,7 @@ int bioskey() {
 	FD_ZERO (&readfds);
 	FD_SET (fileno(stdin), &readfds);
 	tv.tv_sec=0; tv.tv_usec=0;
-	select(16, &readfds, 0, 0, &tv);
+	select(fileno(stdin) + 1, &readfds, 0, 0, &tv);
 
 	return (FD_ISSET(fileno(stdin), &readfds));
 }
@@ -792,9 +793,12 @@ int eval(int c) {
 int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 	int i, best = -MAXSCORE;
 
+	// Check for time-out and set abort flag unconditionally
+	if (!pondering && getTime() - starttime > maxtime) sabort = 1;
+
+	// Perform other periodic checks
 	if ((++qnodes & CNODES) == 0) {
 		if (bioskey() && !sabort) sabort = 1;
-		if (!pondering && getTime() - starttime > maxtime) sabort = 1;
 		if (node_limit > 0 && (nodes + qnodes) >= node_limit) sabort = 1;
 	}
 	if (sabort) return -MAXSCORE;
@@ -822,6 +826,12 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 		qnodes++;
 
 		int w = -quiesce(attacked(P.king[c^1], c^1), c^1, ply + 1, -beta, -alpha);
+
+		if (sabort) { // Fix: Check for abort after recursive call in quiesce
+			undoMove(0, c);
+			memcpy(&P, &pos, sizeof(Pos));
+			return -MAXSCORE;
+		}
 
 		undoMove(0, c); memcpy(&P, &pos, sizeof(Pos));
 
@@ -869,10 +879,14 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 	int i, j, n, w = alpha, oc = c^1, pvnode = beta > alpha + 1;
 
 	if (ply) pv[ply][ply] = 0;
+
+	// Check for time-out and set abort flag unconditionally
+	if (!pondering && getTime() - starttime > maxtime) sabort = 1;
+
+	// Perform other periodic checks
 	if ((++nodes & CNODES) == 0) {
 		if (bioskey() && !sabort) sabort = 1;
-		if (!pondering && getTime() - starttime > maxtime) sabort = 1;
-		if (node_limit > 0 && (nodes + qnodes) >= node_limit) sabort = 1; // Fix: Added node limit check
+		if (node_limit > 0 && (nodes + qnodes) >= node_limit) sabort = 1;
 	}
 	// FIX: Return a special value on abort to indicate unreliability
 	if (sabort) return -MAXSCORE;
@@ -1044,7 +1058,6 @@ int parseMove(char *s, int c, Move p) {
 	return 0;
 }
 
-
 void displaym(Move m) {
 	printf("%c%c%c%c", 'a' + FROM(m) % 8, '1' + FROM(m) / 8, 'a' + TO(m) % 8, '1' + TO(m) / 8);
 	if (PROM(m)) printf("%c", pieceChar[PROM(m)]+32);
@@ -1057,20 +1070,34 @@ void displaypv() {
 	}
 }
 
+void reset_uci_parameters() {
+	ttime = 30000;
+	inc = 0;
+	sd = 64;
+	st = 0;
+	mps = 0;
+	movestogo = 0;
+	pondering = 0;
+	node_limit = 0;
+	analyze = 0;
+}
+
 void calc(int tm) {
 	int i, j, w, d, m2go;
 	nodes = qnodes = 0LL;
 	node_limit = 0;
-	if (!mps) {
-		m2go = mps == 0 ? 32 : 1 + mps - ((COUNT/2) % mps);
-	} else {
-		m2go = mps; // uci movestogo
-	}
+
+	if (!mps) m2go = mps == 0 ? 32 : 1 + mps - ((COUNT/2) % mps);
+	if (movestogo) m2go = movestogo; // uci movestogo
+
 	u32 searchtime = 0;
-	if (st > 0) searchtime = st*1000LL;
-	else {
-		u32 tmsh = MAX(tm*8L-50-m2go*5, 5);
-		searchtime = MIN(tm*6UL/m2go + inc*500L, tmsh);
+	if (st > 0) {
+		searchtime = st;
+	} else {
+		// Allocate time based on remaining time and moves to go
+		searchtime = ttime / m2go + inc;
+		// Adjust the search time to not consume all remaining time
+		searchtime = (u32)(searchtime * 0.9); // Use 90% of the calculated time
 	}
 	maxtime = searchtime;
 
@@ -1202,31 +1229,21 @@ void uci_loop() {
 			printf("readyok\n");
 		} else if (strncmp(line, "ucinewgame", 10) == 0) {
 			_newGame();
+			reset_uci_parameters();
 		} else if (strncmp(line, "position", 8) == 0) {
 			do_uci_position(line + 9);
 		} else if (strncmp(line, "go", 2) == 0) {
-			char *token = strtok(line + 3, " ");
-			ttime = 30000;
-			inc = 0;
-			sd = 64;
-			st = 0;
-			mps = 0; // Initialize mps
-			pondering = 0;
-			node_limit = 0; // Initialize node_limit to 0
+			reset_uci_parameters();
 
-			while (token != NULL) {
+			char* token = strtok(line + 3, " ");
+
+			while(token != NULL) {
 				if (strcmp(token, "wtime") == 0) {
 					token = strtok(NULL, " ");
-					if (onmove == 0) {
-						ttime = atoi(token);
-						if (ttime > 1000) ttime /= 8.0;
-					}
+					if (onmove == 0) ttime = atoi(token);
 				} else if (strcmp(token, "btime") == 0) {
 					token = strtok(NULL, " ");
-					if (onmove == 1) {
-						ttime = atoi(token);
-						if (ttime > 1000) ttime /= 8.0;
-					}
+					if (onmove == 1) ttime = atoi(token);
 				} else if (strcmp(token, "winc") == 0) {
 					token = strtok(NULL, " ");
 					if (onmove == 0) inc = atoi(token);
@@ -1246,16 +1263,14 @@ void uci_loop() {
 					pondering = 1;
 				} else if (strcmp(token, "movestogo") == 0) {
 					token = strtok(NULL, " ");
-					mps = atoi(token);
+					movestogo = atoi(token);
 				}
 				token = strtok(NULL, " ");
-			} //
-			if (pondering) {
-				// Pondering logic is already in calc, just need to call it.
-				calc(ttime);
-			} else {
-				calc(ttime);
-			} //
+			}
+
+			thinking = 1;
+			calc(ttime);
+			thinking = 0;
 		} else if (strncmp(line, "stop", 4) == 0) {
 			sabort = 1;
 		} else if (strncmp(line, "ponderhit", 9) == 0) {
