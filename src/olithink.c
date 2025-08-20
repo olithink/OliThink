@@ -1,5 +1,5 @@
-#define VER "5.11.9"
-/* OliThink5 (c) Oliver Brausch 16.Aug.2025, ob112@web.de, http://brausch.org */
+#define VER "5.11.9uci"
+/* OliThink5 (c) Oliver Brausch 19.Aug.2025, ob112@web.de, http://brausch.org (uci by Jim Abblet) */
 #include <stdio.h>
 #include <string.h>
 #ifdef _WIN64
@@ -91,7 +91,7 @@ typedef struct {
 	u64 piece[8];
 } Pos;
 
-static Pos P;
+static Pos P; static u64 node_limit;
 static entry hashDB[HMASK+1];
 static u64 hstack[0x400], mstack[0x400], hashxor[0x1000];
 static u64 pmoves[2][64],pawnprg[2][64], pawnfree[2][64], pawnfile[2][64], pawnhelp[2][64], RANK[2][64], pcaps[2][192];
@@ -105,7 +105,7 @@ static int kmobil[64], bishcorn[64];
 static int _knight[8] = {-17,-10,6,15,17,10,-6,-15};
 static int _king[8] = {-9,-1,7,8,9,1,-7,-8};
 static int book, bkflag[BKSIZE], bkcount[3];
-static int sabort, onmove, randm, engine =-1, sd = 64, ttime = 30000, mps = 0, inc = 0, post = 1, st = 0;
+static int sabort, onmove, randm, sd = 64, ttime = 30000, mps = 0, inc = 0, post = 1, st = 0;
 static char irbuf[256], base[16];
 static char *sfen = "rnbqkbnr/pppppppp/////PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const char pieceChar[] = "*PNK.BRQ";
@@ -203,7 +203,7 @@ void _newGame() {
 	}
 	_parse_fen(sfen, 1);
 	if (bkcount[0] > 0 || bkcount[1] > 0) book = 1;
-	engine = 1; randm = 0;
+	randm = 0;
 }
 
 void _init_pawns(u64* moves, u64* caps, u64* freep, u64* filep, u64* helpp, u64* prgp, int c) {
@@ -792,6 +792,13 @@ int eval(int c) {
 int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 	int i, best = -MAXSCORE;
 
+	if ((++qnodes & CNODES) == 0) {
+		if (bioskey() && !sabort) sabort = 1;
+		if (!pondering && getTime() - starttime > maxtime) sabort = 1;
+		if (node_limit > 0 && (nodes + qnodes) >= node_limit) sabort = 1;
+	}
+	if (sabort) return -MAXSCORE;
+
 	if (ply == 127) return eval(c);
 	if (!ch) do {
 		int cmat = (c ? -MAT : MAT);
@@ -838,19 +845,6 @@ int retPVMove(int c) {
 	return 0;
 }
 
-int inputSearch() {
-	fgets(irbuf,255,stdin);
-	int ex = protV2(irbuf, 0);
-	if (analyze) return ex <= -1 ? ex : 1;
-	if (!ex) irbuf[0] = 0;
-	if (ex < -1) return ex;
-	if (ex != -1) return !ponder;
-	ex = parseMove(irbuf, ONMV(pon), pon);
-	if (!ex || ex == -1) return -1;
-	irbuf[0] = 0; pon = pondering = 0;
-	return -(ttime < 50);
-}
-
 int isDraw(u64 hp, int nrep) {
 	if (count > 0xFFF) { //fifty > 3
 		int i, c = 0, n = COUNT - (count >> 10);
@@ -872,15 +866,16 @@ static int nullvariance(int delta) {
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #define HASHP (P.hash ^ hashxor[flags | 1024 | c << 11])
 int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move sem) {
-	int i, j, n, w, oc = c^1, pvnode = beta > alpha + 1;
+	int i, j, n, w = alpha, oc = c^1, pvnode = beta > alpha + 1;
 
 	if (ply) pv[ply][ply] = 0;
 	if ((++nodes & CNODES) == 0) {
-		while ((bioskey() && !sabort) || (pondering && !ponder && sabort != -2 && !analyze)
-			|| (engine == -1 && sabort != -1 && sabort != -2 && sabort != -3 && !analyze)) sabort = inputSearch();
+		if (bioskey() && !sabort) sabort = 1;
 		if (!pondering && getTime() - starttime > maxtime) sabort = 1;
+		if (node_limit > 0 && (nodes + qnodes) >= node_limit) sabort = 1; // Fix: Added node limit check
 	}
-	if (sabort) return alpha;
+	// FIX: Return a special value on abort to indicate unreliability
+	if (sabort) return -MAXSCORE;
 
 	u64 hp = HASHP;
 	if (ply && isDraw(hp, 1)) return 0;
@@ -968,10 +963,11 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 			int firstPVNode = first == NO_MOVE && pvnode;
 			if (!firstPVNode) w = -search(nch, oc, nd+ext, ply+1, -alpha-1, -alpha, 1, 0);
 			if (ext < 0 && w > alpha) w = -search(nch, oc, nd, ply+1, -alpha-1, -alpha, 1, 0);
-			if (firstPVNode || (w > alpha && w < beta)) w = -search(nch, oc, nd, ply+1, -beta, -alpha, 0, 0);
+			if (firstPVNode || (w > alpha && w < beta)) w = -search(nch, oc, nd+ext, ply+1, -beta, -alpha, 0, 0);
 
 			undoMove(0, c); memcpy(&P, &pos, sizeof(Pos));
-			if (sabort) return alpha;
+			// FIX: Check for abort after each recursive call
+			if (sabort) return -MAXSCORE;
 
 			if (w > alpha) {
 				alpha = w, first = GOOD_MOVE;
@@ -1002,35 +998,6 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 	if (!sem) *he = (entry) {.key = hp, .move = hmove, .value = alpha, .depth = d, .type = type};
 
 	return alpha;
-}
-
-int execMove(Move m) {
-	doMove(m, onmove);
-	onmove ^= 1;
-	int i, c = onmove;
-	if (book) for (i = 0; i < BKSIZE; i++) {
-		if (bkflag[i] < 2 && (bkmove[i*32 + COUNT - 1] != m || bkmove[i*32 + COUNT] == 0)) {
-			bkcount[bkflag[i]]--;
-			bkflag[i] = 2;
-		}
-	}
-	hstack[COUNT] = HASHP;
-	for (i = 0; i < 127; i++) pv[0][i] = pv[0][i+1];
-	Movep mp; i = GENERATE(c, &mp);
-	if (pondering) return (mp.n == 0);
-	if (mp.n == 0) {
-		if (!i) {
-			printf("1/2-1/2 {Stalemate}\n"); return 4;
-		} else {
-			printf(c ? "1-0 {White mates}\n" : "0-1 {Black mates}\n"); return 5 + c;
-		}
-	}
-	switch (isDraw(HASHP, 2)) {
-		case 1: printf("1/2-1/2 {Draw by Repetition}\n"); return 1;
-		case 2: printf("1/2-1/2 {Draw by Fifty Move Rule}\n"); return 2;
-		case 3: printf("1/2-1/2 {Insufficient material}\n"); return 3;
-	}
-	return 0;
 }
 
 #define ISRANK(c) (c >= '1' && c <= '8')
@@ -1077,23 +1044,6 @@ int parseMove(char *s, int c, Move p) {
 	return 0;
 }
 
-int parseMoveNExec(char *s, int c) {
-	Move m = parseMove(s, c, 0);
-	if (m == -1) printf("UNKNOWN COMMAND: %s\n", s);
-	else if (m == 0) fprintf(stderr,"Illegal move: %s\n",s);
-	else return execMove(m);
-	return -1;
-}
-
-void undo() {
-	int i, cnt = COUNT - 1;
-	if (cnt < 0) return;
-	onmove ^= 1;
-	Move m = mstack[cnt] >> 27L;
-	undoMove(m, onmove);
-	for (i = 127; i > 0; i--) pv[0][i] = pv[0][i-1];
-	pv[0][0] = m;
-}
 
 void displaym(Move m) {
 	printf("%c%c%c%c", 'a' + FROM(m) % 8, '1' + FROM(m) / 8, 'a' + TO(m) % 8, '1' + TO(m) / 8);
@@ -1102,17 +1052,32 @@ void displaym(Move m) {
 
 void displaypv() {
 	int i;
-	if (pon && pondering) { printf("("); displaym(pon); printf(") "); }
 	for (i = 0; pv[0][i]; i++) {
 		displaym(pv[0][i]); printf(" ");
 	}
 }
 
-int calc(int tm) {
-	int i, j, w, d, m2go = mps == 0 ? 32 : 1 + mps - ((COUNT/2) % mps);
-	u32 t1 = 0, tmsh = MAX(tm*8L-50-m2go*5, 5), searchtime = MIN(tm*6UL/m2go + inc*500L, tmsh);
-	maxtime = MIN(searchtime*5L, tmsh);
-	if (st > 0) maxtime = searchtime = st*1000LL;
+void calc(int tm) {
+	int i, j, w, d, m2go;
+	nodes = qnodes = 0LL;
+	node_limit = 0;
+	if (!mps) {
+		m2go = mps == 0 ? 32 : 1 + mps - ((COUNT/2) % mps);
+	} else {
+		m2go = mps; // uci movestogo
+	}
+	u32 searchtime = 0;
+	if (st > 0) searchtime = st*1000LL;
+	else {
+		u32 tmsh = MAX(tm*8L-50-m2go*5, 5);
+		searchtime = MIN(tm*6UL/m2go + inc*500L, tmsh);
+	}
+	maxtime = searchtime;
+
+	if (pondering) {
+		// If pondering, use half the remaining time
+		maxtime = (ttime + inc * m2go)/2;
+	}
 
 	starttime = getTime();
 	u64 ch = attacked(P.king[onmove], onmove);
@@ -1130,8 +1095,7 @@ int calc(int tm) {
 			}
 		}
 	}
-	if ((!book || analyze) && randm) randm = analyze ? 0 : (int)(hashxor[starttime & 4095] & 0xF) % 6;
-	if (!book || analyze) for (d = 1; d <= sd; d++) {
+	if (!book) for (d = 1; d <= sd; d++) {
 		int alpha = d > 6 ? w - 13 : -MAXSCORE, beta = d > 6 ? w + 13: MAXSCORE, delta = 18;
 		Move bestm = pv[0][0];
 
@@ -1145,101 +1109,166 @@ int calc(int tm) {
 			delta += delta * 2 / 3;
 		}
 
-		t1 = (u32)(getTime() - starttime);
-		if (post && pv[0][0] && (!sabort || (!analyze && sabort>=1)) && w > -MAXSCORE && (!pon || pondering)) {
-			printf("%2d %5d %6lu %9llu  ", d, MEVAL(w), (t1+4)/10, nodes + qnodes);
-			displaypv(); printf("\n");
-		}
+		u32 t1 = (u32)(getTime() - starttime);
+		if (pv[0][0] && w > -MAXSCORE && (!pon || pondering)) {
+			printf("info depth %d score cp %d time %lu nodes %llu nps %llu pv ", d, MEVAL(w), t1, nodes + qnodes, nodes * 1000 / (t1 + 1));
+			displaypv();
+			printf("\n");
+		} //
 		if (sabort) break;
-		if (pondering) continue;
-		if (d > 1 && t1 > searchtime*(bestm == pv[0][0] ? 1 : 3)) break;
-	}
-	pondering = analyze;
-	if (sabort < -1) { pon = 0; return sabort; }
-	if (pon) {
-		undo();
-		pon = 0;
-		return engine != onmove;
-	}
-	if (engine == -1) return analyze;
-	printf("move "); displaym(pv[0][0]); printf("\n");
+		if (d >= sd) break;
+		if (t1 > maxtime) break;
+	} //
 
-	return execMove(pv[0][0]);
+	// FIX: Ensure a legal move is always found, even if search is aborted early
+	if (pv[0][0] == 0) {
+		Movep mp;
+		generate(attacked(P.king[onmove], onmove), onmove, &mp, 1, 1);
+		if (mp.n > 0) {
+			pv[0][0] = mp.list[0];
+		} //
+	} //
+
+	Move final_move = pv[0][0];
+	Move ponder_move = 0;
+	if (pv[0][1]) {
+		ponder_move = pv[0][1];
+	} else { // No ponder from search, generate one move ahead
+		Pos temp_pos;
+		memcpy(&temp_pos, &P, sizeof(Pos));
+		doMove(final_move, onmove);
+		Movep mp;
+		generate(attacked(P.king[onmove^1], onmove^1), onmove^1, &mp, 1, 1);
+		undoMove(final_move, onmove);
+		memcpy(&P, &temp_pos, sizeof(Pos));
+		if (mp.n > 0) {
+			ponder_move = mp.list[0];
+		} //
+	} //
+
+	printf("bestmove "); displaym(final_move);
+	if (ponder_move) {
+		printf(" ponder "); displaym(ponder_move);
+	}
+	printf("\n");
 }
 
-int doponder(int c) {
-	pon = retPVMove(c);
-	if (pon) {
-		pondering = 1;
-		if (execMove(pon)) {
-			undo();
-			pondering = pon = 0;
-		}
-	}
-	return pondering ? 0 : -1;
-}
+void do_uci_position(char* line) {
+	char* token = strtok(line, " ");
 
-u64 perft(int c, int d, int div) {
-	int i; u64 n, cnt = 0LL;
-	Movep mp; generate(attacked(P.king[c], c), c, &mp, 1, 1);
-	if (d == 1 || bioskey()) return (u64)mp.n;
-	for (i = 0; i < mp.n; i++) {
-		Move m = mp.list[i];
-		doMove(m, c);
-		cnt += n = perft(c^1, d - 1, 0);
-		if (div) { displaym(m); printf(" %llu\n", n); }
-		undoMove(m, c);
-	}
-	return cnt;
-}
+	if (strcmp(token, "startpos") == 0) {
+		_parse_fen(sfen, 1);
+		onmove = 0;
+	} else if (strcmp(token, "fen") == 0) {
+		char fen_str[256];
+		char* ptr = fen_str;
 
-void printPerft(int c, int i) { printf("Depth: %d Nodes: %lld%c\n", i, perft(c, i, 0), bioskey() ? '+' : ' '); }
+		token = strtok(NULL, " ");
+		while (token != NULL && strcmp(token, "moves") != 0) {
+			strcpy(ptr, token);
+			ptr += strlen(token);
+			*ptr = ' ';
+			ptr++;
+			token = strtok(NULL, " ");
+		} //
+		*--ptr = '\0';
 
-char comreturn[][9] = {"xboard", ".", "bk", "draw", "hint", "computer", "accepted", "rejected", "rating", "name",// ign
-						"quit", "new", "remove", "undo"}; // return 8-index
-char* ft = "feature setboard=1 myname=\"OliThink "VER"\" variants=\"normal\" colors=0 ping=1 sigint=0 sigterm=0 done=1";
-int protV2(char* buf, int parse) {
-	if (!strncmp(buf,"protover",8)) printf("%s\n", ft);
-	else if (!strncmp(buf,"ping",4)) { buf[1] = 'o'; printf("%s", buf); }
-	else if (!strncmp(buf,"force",5)) pondering = 0, engine = -1;
-	else if (!strncmp(buf,"time",4)) { sscanf(buf+5,"%d",&ttime); st = 0; maxtime = MIN(maxtime, ttime*9UL); }
-	else if (!strncmp(buf,"otim",4));
-	else if (!strncmp(buf,"go",2)) engine = pondering ? onmove^1 : onmove;
-	else if (!strncmp(buf,"setboard",8)) if (parse) _parse_fen(buf+9, 1); else return -9;
-	else if (!strncmp(buf,"easy",4)) ponder = 0;
-	else if (!strncmp(buf,"hard",4)) ponder = 1;
-	else if (!strncmp(buf,"sd",2)) sscanf(buf+3,"%d",&sd);
-	else if (!strncmp(buf,"level",4)) sscanf(buf+6,"%d %s %d",&mps, base, &inc);
-	else if (!strncmp(buf,"post",4)) post = 1;
-	else if (!strncmp(buf,"nopost",6)) post = 0;
-	else if (!strncmp(buf,"result",6)) return -6; //result 0-1 {Black mates}
-	else if (!strncmp(buf,"st",2)) sscanf(buf+3,"%d",&st);
-	else if (!strncmp(buf,"?",1)) return 1;
-	else if (!strncmp(buf,"random",6)) randm = !randm;
-	else if (!strncmp(buf,"analyze",7)) analyze = pondering = 1, engine = -1;
-	else if (!strncmp(buf,"exit",4)) analyze = pondering = 0;
-	else if (!strncmp(buf,"perft",5)) { int i; for (i = 1; i <= sd && !bioskey(); i++) printPerft(onmove, i); }
-	else if (!strncmp(buf,"divide",6)) perft(onmove, sd, 1);
-	else if (strchr(buf, '/') != NULL && strlen(buf)>16) {
-		engine = -1; analyze = pondering = 1; if (parse) _parse_fen(buf, 1); else return -9; }
-	else if (buf[0] == 0 || buf[0] == '\n');
-	else {
-		int i; for (i = 0; i < 14; i++) if (!strncmp(buf, comreturn[i], strlen(comreturn[i]))) return i < 10 ? 0 : 8-i;
-		return -1;
-	}
-	return 0;
-}
+		_parse_fen(fen_str, 1);
+	} //
+	token = strtok(NULL, " ");
+	if (token != NULL && strcmp(token, "moves") == 0) {
+		token = strtok(NULL, " ");
+		while (token != NULL) {
+			Move m = parseMove(token, onmove, 0);
+			if (m) {
+				doMove(m, onmove);
+				onmove ^= 1;
+			} //
+			token = strtok(NULL, " ");
+		} //
+	} //
+} //
 
-int input(int c) {
-	char buf[256];
-	if (irbuf[0]) strcpy(buf,irbuf); else fgets(buf,255,stdin);
-	irbuf[0] = 0;
-	int ex = protV2(buf, 1);
-	return ex == -1 ? parseMoveNExec(buf, c) : ex;
-}
+void uci_loop() {
+	char line[8192];
+
+	while(fgets(line, sizeof(line), stdin)) {
+		if (strncmp(line, "uci", 3) == 0) {
+			printf("id name OliThink "VER"\n");
+			printf("id author Oliver Brausch\n");
+			// TODO: Add options
+			printf("uciok\n");
+		} else if (strncmp(line, "isready", 7) == 0) {
+			printf("readyok\n");
+		} else if (strncmp(line, "ucinewgame", 10) == 0) {
+			_newGame();
+		} else if (strncmp(line, "position", 8) == 0) {
+			do_uci_position(line + 9);
+		} else if (strncmp(line, "go", 2) == 0) {
+			char *token = strtok(line + 3, " ");
+			ttime = 30000;
+			inc = 0;
+			sd = 64;
+			st = 0;
+			mps = 0; // Initialize mps
+			pondering = 0;
+			node_limit = 0; // Initialize node_limit to 0
+
+			while (token != NULL) {
+				if (strcmp(token, "wtime") == 0) {
+					token = strtok(NULL, " ");
+					if (onmove == 0) {
+						ttime = atoi(token);
+						if (ttime > 1000) ttime /= 8.0;
+					}
+				} else if (strcmp(token, "btime") == 0) {
+					token = strtok(NULL, " ");
+					if (onmove == 1) {
+						ttime = atoi(token);
+						if (ttime > 1000) ttime /= 8.0;
+					}
+				} else if (strcmp(token, "winc") == 0) {
+					token = strtok(NULL, " ");
+					if (onmove == 0) inc = atoi(token);
+				} else if (strcmp(token, "binc") == 0) {
+					token = strtok(NULL, " ");
+					if (onmove == 1) inc = atoi(token);
+				} else if (strcmp(token, "movetime") == 0) {
+					token = strtok(NULL, " ");
+					st = atoi(token);
+				} else if (strcmp(token, "depth") == 0) {
+					token = strtok(NULL, " ");
+					sd = atoi(token);
+				} else if (strcmp(token, "nodes") == 0) {
+					token = strtok(NULL, " ");
+					node_limit = strtoull(token, NULL, 10);
+				} else if (strcmp(token, "ponder") == 0) {
+					pondering = 1;
+				} else if (strcmp(token, "movestogo") == 0) {
+					token = strtok(NULL, " ");
+					mps = atoi(token);
+				}
+				token = strtok(NULL, " ");
+			} //
+			if (pondering) {
+				// Pondering logic is already in calc, just need to call it.
+				calc(ttime);
+			} else {
+				calc(ttime);
+			} //
+		} else if (strncmp(line, "stop", 4) == 0) {
+			sabort = 1;
+		} else if (strncmp(line, "ponderhit", 9) == 0) {
+			pondering = 0;
+			sabort = 0;
+		} else if (strncmp(line, "quit", 4) == 0) {
+			break;
+		} //
+	} //
+} //
 
 int main(int argc, char **argv) {
-	int i, ex = -1; u64 m, n;
+	int i; u64 m, n;
 
 	setbuf(stdout, NULL);
 	setbuf(stdin, NULL);
@@ -1269,24 +1298,7 @@ int main(int argc, char **argv) {
 	for (i = 0; i < 32; i++) bishcorn[i] = bishcorn[63-i] = (i&7) < 4 ? cornbase[(i&7) +i/8] : -cornbase[7-(i&7) +i/8];
 	_newGame();
 
-	if (argc > 1 && !strncmp(argv[1],"-sd",3)) {
-		ttime = 99999999;
-		if (argc > 2) {
-			sscanf(argv[2], "%d", &sd);
-			if (argc > 3) { _parse_fen(argv[3], 1); calc(ttime); return 0; }
-		}
-	}
-	irbuf[0] = 0;
+	uci_loop();
 
-	for (;;) {
-		if (engine == onmove || analyze) ex = calc(ttime);
-		else if (ex == 0 && ponder && engine != -1 && !book) ex = doponder(onmove);
-
-		if (!ponder || book || engine == -1 || ex != 0) ex = input(onmove);
-		if (ex == -2) break;
-		if (ex == -3) _newGame();
-		if (ex == -4) { undo(); undo(); }
-		if (ex == -5) undo();
-	}
 	return 0;
 }
