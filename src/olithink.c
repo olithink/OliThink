@@ -1184,7 +1184,7 @@ void do_uci_position(char* line) {
 	char* token = strtok(line, " ");
 
 	if (strcmp(token, "startpos") == 0) {
-		_parse_fen(sfen, 1);
+		_parse_fen(sfen, 0); // reset == 0: Do not clear hashtable
 		onmove = 0;
 	} else if (strcmp(token, "fen") == 0) {
 		char fen_str[256];
