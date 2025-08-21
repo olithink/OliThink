@@ -1,5 +1,5 @@
 #define VER "5.11.9uci"
-/* OliThink5 (c) Oliver Brausch 20.Aug.2025, ob112@web.de, http://brausch.org (uci by Jim Abblet) */
+/* OliThink5 (c) Oliver Brausch 21.Aug.2025, ob112@web.de, http://brausch.org (uci by Jim Abblet) */
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -96,18 +96,17 @@ static Pos P; static u64 node_limit;
 static entry hashDB[HMASK+1];
 static u64 hstack[0x400], mstack[0x400], hashxor[0x1000];
 static u64 pmoves[2][64],pawnprg[2][64], pawnfree[2][64], pawnfile[2][64], pawnhelp[2][64], RANK[2][64], pcaps[2][192];
-static u64 BIT[64], nmoves[64], kmoves[64], bmask135[64], bmask45[64], rmask0[64];
+static u64 BIT[64], nmoves[64], kmoves[64], bmask135[64], bmask45[64], rmask0[64], hash_hits;
 static u64 rankb[8], fileb[8], raysRank[8][64], raysAFile[8][64], xrayRank[8][64], xrayAFile[8][64];
 static u64 whitesq, centr, centr2, maxtime, starttime, eval1, nodes, qnodes;
-static u32 crevoke[64], count, flags, ponder = 0, pondering = 0, analyze = 0;
+static u32 crevoke[64], count, flags, pondering = 0, analyze = 0;
 static Move pv[128][128], pon = 0, bkmove[BKSIZE*32], killer[128];
 static int wstack[0x400], history[0x2000];
 static int kmobil[64], bishcorn[64];
 static int _knight[8] = {-17,-10,6,15,17,10,-6,-15};
 static int _king[8] = {-9,-1,7,8,9,1,-7,-8};
 static int book, bkflag[BKSIZE], bkcount[3];
-static int sabort, onmove, randm, sd = 64, ttime = 30000, mps = 0, inc = 0, post = 1, st = 0, movestogo = 0, thinking = 0;
-static char irbuf[256], base[16];
+static int sabort, onmove, randm, sd = 64, ttime = 30000, mps = 0, inc = 0, st = 0, movestogo = 0, thinking = 0;
 static char *sfen = "rnbqkbnr/pppppppp/////PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const char pieceChar[] = "*PNK.BRQ";
 #define MAT P.sf[2]
@@ -894,7 +893,6 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 	u64 hp = HASHP;
 	if (ply && isDraw(hp, 1)) return 0;
 
-	if (ch) d++; // Check extension
 	if (d <= 0 || ply > 100) return quiesce(ch, c, ply, alpha, beta);
 
 	if (alpha < -MAXSCORE+ply) alpha = -MAXSCORE+ply;
@@ -907,6 +905,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 	if (he->key == hp && !sem) {
 		if (he->depth >= d) {
 			if (he->type <= EXACT && he->value >= beta) return beta;
+			hash_hits++;
 			if (he->type >= EXACT && he->value <= alpha) return alpha;
 		}
 		if (!hmove) hmove = he->move;
@@ -1082,7 +1081,7 @@ void reset_uci_parameters() {
 	analyze = 0;
 }
 
-void calc(int tm) {
+void calc(int ttime) {
 	int i, j, w, d, m2go;
 	nodes = qnodes = 0LL;
 	node_limit = 0;
@@ -1116,6 +1115,7 @@ void calc(int tm) {
 	if (book) {
 		if (!bkcount[onmove]) book = 0;
 		else {
+			hash_hits = 0LL;
 			j = (int)(hashxor[starttime & 4095] & 0xFFFFFF) % bkcount[onmove];
 			for (i = 0; i < BKSIZE; i++) {
 				if (bkflag[i] == onmove && j == d++) { pv[0][0] = bkmove[i*32 + COUNT]; break; }
@@ -1124,7 +1124,6 @@ void calc(int tm) {
 	}
 	if (!book) for (d = 1; d <= sd; d++) {
 		int alpha = d > 6 ? w - 13 : -MAXSCORE, beta = d > 6 ? w + 13: MAXSCORE, delta = 18;
-		Move bestm = pv[0][0];
 
 		for (;;) {
 			w = search(ch, onmove, d, 0, alpha, beta, 0, 0);
@@ -1138,7 +1137,7 @@ void calc(int tm) {
 
 		u32 t1 = (u32)(getTime() - starttime);
 		if (pv[0][0] && w > -MAXSCORE && (!pon || pondering)) {
-			printf("info depth %d score cp %d time %lu nodes %llu nps %llu pv ", d, MEVAL(w), t1, nodes + qnodes, nodes * 1000 / (t1 + 1));
+			printf("info depth %d score cp %d time %lu nodes %llu nps %llu hashhits %llu pv ", d, MEVAL(w), t1, nodes + qnodes, nodes * 1000 / (t1 + 1), hash_hits);
 			displaypv();
 			printf("\n");
 		} //
@@ -1282,7 +1281,7 @@ void uci_loop() {
 	} //
 } //
 
-int main(int argc, char **argv) {
+int main() {
 	int i; u64 m, n;
 
 	setbuf(stdout, NULL);
