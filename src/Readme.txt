@@ -9,11 +9,14 @@ EndgameTables: No
 AnalyzeMode: Basic
 SearchMethods: Nullmove, Internal Iterative Reduction, Check Extension, LMR
 Evaluation: Just mobility and a very simple pawnprogressing evaluation
-LinesOfCode: 1291
+LinesOfCode: 1203
 Stability: 100%
 Special thanks to Dann Corbit for his support and contribution.
 
-v5.11.9: changes since 5.11.8:
+v5.11.9: changes since 5.11.9x:
+Removed unused extra features. Engine stays exactly the same.
+
+v5.11.9x: changes since 5.11.8:
 Skip after one check evation in quescience. Protocol improvements. Store static eval into hashtable
 
 v5.11.8: changes since 5.11.7:
