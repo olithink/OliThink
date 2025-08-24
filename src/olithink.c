@@ -131,7 +131,7 @@ void _parse_fen(char *fen, int reset) {
 	char s, mv, pos[128], cas[5], enps[3];
 	int c, i, halfm = 0, fullm = 1, col = 0, row = 7;
 	memset(&P, 0, sizeof(P));
-	book = i = c = 0; cas[0] = enps[0] = pv[0][0] = 0;
+	book = i = c = 0; cas[0] = enps[0] = 0;
 	sscanf(fen, "%s %c %s %s %d %d", pos, &mv, cas, enps, &halfm, &fullm); if (fullm < 1) fullm = 1;
 	while ((s = pos[i++])) {
 		if (s == '/') {
@@ -154,7 +154,7 @@ void _parse_fen(char *fen, int reset) {
 		if (b) flags |= BIT[b];
 	}
 	if (enps[0] >= 'a' && enps[0] <= 'h' && enps[1] >= '1' && enps[1] <= '8') flags |= 8*(enps[1] -'1') + enps[0] -'a';
-	for (i = 0; i < (int)COUNT; i++) hstack[i] = 0LL;
+	if (reset) for (i = 0; i < (int)COUNT; i++) hstack[i] = 0LL;
 	if (reset) memset(hashDB, 0, sizeof(hashDB));
 	BOARD = P.color[0] | P.color[1];
 }
@@ -873,7 +873,7 @@ static int nullvariance(int delta) {
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
-#define HASHP (P.hash ^ hashxor[flags | 1024 | c << 11])
+#define HASHP(c) (P.hash ^ hashxor[flags | 1024 | c << 11])
 int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move sem) {
 	int i, j, n, w = alpha, oc = c^1, pvnode = beta > alpha + 1;
 
@@ -890,7 +890,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 	// FIX: Return a special value on abort to indicate unreliability
 	if (sabort) return -MAXSCORE;
 
-	u64 hp = HASHP;
+	u64 hp = HASHP(c);
 	if (ply && isDraw(hp, 1)) return 0;
 
 	if (d <= 0 || ply > 100) return quiesce(ch, c, ply, alpha, beta);
@@ -1137,7 +1137,8 @@ void calc(int ttime) {
 
 		u32 t1 = (u32)(getTime() - starttime);
 		if (pv[0][0] && w > -MAXSCORE && (!pon || pondering)) {
-			printf("info depth %d score cp %d time %lu nodes %llu nps %llu hashhits %llu pv ", d, MEVAL(w), t1, nodes + qnodes, nodes * 1000 / (t1 + 1), hash_hits);
+			printf("info depth %d score cp %d time %lu nodes %llu nps %llu hashhits %llu pv ",
+					d, MEVAL(w), t1, nodes + qnodes, (nodes + qnodes) * 1000 / (t1 + 1), hash_hits);
 			displaypv();
 			printf("\n");
 		} //
@@ -1185,6 +1186,7 @@ void do_uci_position(char* line) {
 	if (strcmp(token, "startpos") == 0) {
 		_parse_fen(sfen, 0); // reset == 0: Do not clear hashtable
 		onmove = 0;
+		for (int i = 0; i < 126; i++) pv[0][i] = pv[0][i+2];
 	} else if (strcmp(token, "fen") == 0) {
 		char fen_str[256];
 		char* ptr = fen_str;
@@ -1209,6 +1211,7 @@ void do_uci_position(char* line) {
 			if (m) {
 				doMove(m, onmove);
 				onmove ^= 1;
+				hstack[COUNT] = HASHP(onmove);
 			} //
 			token = strtok(NULL, " ");
 		} //
