@@ -1091,14 +1091,12 @@ void calc(int ttime) {
 
 	u32 searchtime = 0;
 	if (st > 0) {
-		searchtime = st;
+		maxtime = searchtime = st;
 	} else {
-		// Allocate time based on remaining time and moves to go
-		searchtime = ttime / m2go + inc;
-		// Adjust the search time to not consume all remaining time
-		searchtime = (u32)(searchtime * 0.9); // Use 90% of the calculated time
+		u32 tmsh = MAX(ttime*8L/10-50-m2go*5, 5); // Minimum...
+		searchtime = MIN(ttime*6UL/10/m2go + inc*640L, tmsh); // Typical...
+		maxtime = MIN(searchtime*5L, tmsh); // Maximum... time to calculate something reasonable
 	}
-	maxtime = searchtime;
 
 	if (pondering) {
 		// If pondering, use half the remaining time
@@ -1124,6 +1122,7 @@ void calc(int ttime) {
 	}
 	if (!book) for (d = 1; d <= sd; d++) {
 		int alpha = d > 6 ? w - 13 : -MAXSCORE, beta = d > 6 ? w + 13: MAXSCORE, delta = 18;
+		Move bestm = pv[0][0];
 
 		for (;;) {
 			w = search(ch, onmove, d, 0, alpha, beta, 0, 0);
@@ -1144,7 +1143,7 @@ void calc(int ttime) {
 		} //
 		if (sabort) break;
 		if (d >= sd) break;
-		if (t1 > maxtime) break;
+		if (d > 1 && t1 > searchtime*(bestm == pv[0][0] ? 1 : 3)) break;
 	} //
 
 	// FIX: Ensure a legal move is always found, even if search is aborted early
