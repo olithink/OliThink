@@ -1,4 +1,4 @@
-#define VER "5.11.9uci"
+#define VER "5.11.9uci1"
 /* OliThink5 (c) Oliver Brausch 21.Aug.2025, ob112@web.de, http://brausch.org (uci by Jim Abblet) */
 #include <stdio.h>
 #include <string.h>
@@ -792,16 +792,6 @@ int eval(int c) {
 int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 	int i, best = -MAXSCORE;
 
-	// Check for time-out and set abort flag unconditionally
-	if (!pondering && getTime() - starttime > maxtime) sabort = 1;
-
-	// Perform other periodic checks
-	if ((++qnodes & CNODES) == 0) {
-		if (bioskey() && !sabort) sabort = 1;
-		if (node_limit > 0 && (nodes + qnodes) >= node_limit) sabort = 1;
-	}
-	if (sabort) return -MAXSCORE;
-
 	if (ply == 127) return eval(c);
 	if (!ch) do {
 		int cmat = (c ? -MAT : MAT);
@@ -825,12 +815,6 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 		qnodes++;
 
 		int w = -quiesce(attacked(P.king[c^1], c^1), c^1, ply + 1, -beta, -alpha);
-
-		if (sabort) { // Fix: Check for abort after recursive call in quiesce
-			undoMove(0, c);
-			memcpy(&P, &pos, sizeof(Pos));
-			return -MAXSCORE;
-		}
 
 		undoMove(0, c); memcpy(&P, &pos, sizeof(Pos));
 
@@ -879,12 +863,10 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 
 	if (ply) pv[ply][ply] = 0;
 
-	// Check for time-out and set abort flag unconditionally
-	if (!pondering && getTime() - starttime > maxtime) sabort = 1;
-
-	// Perform other periodic checks
+	// Perform periodic checks
 	if ((++nodes & CNODES) == 0) {
 		if (bioskey() && !sabort) sabort = 1;
+		if (!pondering && getTime() - starttime > maxtime) sabort = 1;
 		if (node_limit > 0 && (nodes + qnodes) >= node_limit) sabort = 1;
 	}
 	// FIX: Return a special value on abort to indicate unreliability
