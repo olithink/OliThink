@@ -1076,7 +1076,7 @@ void calc(int ttime) {
 		maxtime = searchtime = st;
 	} else {
 		u32 tmsh = MAX(ttime*8L/10-50-m2go*5, 5); // Minimum...
-		searchtime = MIN(ttime*6UL/10/m2go + inc*640L, tmsh); // Typical...
+		searchtime = MIN(ttime*6UL/10/m2go + inc*6/10, tmsh); // Typical...
 		maxtime = MIN(searchtime*5L, tmsh); // Maximum... time to calculate something reasonable
 	}
 
@@ -1167,7 +1167,7 @@ void do_uci_position(char* line) {
 	if (strcmp(token, "startpos") == 0) {
 		_parse_fen(sfen, 0); // reset == 0: Do not clear hashtable
 		onmove = 0;
-		for (int i = 0; i < 126; i++) pv[0][i] = pv[0][i+2];
+		if (!pondering) for (int i = 0; i < 126; i++) pv[0][i] = pv[0][i+2];
 	} else if (strcmp(token, "fen") == 0) {
 		char fen_str[256];
 		char* ptr = fen_str;
