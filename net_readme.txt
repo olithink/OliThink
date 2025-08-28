@@ -12,7 +12,7 @@ Would be a lot faster in gpu mode if I had a compatible nvidia gpu.
 
 Last epoch, epoch 11 should be the best.
 
-To created new olithink.nn file using the new network epochs: 
+To create new olithink.nn file using the new network epochs: 
 
 Delete existing olithink.nn and network.txt from olithink folder.
 
@@ -25,5 +25,6 @@ So for example rename 'epoch-11-q.txt' to 'network.txt'
 Copy file to olithink folder and run olithink engine.
 
 Olithink will detect missing 'olithink.nn' file and create a new one from 'network.txt'
+
 
 If Olithink cannot find both 'olithink.nn' and 'network.txt' it will use traditional eval instead.
