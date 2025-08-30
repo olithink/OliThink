@@ -1,5 +1,5 @@
-#define VER "5.11.9uci1"
-/* OliThink5 (c) Oliver Brausch 21.Aug.2025, ob112@web.de, http://brausch.org (uci by Jim Abblet) */
+#define VER "5.11.9"
+/* OliThink5 (c) Oliver Brausch 27.Aug.2025, ob112@web.de, http://brausch.org */
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -26,7 +26,6 @@ enum { HASH, NOISY, QUIET, EXIT };
 
 #define HMASK 0x7FFFFFLL
 #define CNODES 0x3FFF
-#define BKSIZE 8192
 const int pval[] = {0, 100, 290, 0, 100, 310, 500, 950};
 const int fval[] = {0, 0, 2, 0, 0, 3, 5, 9};
 const int cornbase[] = {4, 4, 2, 1, 0, 0 ,0};
@@ -68,7 +67,7 @@ const int cornbase[] = {4, 4, 2, 1, 0, 0 ,0};
 #define ENPASS (flags & 63)
 #define CASTLE(c) (flags & (320 << (c)))
 #define COUNT (count & 0x3FF)
-#define MEVAL(w) (w > MAXSCORE-500 ? (200001+MAXSCORE-w)/2 : w < 500-MAXSCORE ? (-200000-MAXSCORE-w)/2 : (w))
+#define MEVAL(w) w > 9999 || w < -9999 ? "mate" : "cp", w > 9999 ? (1+MAXSCORE-w)/2 : w < -9999 ? (-MAXSCORE-w)/2 : w
 #define NOMATEMAT(c) ((P.sf[c] <= 4 || (P.sf[c] <= 8 && P.sf[c] <= P.sf[c^1] + 3)) && (P.piece[PAWN] & P.color[c]) == 0)
 
 typedef struct {
@@ -99,15 +98,15 @@ static u64 pmoves[2][64],pawnprg[2][64], pawnfree[2][64], pawnfile[2][64], pawnh
 static u64 BIT[64], nmoves[64], kmoves[64], bmask135[64], bmask45[64], rmask0[64], hash_hits;
 static u64 rankb[8], fileb[8], raysRank[8][64], raysAFile[8][64], xrayRank[8][64], xrayAFile[8][64];
 static u64 whitesq, centr, centr2, maxtime, starttime, eval1, nodes, qnodes;
-static u32 crevoke[64], count, flags, pondering = 0, analyze = 0;
-static Move pv[128][128], pon = 0, bkmove[BKSIZE*32], killer[128];
-static int wstack[0x400], history[0x2000];
-static int kmobil[64], bishcorn[64];
+
+static u32 crevoke[64], count, flags, pondering = 0;
+static Move pv[128][128], killer[128];
+static int wstack[0x400], history[0x2000], kmobil[64], bishcorn[64];
 static int _knight[8] = {-17,-10,6,15,17,10,-6,-15};
 static int _king[8] = {-9,-1,7,8,9,1,-7,-8};
-static int book, bkflag[BKSIZE], bkcount[3];
-static int sabort, onmove, randm, sd = 64, ttime = 30000, mps = 0, inc = 0, st = 0, movestogo = 0, thinking = 0;
-static char *sfen = "rnbqkbnr/pppppppp/////PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+static int sabort, onmove, sd = 64, ttime = 30000, mps = 0, inc = 0, st = 0;
+static char *sfen = "rnbqkbnr/pppppppp/////PPPPPPPP/RNBQKBNR w KQkq - 0 1", line[8192];
+
 const char pieceChar[] = "*PNK.BRQ";
 #define MAT P.sf[2]
 #define BOARD P.color[2]
@@ -117,7 +116,6 @@ const char pieceChar[] = "*PNK.BRQ";
 int changeMat(int, int, int);
 void doMove(Move, int c);
 int parseMove(char*, int, Move);
-int protV2(char*,int);
 
 int _getpiece(char s, int *c) {
 	int i;
@@ -129,9 +127,9 @@ int _getpiece(char s, int *c) {
 
 void _parse_fen(char *fen, int reset) {
 	char s, mv, pos[128], cas[5], enps[3];
-	int c, i, halfm = 0, fullm = 1, col = 0, row = 7;
+	int c = 0, i = 0, halfm = 0, fullm = 1, col = 0, row = 7;
 	memset(&P, 0, sizeof(P));
-	book = i = c = 0; cas[0] = enps[0] = 0;
+	cas[0] = enps[0] = 0;
 	sscanf(fen, "%s %c %s %s %d %d", pos, &mv, cas, enps, &halfm, &fullm); if (fullm < 1) fullm = 1;
 	while ((s = pos[i++])) {
 		if (s == '/') {
@@ -159,52 +157,6 @@ void _parse_fen(char *fen, int reset) {
 	BOARD = P.color[0] | P.color[1];
 }
 
-void _newGame() {
-	char buf[256], s0[64], s1[64], s2[64];
-	int k, n = 0;
-	FILE *in = fopen("olibook.pgn", "r");
-	bkcount[0] = bkcount[1] = 0;
-	for (k = 0; k < BKSIZE; k++) bkflag[k] = 2;
-	if (in != NULL) {
-		while (!feof(in)) {
-			fgets(buf, 255, in);
-			if (buf[0] == '[') {
-				sscanf(buf,"%s %s", s1, s2);
-				if (!strncmp(s2, "\"OliThink", 8)) bkflag[n] = strncmp(s1, "[Black", 6) ? 0 : 1;
-				else if (!strncmp(s1, "[Result", 7)) {
-					if (bkflag[n]) {
-						if (!strncmp(s2, "\"0-1", 4)) bkflag[n] = 2;
-					} else if (strncmp(s2, "\"1-0", 4)) bkflag[n] = 2;
-				}
-			} else if (buf[0] == '1' && buf[1] == '.' && bkflag[n] < 2) {
-				u32 i = 0, j = 0;
-				_parse_fen(sfen, 0);
-				for (;;) {
-					if (strchr(buf+i, ' ') == NULL) break;
-					sscanf(buf+i,"%s %s", s0, s2);
-					if (s0[0] < '1' || s0[0] > '9') break;
-					i += (int)(strlen(s0) + strlen(s2) + 2);
-					if (s0[strlen(s0)-1] == '.') {
-						strcpy(s1, s2); s2[0] = 0;
-						sscanf(buf+i,"%s", s2);
-						i += (int)(strlen(s2) + 1);
-					} else sscanf(s0,"%*[^.].%[^.]", s1);
-					doMove(bkmove[n*32+ (j++)] = parseMove(s1, 0, 0), 0);
-					if (s2[0] == 0 || s2[0] == '*') break;
-					doMove(bkmove[n*32+ (j++)] = parseMove(s2, 1, 0), 1);
-					if (j > 30 || i >= strlen(buf)) break;
-				}
-				bkmove[n*32 + j] = 0;
-				if (j) bkcount[bkflag[n]]++;
-				if (++n == BKSIZE) break;
-			}
-		}
-		fclose(in);
-	}
-	_parse_fen(sfen, 1);
-	if (bkcount[0] > 0 || bkcount[1] > 0) book = 1;
-	randm = 0;
-}
 
 void _init_pawns(u64* moves, u64* caps, u64* freep, u64* filep, u64* helpp, u64* prgp, int c) {
 	int i, j;
@@ -720,7 +672,7 @@ int kmobilf(int c) {
 #define MOBILITY(a, mb) (bitcnt(a) + bitcnt(a & mb) + bitcnt(a & mb & c3))
 /* The eval for Color c. It's almost only mobility. */
 int evalc(int c) {
-	int f, mn = 0, katt = 0, oc = c^1, egf = 10400/(80 + P.sf[c] + P.sf[oc]) + randm;
+	int f, mn = 0, katt = 0, oc = c^1, egf = 10400/(80 + P.sf[c] + P.sf[oc]);
 	u64 b, a, cb = P.color[c], ocb = P.color[oc], occ = BOARD, mb = mobilityb(c, occ) & centr;
 	u64 kn = kmoves[P.king[oc]] & (~P.piece[PAWN]), c3 = centr2 | rankb[c ? 1 : 6];
 
@@ -865,7 +817,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 
 	// Perform periodic checks
 	if ((++nodes & CNODES) == 0) {
-		if (bioskey() && !sabort) sabort = 1;
+
 		if (!pondering && getTime() - starttime > maxtime) sabort = 1;
 		if (node_limit > 0 && (nodes + qnodes) >= node_limit) sabort = 1;
 	}
@@ -1051,40 +1003,6 @@ void displaypv() {
 	}
 }
 
-void reset_uci_parameters() {
-	ttime = 30000;
-	inc = 0;
-	sd = 64;
-	st = 0;
-	mps = 0;
-	movestogo = 0;
-	pondering = 0;
-	node_limit = 0;
-	analyze = 0;
-}
-
-void calc(int ttime) {
-	int i, j, w, d, m2go;
-	nodes = qnodes = 0LL;
-	node_limit = 0;
-
-	if (!mps) m2go = mps == 0 ? 32 : 1 + mps - ((COUNT/2) % mps);
-	if (movestogo) m2go = movestogo; // uci movestogo
-
-	u32 searchtime = 0;
-	if (st > 0) {
-		maxtime = searchtime = st;
-	} else {
-		u32 tmsh = MAX(ttime*8L/10-50-m2go*5, 5); // Minimum...
-		searchtime = MIN(ttime*6UL/10/m2go + inc*6/10, tmsh); // Typical...
-		maxtime = MIN(searchtime*5L, tmsh); // Maximum... time to calculate something reasonable
-	}
-
-	if (pondering) {
-		// If pondering, use half the remaining time
-		maxtime = (ttime + inc * m2go)/2;
-	}
-
 	starttime = getTime();
 	u64 ch = attacked(P.king[onmove], onmove);
 	memset(history, 0, sizeof(history));
@@ -1092,17 +1010,8 @@ void calc(int ttime) {
 
 	sabort = w = d = 0;
 	eval1 = qnodes = nodes = 0LL;
-	if (book) {
-		if (!bkcount[onmove]) book = 0;
-		else {
-			hash_hits = 0LL;
-			j = (int)(hashxor[starttime & 4095] & 0xFFFFFF) % bkcount[onmove];
-			for (i = 0; i < BKSIZE; i++) {
-				if (bkflag[i] == onmove && j == d++) { pv[0][0] = bkmove[i*32 + COUNT]; break; }
-			}
-		}
-	}
-	if (!book) for (d = 1; d <= sd; d++) {
+
+
 		int alpha = d > 6 ? w - 13 : -MAXSCORE, beta = d > 6 ? w + 13: MAXSCORE, delta = 18;
 		Move bestm = pv[0][0];
 
@@ -1116,13 +1025,7 @@ void calc(int ttime) {
 			delta += delta * 2 / 3;
 		}
 
-		u32 t1 = (u32)(getTime() - starttime);
-		if (pv[0][0] && w > -MAXSCORE && (!pon || pondering)) {
-			printf("info depth %d score cp %d time %lu nodes %llu nps %llu hashhits %llu pv ",
-					d, MEVAL(w), t1, nodes + qnodes, (nodes + qnodes) * 1000 / (t1 + 1), hash_hits);
-			displaypv();
-			printf("\n");
-		} //
+
 		if (sabort) break;
 		if (d >= sd) break;
 		if (d > 1 && t1 > searchtime*(bestm == pv[0][0] ? 1 : 3)) break;
@@ -1158,6 +1061,14 @@ void calc(int ttime) {
 	if (ponder_move) {
 		printf(" ponder "); displaym(ponder_move);
 	}
+
+
+	Move final_move = pv[0][0];
+	Move ponder_move = pv[0][1];
+	printf("bestmove "); displaym(final_move);
+	if (ponder_move) {
+		printf(" ponder "); displaym(ponder_move);
+	}
 	printf("\n");
 }
 
@@ -1168,6 +1079,7 @@ void do_uci_position(char* line) {
 		_parse_fen(sfen, 0); // reset == 0: Do not clear hashtable
 		onmove = 0;
 		if (!pondering) for (int i = 0; i < 126; i++) pv[0][i] = pv[0][i+2];
+		token = strtok(NULL, " ");
 	} else if (strcmp(token, "fen") == 0) {
 		char fen_str[256];
 		char* ptr = fen_str;
@@ -1179,12 +1091,12 @@ void do_uci_position(char* line) {
 			*ptr = ' ';
 			ptr++;
 			token = strtok(NULL, " ");
-		} //
+		}
 		*--ptr = '\0';
 
-		_parse_fen(fen_str, 1);
-	} //
-	token = strtok(NULL, " ");
+		_parse_fen(fen_str, 0);
+	}
+
 	if (token != NULL && strcmp(token, "moves") == 0) {
 		token = strtok(NULL, " ");
 		while (token != NULL) {
@@ -1193,34 +1105,38 @@ void do_uci_position(char* line) {
 				doMove(m, onmove);
 				onmove ^= 1;
 				hstack[COUNT] = HASHP(onmove);
-			} //
+
+			}
 			token = strtok(NULL, " ");
-		} //
+		}
 	} //
 } //
 
 void uci_loop() {
-	char line[8192];
 
 	while(fgets(line, sizeof(line), stdin)) {
-		if (strncmp(line, "uci", 3) == 0) {
+		if (strncmp(line, "ucinewgame", 10) == 0) {
+			_parse_fen(sfen, 1);
+		} else if (strncmp(line, "uci", 3) == 0) {
 			printf("id name OliThink "VER"\n");
 			printf("id author Oliver Brausch\n");
-			// TODO: Add options
+			printf("option name Ponder type check default true\n");
 			printf("uciok\n");
 		} else if (strncmp(line, "isready", 7) == 0) {
 			printf("readyok\n");
-		} else if (strncmp(line, "ucinewgame", 10) == 0) {
-			_newGame();
-			reset_uci_parameters();
 		} else if (strncmp(line, "position", 8) == 0) {
 			do_uci_position(line + 9);
 		} else if (strncmp(line, "go", 2) == 0) {
-			reset_uci_parameters();
+			char *token = strtok(line + 3, " ");
+			ttime = 30000;
+			inc = 0;
+			sd = 64;
+			st = 0;
+			mps = 0; // Initialize mps
+			pondering = 0;
 
-			char* token = strtok(line + 3, " ");
+			while (token != NULL) {
 
-			while(token != NULL) {
 				if (strcmp(token, "wtime") == 0) {
 					token = strtok(NULL, " ");
 					if (onmove == 0) ttime = atoi(token);
@@ -1239,29 +1155,20 @@ void uci_loop() {
 				} else if (strcmp(token, "depth") == 0) {
 					token = strtok(NULL, " ");
 					sd = atoi(token);
-				} else if (strcmp(token, "nodes") == 0) {
-					token = strtok(NULL, " ");
-					node_limit = strtoull(token, NULL, 10);
-				} else if (strcmp(token, "ponder") == 0) {
+
+				} else if (strncmp(token, "ponder", 6) == 0 || strncmp(token, "infinite", 8) == 0) {
 					pondering = 1;
 				} else if (strcmp(token, "movestogo") == 0) {
 					token = strtok(NULL, " ");
-					movestogo = atoi(token);
+					mps = atoi(token);
 				}
 				token = strtok(NULL, " ");
 			}
-
-			thinking = 1;
 			calc(ttime);
-			thinking = 0;
-		} else if (strncmp(line, "stop", 4) == 0) {
-			sabort = 1;
-		} else if (strncmp(line, "ponderhit", 9) == 0) {
-			pondering = 0;
-			sabort = 0;
 		} else if (strncmp(line, "quit", 4) == 0) {
 			break;
-		} //
+		}
+
 	} //
 } //
 
@@ -1294,7 +1201,8 @@ int main() {
 	for (i = 0; i < 64; i++) n = bitcnt(nmoves[i]), kmobil[i] = n == 2 ? 33 : n*10;
 	for (i = 0; i < 64; i++) n = bitcnt(nmoves[i]), centr |= n >= 4 ? BIT[i] : 0L, centr2 |= n >= 8 ? BIT[i] : 0L;
 	for (i = 0; i < 32; i++) bishcorn[i] = bishcorn[63-i] = (i&7) < 4 ? cornbase[(i&7) +i/8] : -cornbase[7-(i&7) +i/8];
-	_newGame();
+
+	_parse_fen(sfen, 0);
 
 	uci_loop();
 
