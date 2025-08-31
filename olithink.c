@@ -1,6 +1,5 @@
-#define VER "5.11.9uci"
-/* OliThink5 (c) Oliver Brausch 20.Aug.2025, ob112@web.de, http://brausch.org
- * (uci by Jim Ablett) */
+#define VER "5.11.9-nnue"
+/* OliThink5 (c) Oliver Brausch 27.Aug.2025, ob112@web.de, http://brausch.org */
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,13 +39,9 @@ enum { LOWER, EXACT, UPPER };
 enum { NO_MOVE, ANY_MOVE, GOOD_MOVE };
 enum { HASH, NOISY, QUIET, EXIT };
 
-#define HMASK 0x7FFFFFLL
 #define CNODES 0x3FFF
-#define BKSIZE 8192
-
 const int pval[] = {0, 100, 290, 0, 100, 310, 500, 950};
 const int fval[] = {0, 0, 2, 0, 0, 3, 5, 9};
-
 const int cornbase[] = {4, 4, 2, 1, 0, 0, 0};
 
 #define FROM(x) (x & 63)
@@ -87,13 +82,16 @@ const int cornbase[] = {4, 4, 2, 1, 0, 0, 0};
   (pcaps[c][(x) | 128] &                                                       \
    (P.color[c ^ 1] | (BIT[ENPASS] & (c ? 0xFF0000 : 0xFF0000000000))))
 
+
 #define ENPASS (flags & 63)
 #define CASTLE(c) (flags & (320 << (c)))
 #define COUNT (count & 0x3FF)
 #define MEVAL(w)                                                               \
-  (w > MAXSCORE - 500   ? (200001 + MAXSCORE - w) / 2                          \
-   : w < 500 - MAXSCORE ? (-200000 - MAXSCORE - w) / 2                         \
-                        : (w))
+  w > 9999 || w < -9999 ? "mate" : "cp", w > 9999    ? (1 + MAXSCORE - w) / 2  \
+                                         : w < -9999 ? (-MAXSCORE - w) / 2     \
+                                                     : w
+
+                 
 #define NOMATEMAT(c)                                                           \
   ((P.sf[c] <= 4 || (P.sf[c] <= 8 && P.sf[c] <= P.sf[c ^ 1] + 3)) &&           \
    (P.piece[PAWN] & P.color[c]) == 0)
@@ -119,33 +117,46 @@ typedef struct {
   u64 piece[8];
 } Pos;
 
+static u64 hashsize = 64;
+static u64 hmask;
+static entry *hashDB;
+
+
 // Add a global flag to track NNUE availability
 static int nnue_available = 0;
 static char nnue_filename[256] = NN_FILE; // default network file
 void setup_nnue_for_position();
 
 int eval(int c);
+
+
 static Pos P;
 static u64 node_limit;
-static entry hashDB[HMASK + 1];
 static u64 hstack[0x400], mstack[0x400], hashxor[0x1000];
 static u64 pmoves[2][64], pawnprg[2][64], pawnfree[2][64], pawnfile[2][64],
     pawnhelp[2][64], RANK[2][64], pcaps[2][192];
 static u64 BIT[64], nmoves[64], kmoves[64], bmask135[64], bmask45[64],
-    rmask0[64], hash_hits;
+    rmask0[64];
 static u64 rankb[8], fileb[8], raysRank[8][64], raysAFile[8][64],
     xrayRank[8][64], xrayAFile[8][64];
 static u64 whitesq, centr, centr2, maxtime, starttime, eval1, nodes, qnodes;
-static u32 crevoke[64], count, flags, pondering = 0, analyze = 0;
-static Move pv[128][128], pon = 0, bkmove[BKSIZE * 32], killer[128];
-static int wstack[0x400], history[0x2000];
-static int kmobil[64], bishcorn[64];
+static u32 crevoke[64], count, flags, pondering = 0;
+static Move pv[128][128], killer[128];
+static int wstack[0x400], history[0x2000], kmobil[64], bishcorn[64];
 static int _knight[8] = {-17, -10, 6, 15, 17, 10, -6, -15};
 static int _king[8] = {-9, -1, 7, 8, 9, 1, -7, -8};
-static int book, bkflag[BKSIZE], bkcount[3];
-static int sabort, onmove, randm, sd = 64, ttime = 30000, mps = 0, inc = 0,
-                                  st = 0, movestogo = 0, thinking = 0;
-static char *sfen = "rnbqkbnr/pppppppp/////PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+static int sabort, onmove, sd = 64, ttime = 30000, mps = 0, inc = 0, st = 0, thinking = 0, randm;
+static char *sfen = "rnbqkbnr/pppppppp/////PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            line[8192];
+const char pieceChar[] = "*PNK.BRQ";
+#define MAT P.sf[2]
+#define BOARD P.color[2]
+#define RQU (P.piece[QUEEN] | P.piece[ROOK])
+#define BQU (P.piece[QUEEN] | P.piece[BISHOP])
+
+int changeMat(int, int, int);
+void doMove(Move, int c);
+int parseMove(char *, int, Move);
 
 const char* benchmark_positions[] = {
     "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
@@ -225,7 +236,6 @@ int get_nn_piece(int piece) {
 }
 
 void benchmark(int depth);
-const char pieceChar[] = "*PNK.BRQ";
 #define MAT P.sf[2]
 #define BOARD P.color[2]
 #define RQU (P.piece[QUEEN] | P.piece[ROOK])
@@ -234,7 +244,7 @@ const char pieceChar[] = "*PNK.BRQ";
 int changeMat(int, int, int);
 void doMove(Move, int c);
 int parseMove(char *, int, Move);
-int protV2(char *, int);
+
 
 int _getpiece(char s, int *c) {
   int i;
@@ -249,12 +259,61 @@ int _getpiece(char s, int *c) {
   return 0;
 }
 
+
+void setHash(int size_mb) {
+  // Free the old hash table
+  if (hashDB) {
+    free(hashDB);
+    hashDB = NULL;
+  }
+
+  // Clamp input to valid range: 8MB to 2048MB
+  if (size_mb < 8) size_mb = 8;
+  if (size_mb > 2048) size_mb = 2048;
+
+  // Calculate number of entries based on requested size
+  u64 new_hashsize = ((u64)size_mb * 1024 * 1024) / sizeof(entry);
+  if (new_hashsize == 0) new_hashsize = 1;
+
+  // Find the closest power of 2
+  u64 lower_power = 1;
+  u64 higher_power = 1;
+  while (higher_power <= new_hashsize) {
+    lower_power = higher_power;
+    higher_power <<= 1;
+  }
+
+  // Choose the nearest power of 2
+  u64 lower_diff = new_hashsize > lower_power ? new_hashsize - lower_power : lower_power - new_hashsize;
+  u64 higher_diff = higher_power - new_hashsize;
+  hashsize = (lower_diff <= higher_diff && lower_power >= (8 * 1024 * 1024 / sizeof(entry))) ? lower_power : higher_power;
+
+  // Ensure minimum 8MB (approximately 524,288 entries for sizeof(entry)=16)
+  if (hashsize < (8 * 1024 * 1024 / sizeof(entry))) hashsize = 8 * 1024 * 1024 / sizeof(entry);
+
+  // Allocate memory
+  hashDB = (entry *)calloc(hashsize, sizeof(entry));
+  if (hashDB == NULL) {
+    fprintf(stderr, "Fatal: Cannot allocate hash table memory\n");
+    exit(1);
+  }
+
+  // Update hmask
+  hmask = hashsize - 1;
+
+  // Print the actual allocated size
+  printf("info string Hash table allocated: %llu entries (%.1f MB)\n", hashsize,
+         (double)(hashsize * sizeof(entry)) / (1024.0 * 1024.0));
+}
+
+
+
+
 void _parse_fen(char *fen, int reset) {
   char s, mv, pos[128], cas[5], enps[3];
-  int c, i, halfm = 0, fullm = 1, col = 0, row = 7;
+  int c = 0, i = 0, halfm = 0, fullm = 1, col = 0, row = 7;
   memset(&P, 0, sizeof(P));
-  book = i = c = 0;
-  cas[0] = enps[0] = pv[0][0] = 0;
+  cas[0] = enps[0] = 0;
   sscanf(fen, "%s %c %s %s %d %d", pos, &mv, cas, enps, &halfm, &fullm);
   if (fullm < 1)
     fullm = 1;
@@ -287,183 +346,12 @@ void _parse_fen(char *fen, int reset) {
   for (i = 0; i < (int)COUNT; i++)
     hstack[i] = 0LL;
   if (reset)
-    memset(hashDB, 0, sizeof(hashDB));
+    memset(hashDB, 0, hashsize * sizeof(entry));
   BOARD = P.color[0] | P.color[1];
 }
 
-void verify_position_sync() {
-  if (!nnue_available)
-    return;
-
-  // Create fresh accumulator
-  NN_Accumulator temp_acc;
-  uint64_t white_pieces[6], black_pieces[6];
-
-  // Set up properly ordered arrays
-  white_pieces[0] = P.piece[PAWN] & P.color[0];
-  white_pieces[1] = P.piece[KNIGHT] & P.color[0];
-  white_pieces[2] = P.piece[BISHOP] & P.color[0];
-  white_pieces[3] = P.piece[ROOK] & P.color[0];
-  white_pieces[4] = P.piece[QUEEN] & P.color[0];
-  white_pieces[5] = P.piece[KING] & P.color[0];
-
-  black_pieces[0] = P.piece[PAWN] & P.color[1];
-  black_pieces[1] = P.piece[KNIGHT] & P.color[1];
-  black_pieces[2] = P.piece[BISHOP] & P.color[1];
-  black_pieces[3] = P.piece[ROOK] & P.color[1];
-  black_pieces[4] = P.piece[QUEEN] & P.color[1];
-  black_pieces[5] = P.piece[KING] & P.color[1];
-
-  nn_update_all_pieces(temp_acc, white_pieces, black_pieces);
-
-  float current_eval = nn_evaluate(nn_accumulator, 0);
-  float fresh_eval = nn_evaluate(temp_acc, 0);
-
-  if (fabs(current_eval - fresh_eval) > 0.01f) {
-    printf("info string NNUE sync error: %.6f vs %.6f, resetting\n",
-           current_eval, fresh_eval);
-    memcpy(&nn_accumulator, &temp_acc, sizeof(nn_accumulator));
-  }
-}
 
 
-
-void _newGame() {
-  char buf[256], s0[64], s1[64], s2[64];
-  int k, n = 0;
-  FILE *in = fopen("olibook.pgn", "r");
-  bkcount[0] = bkcount[1] = 0;
-  for (k = 0; k < BKSIZE; k++)
-    bkflag[k] = 2;
-  if (in != NULL) {
-    while (!feof(in)) {
-      fgets(buf, 255, in);
-      if (buf[0] == '[') {
-        sscanf(buf, "%s %s", s1, s2);
-        if (!strncmp(s2, "\"OliThink", 8))
-          bkflag[n] = strncmp(s1, "[Black", 6) ? 0 : 1;
-        else if (!strncmp(s1, "[Result", 7)) {
-          if (bkflag[n]) {
-            if (!strncmp(s2, "\"0-1", 4))
-              bkflag[n] = 2;
-          } else if (strncmp(s2, "\"1-0", 4))
-            bkflag[n] = 2;
-        }
-      } else if (buf[0] == '1' && buf[1] == '.' && bkflag[n] < 2) {
-        u32 i = 0, j = 0;
-        _parse_fen(sfen, 0);
-        for (;;) {
-          if (strchr(buf + i, ' ') == NULL)
-            break;
-          sscanf(buf + i, "%s %s", s0, s2);
-          if (s0[0] < '1' || s0[0] > '9')
-            break;
-          i += (int)(strlen(s0) + strlen(s2) + 2);
-          if (s0[strlen(s0) - 1] == '.') {
-            strcpy(s1, s2);
-            s2[0] = 0;
-            sscanf(buf + i, "%s", s2);
-            i += (int)(strlen(s2) + 1);
-          } else
-            sscanf(s0, "%*[^.].%[^.]", s1);
-          doMove(bkmove[n * 32 + (j++)] = parseMove(s1, 0, 0), 0);
-          if (s2[0] == 0 || s2[0] == '*')
-            break;
-          doMove(bkmove[n * 32 + (j++)] = parseMove(s2, 1, 0), 1);
-          if (j > 30 || i >= strlen(buf))
-            break;
-        }
-        bkmove[n * 32 + j] = 0;
-        if (j)
-          bkcount[bkflag[n]]++;
-        if (++n == BKSIZE)
-          break;
-      }
-    }
-    fclose(in);
-  }
-
-  _parse_fen(sfen, 1);
-
-  
-  // WITH this corrected logic:
-  nnue_available = 0;  // Start with NNUE disabled
-  
-  // Determine which file to load
-  char* file_to_load = (nnue_file_path[0] != '\0') ? nnue_file_path : NN_FILE;
-  
-  // Try to load the NNUE file
-  int load_result = nn_load(file_to_load);
-  
-  if (load_result < 0) {
-    // First attempt failed, try to convert from text file
-    printf("info string NNUE file not found, attempting to convert from text file\n");
-    
-    if (nn_convert() == 0) {
-      // Conversion successful, try loading again
-      load_result = nn_load(file_to_load);
-      if (load_result >= 0) {
-        printf("info string NNUE file converted and loaded successfully: %s\n", file_to_load);
-        nnue_available = 1;
-      } else {
-        printf("info string Failed to load converted NNUE file - using traditional evaluation\n");
-        nnue_available = 0;
-      }
-    } else {
-      printf("info string Failed to convert NNUE file - using traditional evaluation\n");
-      nnue_available = 0;
-    }
-  } else {
-    // Loading successful
-    printf("info string NNUE file loaded successfully: %s\n", file_to_load);
-    nnue_available = 1;
-  }
-
-  // Initialize NNUE accumulator if available
-  if (nnue_available) {
-    nn_init_accumulator(nn_accumulator);
-    setup_nnue_for_position();
-	#ifdef VALIDATE_NN
-	validate_nnue_state();
-	#endif
-  }
-  
-  // Clear any pending reload since we just loaded
-  nnue_reload_pending = 0;
-  
-  
-  
-}
-
-
-
-void periodic_nnue_check() {
-    static int check_counter = 0;
-    
-    // Check every 10,000 nodes to minimize performance impact
-    if (++check_counter % 10000 == 0 && nnue_available && use_nnue) {
-        verify_position_sync();
-		#ifdef VALIDATE_NN
-		validate_nnue_state();
-		#endif
-    }
-}
-
-
-
-
-void setup_nnue_for_position() {
-  if (!nnue_available)
-    return;
-
-  // Create properly ordered arrays for the NNUE function
-  uint64_t white_pieces[6];
-  uint64_t black_pieces[6];
-
-  build_nn_arrays(white_pieces, black_pieces);
-
-  nn_update_all_pieces(nn_accumulator, white_pieces, black_pieces);
-}
 
 void _init_pawns(u64 *moves, u64 *caps, u64 *freep, u64 *filep, u64 *helpp,
                  u64 *prgp, int c) {
@@ -505,6 +393,7 @@ void _init_pawns(u64 *moves, u64 *caps, u64 *freep, u64 *filep, u64 *helpp,
   }
 }
 
+
 void _init_shorts(u64 *moves, int *m) {
   u32 i, j, n;
   for (i = 0; i < 64; i++) {
@@ -545,6 +434,7 @@ void _init_rays(u64 *rays, u64 *xrays, u64 (*rayFunc)(int, u64, int),
     }
   }
 }
+
 
 #define RAYMACRO                                                               \
   {                                                                            \
@@ -639,6 +529,7 @@ int bioskey() {
 }
 #endif
 
+
 int pullLsb(u64 *bit) {
   int f = getLsb(*bit);
   *bit &= *bit - 1;
@@ -695,6 +586,7 @@ u64 pinnedPieces(int k, int oc) {
   }
   return pin;
 }
+
 
 /* precondition: f and t are on common rank (8), file (16), diagonal (32) or
  * antidiagonal (64) */
@@ -769,6 +661,127 @@ void move(Move m, int c, int d) {
   }
   BOARD = P.color[0] | P.color[1];
 }
+
+
+void verify_position_sync() {
+  if (!nnue_available)
+    return;
+
+  // Create fresh accumulator
+  NN_Accumulator temp_acc;
+  uint64_t white_pieces[6], black_pieces[6];
+
+  // Set up properly ordered arrays
+  white_pieces[0] = P.piece[PAWN] & P.color[0];
+  white_pieces[1] = P.piece[KNIGHT] & P.color[0];
+  white_pieces[2] = P.piece[BISHOP] & P.color[0];
+  white_pieces[3] = P.piece[ROOK] & P.color[0];
+  white_pieces[4] = P.piece[QUEEN] & P.color[0];
+  white_pieces[5] = P.piece[KING] & P.color[0];
+
+  black_pieces[0] = P.piece[PAWN] & P.color[1];
+  black_pieces[1] = P.piece[KNIGHT] & P.color[1];
+  black_pieces[2] = P.piece[BISHOP] & P.color[1];
+  black_pieces[3] = P.piece[ROOK] & P.color[1];
+  black_pieces[4] = P.piece[QUEEN] & P.color[1];
+  black_pieces[5] = P.piece[KING] & P.color[1];
+
+  nn_update_all_pieces(temp_acc, white_pieces, black_pieces);
+
+  float current_eval = nn_evaluate(nn_accumulator, 0);
+  float fresh_eval = nn_evaluate(temp_acc, 0);
+
+  if (fabs(current_eval - fresh_eval) > 0.01f) {
+    printf("info string NNUE sync error: %.6f vs %.6f, resetting\n",
+           current_eval, fresh_eval);
+    memcpy(&nn_accumulator, &temp_acc, sizeof(nn_accumulator));
+  }
+}
+
+
+
+void _newGame() {
+  
+  _parse_fen(sfen, 1);
+
+  // WITH this corrected logic:
+  nnue_available = 0;  // Start with NNUE disabled
+  
+  // Determine which file to load
+  char* file_to_load = (nnue_file_path[0] != '\0') ? nnue_file_path : NN_FILE;
+  
+  // Try to load the NNUE file
+  int load_result = nn_load(file_to_load);
+  
+  if (load_result < 0) {
+    // First attempt failed, try to convert from text file
+    printf("info string NNUE file not found, attempting to convert from text file\n");
+    
+    if (nn_convert() == 0) {
+      // Conversion successful, try loading again
+      load_result = nn_load(file_to_load);
+      if (load_result >= 0) {
+        printf("info string NNUE file converted and loaded successfully: %s\n", file_to_load);
+        nnue_available = 1;
+      } else {
+        printf("info string Failed to load converted NNUE file - using traditional evaluation\n");
+        nnue_available = 0;
+      }
+    } else {
+      printf("info string Failed to convert NNUE file - using traditional evaluation\n");
+      nnue_available = 0;
+    }
+  } else {
+    // Loading successful
+    printf("info string NNUE file loaded successfully: %s\n", file_to_load);
+    nnue_available = 1;
+  }
+
+  // Initialize NNUE accumulator if available
+  if (nnue_available) {
+    nn_init_accumulator(nn_accumulator);
+    setup_nnue_for_position();
+	#ifdef VALIDATE_NN
+	validate_nnue_state();
+	#endif
+  }
+  
+  // Clear any pending reload since we just loaded
+  nnue_reload_pending = 0;
+  
+}
+
+
+
+void periodic_nnue_check() {
+    static int check_counter = 0;
+    
+    // Check every 10,000 nodes to minimize performance impact
+    if (++check_counter % 10000 == 0 && nnue_available && use_nnue) {
+        verify_position_sync();
+		#ifdef VALIDATE_NN
+		validate_nnue_state();
+		#endif
+    }
+}
+
+
+
+
+void setup_nnue_for_position() {
+  if (!nnue_available)
+    return;
+
+  // Create properly ordered arrays for the NNUE function
+  uint64_t white_pieces[6];
+  uint64_t black_pieces[6];
+
+  build_nn_arrays(white_pieces, black_pieces);
+
+  nn_update_all_pieces(nn_accumulator, white_pieces, black_pieces);
+}
+
+
 
 
 void update_nnue_for_move(Move m, int c) {
@@ -1329,20 +1342,6 @@ int try_enable_nnue() {
 int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
   int i, best = -MAXSCORE;
 
-  // Check for time-out and set abort flag unconditionally
-  if (!pondering && getTime() - starttime > maxtime)
-    sabort = 1;
-
-  // Perform other periodic checks
-  if ((++qnodes & CNODES) == 0) {
-    if (bioskey() && !sabort)
-      sabort = 1;
-    if (node_limit > 0 && (nodes + qnodes) >= node_limit)
-      sabort = 1;
-  }
-  if (sabort)
-    return -MAXSCORE;
-
   if (ply == 127)
     return eval(c);
   if (!ch)
@@ -1379,12 +1378,6 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
     int w =
         -quiesce(attacked(P.king[c ^ 1], c ^ 1), c ^ 1, ply + 1, -beta, -alpha);
 
-    if (sabort) { // Fix: Check for abort after recursive call in quiesce
-      undoMove(0, c);
-      memcpy(&P, &pos, sizeof(Pos));
-      return -MAXSCORE;
-    }
-
     undoMove(0, c);
     memcpy(&P, &pos, sizeof(Pos));
 
@@ -1399,6 +1392,9 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
   }
   return best > -MAXSCORE ? best : eval(c);
 }
+
+
+
 
 int retPVMove(int c) {
   int i;
@@ -1438,31 +1434,27 @@ static int nullvariance(int delta) {
 
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
-#define HASHP (P.hash ^ hashxor[flags | 1024 | c << 11])
+#define HASHP(c) (P.hash ^ hashxor[flags | 1024 | c << 11])
 int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null,
            Move sem) {
-  int i, j, n, w = alpha, oc = c ^ 1, pvnode = beta > alpha + 1;
+  int i, j, n, w, oc = c ^ 1, pvnode = beta > alpha + 1;
 
   if (ply)
     pv[ply][ply] = 0;
-
-  // Check for time-out and set abort flag unconditionally
-  if (!pondering && getTime() - starttime > maxtime)
-    sabort = 1;
-
-  // Perform other periodic checks
   if ((++nodes & CNODES) == 0) {
-	  periodic_nnue_check();
-    if (bioskey() && !sabort)
-      sabort = 1;
-    if (node_limit > 0 && (nodes + qnodes) >= node_limit)
+    if ((bioskey() && !sabort))
+      if ((sabort = 1) && pondering) {
+        fgets(line, sizeof(line), stdin);
+        if (!strncmp(line, "ponderhit", 9))
+          pondering = 0, sabort = 0; // else "stop"
+      }
+    if (!pondering && getTime() - starttime > maxtime)
       sabort = 1;
   }
-  // FIX: Return a special value on abort to indicate unreliability
   if (sabort)
-    return -MAXSCORE;
+    return alpha;
 
-  u64 hp = HASHP;
+  u64 hp = HASHP(c);
   if (ply && isDraw(hp, 1))
     return 0;
 
@@ -1478,12 +1470,11 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null,
 
   Move hmove = ply ? 0 : retPVMove(c);
 
-  entry *he = &hashDB[hp & HMASK];
+  entry *he = &hashDB[hp & hmask];
   if (he->key == hp && !sem) {
     if (he->depth >= d) {
       if (he->type <= EXACT && he->value >= beta)
         return beta;
-      hash_hits++;
       if (he->type >= EXACT && he->value <= alpha)
         return alpha;
     }
@@ -1596,13 +1587,12 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null,
       if (ext < 0 && w > alpha)
         w = -search(nch, oc, nd, ply + 1, -alpha - 1, -alpha, 1, 0);
       if (firstPVNode || (w > alpha && w < beta))
-        w = -search(nch, oc, nd + ext, ply + 1, -beta, -alpha, 0, 0);
+        w = -search(nch, oc, nd, ply + 1, -beta, -alpha, 0, 0);
 
       undoMove(0, c);
       memcpy(&P, &pos, sizeof(Pos));
-      // FIX: Check for abort after each recursive call
       if (sabort)
-        return -MAXSCORE;
+        return alpha;
 
       if (w > alpha) {
         alpha = w, first = GOOD_MOVE;
@@ -1642,6 +1632,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null,
 
   return alpha;
 }
+
 
 #define ISRANK(c) (c >= '1' && c <= '8')
 #define ISFILE(c) (c >= 'a' && c <= 'h')
@@ -1737,40 +1728,18 @@ void reset_uci_parameters() {
   sd = 64;
   st = 0;
   mps = 0;
-  movestogo = 0;
   pondering = 0;
-  node_limit = 0;
-  analyze = 0;
+
 }
 
-void calc(int ttime) {
-  int i, j, w, d, m2go;
-  nodes = qnodes = 0LL;
-  node_limit = 0;
-  
 
-  if (!mps)
-    m2go = mps == 0 ? 32 : 1 + mps - ((COUNT / 2) % mps);
-  if (movestogo)
-    m2go = movestogo; // uci movestogo
-
-  u32 searchtime = 0;
-  if (st > 0) {
-    searchtime = st;
-      } else {
-		// Allocate time based on remaining time and moves to go
-		searchtime = ttime / m2go + inc;
-		// Adjust the search time to not consume all remaining time
-		searchtime = (u32)(searchtime * 0.9); // Use 90% of the calculated time
-  }
-   
-   
-  maxtime = searchtime;
-
-  if (pondering) {
-    // If pondering, use half the remaining time
-    maxtime = (ttime + inc * m2go) / 2;
-  }
+void calc(int tm) {
+  int w, d, m2go = mps == 0 ? 32 : 1 + mps;
+  u32 t1 = 0, tmsh = MAX(tm * 8 / 10 - 50 - m2go * 5, 5),
+      searchtime = MIN(tm * 6U / 10 / m2go + inc * 6 / 10, tmsh);
+  maxtime = MIN(searchtime * 5L, tmsh);
+  if (st > 0)
+    maxtime = searchtime = st;
 
   starttime = getTime();
   u64 ch = attacked(P.king[onmove], onmove);
@@ -1779,82 +1748,42 @@ void calc(int ttime) {
 
   sabort = w = d = 0;
   eval1 = qnodes = nodes = 0LL;
-  if (book) {
-    if (!bkcount[onmove])
-      book = 0;
-    else {
-      hash_hits = 0LL;
-      j = (int)(hashxor[starttime & 4095] & 0xFFFFFF) % bkcount[onmove];
-      for (i = 0; i < BKSIZE; i++) {
-        if (bkflag[i] == onmove && j == d++) {
-          pv[0][0] = bkmove[i * 32 + COUNT];
-          break;
-        }
-      }
-    }
-  }
-  if (!book)
-    for (d = 1; d <= sd; d++) {
-      int alpha = d > 6 ? w - 13 : -MAXSCORE, beta = d > 6 ? w + 13 : MAXSCORE,
-          delta = 18;
+  for (d = 1; d <= sd; d++) {
+    int alpha = d > 6 ? w - 13 : -MAXSCORE, beta = d > 6 ? w + 13 : MAXSCORE,
+        delta = 18;
+    Move bestm = pv[0][0];
 
-      for (;;) {
-        w = search(ch, onmove, d, 0, alpha, beta, 0, 0);
-        if (sabort)
-          break;
-
-        if (w <= alpha)
-          alpha -= delta, beta = (alpha + beta) / 2;
-        else if (w >= beta)
-          beta += delta;
-        else
-          break;
-        delta += delta * 2 / 3;
-      }
-
-      u32 t1 = (u32)(getTime() - starttime);
-      if (pv[0][0] && w > -MAXSCORE && (!pon || pondering)) {
-        printf("info depth %d score cp %d time %lu nodes %llu nps %llu "
-               "hashhits %llu pv ",
-               d, MEVAL(w), t1, nodes + qnodes, nodes * 1000 / (t1 + 1),
-               hash_hits);
-        displaypv();
-        printf("\n");
-      } //
+    for (;;) {
+      w = search(ch, onmove, d, 0, alpha, beta, 0, 0);
       if (sabort)
         break;
-      if (d >= sd)
-        break;
-      if (t1 > maxtime)
-        break;
-    } //
 
-  // FIX: Ensure a legal move is always found, even if search is aborted early
-  if (pv[0][0] == 0) {
-    Movep mp;
-    generate(attacked(P.king[onmove], onmove), onmove, &mp, 1, 1);
-    if (mp.n > 0) {
-      pv[0][0] = mp.list[0];
-    } //
-  } //
+      if (w <= alpha)
+        alpha -= delta, beta = (alpha + beta) / 2;
+      else if (w >= beta)
+        beta += delta;
+      else
+        break;
+      delta += delta * 2 / 3;
+    }
+
+    t1 = (u32)(getTime() - starttime);
+    if (pv[0][0] && !sabort && w > -MAXSCORE) {
+      printf("info depth %d score %s %d time %lu nodes %llu nps %llu pv ", d,
+             MEVAL(w), t1, nodes + qnodes, (nodes + qnodes) * 1000 / (t1 + 1));
+      displaypv();
+      printf("\n");
+    }
+    if (sabort)
+      break;
+    if (pondering)
+      continue;
+    if (d > 1 && t1 > searchtime * (bestm == pv[0][0] ? 1 : 3))
+      break;
+  }
 
   Move final_move = pv[0][0];
-  Move ponder_move = 0;
-  if (pv[0][1]) {
-    ponder_move = pv[0][1];
-  } else { // No ponder from search, generate one move ahead
-    Pos temp_pos;
-    memcpy(&temp_pos, &P, sizeof(Pos));
-    doMove(final_move, onmove);
-    Movep mp;
-    generate(attacked(P.king[onmove ^ 1], onmove ^ 1), onmove ^ 1, &mp, 1, 1);
-    undoMove(final_move, onmove);
-    memcpy(&P, &temp_pos, sizeof(Pos));
-    if (mp.n > 0) {
-      ponder_move = mp.list[0];
-    } //
-  } //
-
+  Move ponder_move = pv[0][1];
   printf("bestmove ");
   displaym(final_move);
   if (ponder_move) {
@@ -1863,6 +1792,11 @@ void calc(int ttime) {
   }
   printf("\n");
 }
+
+
+
+
+
 
 // 9. Enhanced position setup function
 void do_uci_position(char *line) {
@@ -1907,6 +1841,8 @@ void do_uci_position(char *line) {
       if (m) {
         doMove(m, onmove);
         onmove ^= 1;
+		hstack[COUNT] = HASHP(onmove);
+
       }
       token = strtok(NULL, " ");
     }
@@ -1938,19 +1874,22 @@ void debug_print_bitboards() {
 
 
 void uci_loop() {
-  char line[8192];
-
+  
   while (fgets(line, sizeof(line), stdin)) {
     // Remove newline character
     char *newline = strchr(line, '\n');
     if (newline) *newline = '\0';
     
-    if (strncmp(line, "uci", 3) == 0) {
-      printf("id name OliThink " VER "\n");
+	if (strncmp(line, "uci", 3) == 0) {
+      printf("id name OliThink %s\n", VER);
       printf("id author Oliver Brausch\n");
-      // Add NNUE options properly formatted for UCI
+      printf("option name Ponder type check default true\n");
+      printf("option name Hash type spin default 64 min 8 max 2048\n");
+      printf("info string Hash size will be rounded to nearest power of 2 (8, 16, 32, 64, 128, 256, 512, 1024, 2048 MB)\n");
+      #ifdef NNUE_ENABLED // Only in olithink.c
       printf("option name Use NNUE type check default true\n");
       printf("option name NNUE File type string default %s\n", NN_FILE);
+      #endif
       printf("uciok\n");
     } else if (strncmp(line, "isready", 7) == 0) {
       printf("readyok\n");
@@ -1992,9 +1931,14 @@ void uci_loop() {
           strcpy(option_name, name_ptr);
         }
       }
+	  if (strncmp(option_name, "Hash", 4) == 0) {
+          sscanf(option_value, "%llu", &hashsize);
+          setHash(hashsize);
+        } else
+
       
       // Process the options
-      if (strcmp(option_name, "Use NNUE") == 0) {
+	 if (strcmp(option_name, "Use NNUE") == 0) {
         if (strcmp(option_value, "true") == 0) {
           use_nnue = 1;
           if (nnue_available) {
@@ -2052,7 +1996,7 @@ void uci_loop() {
       }
     } else if (strncmp(line, "go", 2) == 0) {
       reset_uci_parameters();
-
+	
       // Handle pending NNUE reload before search
       if (nnue_reload_pending && use_nnue) {
         char* file_to_load = nnue_file_path[0] != '\0' ? nnue_file_path : NN_FILE;
@@ -2098,26 +2042,17 @@ void uci_loop() {
         } else if (strcmp(token, "depth") == 0) {
           token = strtok(NULL, " ");
           sd = atoi(token);
-        } else if (strcmp(token, "nodes") == 0) {
-          token = strtok(NULL, " ");
-          node_limit = strtoull(token, NULL, 10);
         } else if (strcmp(token, "ponder") == 0) {
           pondering = 1;
         } else if (strcmp(token, "movestogo") == 0) {
           token = strtok(NULL, " ");
-          movestogo = atoi(token);
+          mps = atoi(token);
         }
         token = strtok(NULL, " ");
       }
-
       thinking = 1;
       calc(ttime);
       thinking = 0;
-    } else if (strncmp(line, "stop", 4) == 0) {
-      sabort = 1;
-    } else if (strncmp(line, "ponderhit", 9) == 0) {
-      pondering = 0;
-      sabort = 0;
     } else if (strncmp(line, "quit", 4) == 0) {
       break;
     }
@@ -2131,6 +2066,10 @@ int main() {
 
   setbuf(stdout, NULL);
   setbuf(stdin, NULL);
+  
+  setHash(hashsize);
+
+  
   for (i = 4096, n = 1, m = 6364136223846793005LL; i--;
        hashxor[4095 - i] = n = n * m + 1LL)
     ;
@@ -2203,6 +2142,7 @@ int main() {
   _newGame();
 
   uci_loop();
+  free(hashDB);
 
   return 0;
 }
@@ -2218,8 +2158,6 @@ void benchmark(int depth) {
   st = 0;
   node_limit = 0;
   maxtime = 10000000; // a very large number for unlimited time
-  pondering = 0;
-  analyze = 0;
   pondering = 0;
 
   for (u64 i = 0;
