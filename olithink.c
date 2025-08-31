@@ -144,50 +144,55 @@ int _getpiece(char s, int *c) {
   return 0;
 }
 
+
 void setHash(int size_mb) {
-  // Free the old hash table before re-allocating
+  // Free the old hash table
   if (hashDB) {
     free(hashDB);
-    hashDB = NULL; // Best practice to set to NULL after freeing
+    hashDB = NULL;
   }
 
-  if (size_mb < 1)
-    size_mb = 1;
-  if (size_mb > 2048)
-    size_mb = 2048;
+  // Clamp input to valid range: 8MB to 2048MB
+  if (size_mb < 8) size_mb = 8;
+  if (size_mb > 2048) size_mb = 2048;
 
+  // Calculate number of entries based on requested size
   u64 new_hashsize = ((u64)size_mb * 1024 * 1024) / sizeof(entry);
+  if (new_hashsize == 0) new_hashsize = 1;
 
-  if (new_hashsize == 0) {
-    new_hashsize = 1;
+  // Find the closest power of 2
+  u64 lower_power = 1;
+  u64 higher_power = 1;
+  while (higher_power <= new_hashsize) {
+    lower_power = higher_power;
+    higher_power <<= 1;
   }
 
-  // Round down to the nearest power of 2
-  u64 power = 1;
-  while ((power << 1) <= new_hashsize) {
-    power <<= 1;
-  }
-  hashsize = power;
+  // Choose the nearest power of 2
+  u64 lower_diff = new_hashsize > lower_power ? new_hashsize - lower_power : lower_power - new_hashsize;
+  u64 higher_diff = higher_power - new_hashsize;
+  hashsize = (lower_diff <= higher_diff && lower_power >= (8 * 1024 * 1024 / sizeof(entry))) ? lower_power : higher_power;
 
-  // Ensure minimum size
-  if (hashsize < 1024) {
-    hashsize = 1024;
-  }
+  // Ensure minimum 8MB (approximately 524,288 entries for sizeof(entry)=16)
+  if (hashsize < (8 * 1024 * 1024 / sizeof(entry))) hashsize = 8 * 1024 * 1024 / sizeof(entry);
 
-  // Allocate memory using the corrected hashsize
+  // Allocate memory
   hashDB = (entry *)calloc(hashsize, sizeof(entry));
   if (hashDB == NULL) {
-    // Fallback or error handling
     fprintf(stderr, "Fatal: Cannot allocate hash table memory\n");
     exit(1);
   }
 
-  // Crucial fix: Update hmask after finalizing hashsize
+  // Update hmask
   hmask = hashsize - 1;
 
+  // Print the actual allocated size
   printf("info string Hash table allocated: %llu entries (%.1f MB)\n", hashsize,
          (double)(hashsize * sizeof(entry)) / (1024.0 * 1024.0));
 }
+
+
+
 
 void _parse_fen(char *fen, int reset) {
   char s, mv, pos[128], cas[5], enps[3];
@@ -1419,10 +1424,11 @@ void uci_loop() {
     if (strncmp(line, "ucinewgame", 10) == 0) {
       _parse_fen(sfen, 1);
     } else if (strncmp(line, "uci", 3) == 0) {
-      printf("id name OliThink " VER "\n");
+      printf("id name OliThink %s\n", VER);
       printf("id author Oliver Brausch\n");
       printf("option name Ponder type check default true\n");
-      printf("option name Hash type spin default 64 min 1 max 2048\n");
+      printf("option name Hash type spin default 64 min 8 max 2048\n");
+      printf("info string Hash size will be rounded to nearest power of 2 (8, 16, 32, 64, 128, 256, 512, 1024, 2048 MB)\n");
       printf("uciok\n");
     } else if (strncmp(line, "isready", 7) == 0) {
       printf("readyok\n");
