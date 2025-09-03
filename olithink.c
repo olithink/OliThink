@@ -127,9 +127,16 @@ const char pieceChar[] = "*PNK.BRQ";
 #define RQU (P.piece[QUEEN] | P.piece[ROOK])
 #define BQU (P.piece[QUEEN] | P.piece[BISHOP])
 
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
+#define HASHP(c) (P.hash ^ hashxor[flags | 1024 | c << 11])
+
 int changeMat(int, int, int);
 void doMove(Move, int c);
 int parseMove(char *, int, Move);
+int eval(int c);
+int evalc(int c);
+int pullLsb(u64 *bit);
 
 int _getpiece(char s, int *c) {
   int i;
@@ -142,6 +149,291 @@ int _getpiece(char s, int *c) {
       return i;
     }
   return 0;
+}
+
+
+// --- Endgame Scaling ---
+
+int scaleEndgame(int score, int c) {
+int hasPawns = (P.piece[PAWN] != 0);
+int mat = MAT;
+if (mat < 600) {
+score = (score * mat) / 600; // taper toward draw
+}
+int wk = P.king[c];
+(void)wk; // Suppresses unused variable warning
+int bk = P.king[c ^ 1];
+int wdist = (wk % 8 - 3) * (wk % 8 - 4) + (wk / 8 - 3) * (wk / 8 - 4);
+int bdist = (bk % 8 - 3) * (bk % 8 - 4) + (bk / 8 - 3) * (bk / 8 - 4);
+score -= (wdist - bdist);
+if (!hasPawns) {
+score /= 2;
+}
+return score;
+}
+
+
+// --- Specialized Endgames ---
+int evalKRK(int c) {
+int wk = P.king[c];
+int bk = P.king[c ^ 1];
+int rook = getLsb(P.piece[ROOK]);
+
+int edgeDist = MIN(MIN(bk % 8, 7 - (bk % 8)), MIN(bk / 8, 7 - (bk / 8)));
+int kdist = abs((wk % 8) - (bk % 8)) + abs((wk / 8) - (bk / 8));
+
+int score = 200 - edgeDist * 30 - kdist * 10;
+
+if ((rook % 8 == bk % 8) || (rook / 8 == bk / 8))
+score += 50;
+
+return score;
+}
+
+
+// helper: key squares for KPK
+int inKeySquare(int pawn, int king, int color) {
+int rank = pawn / 8;
+int file = pawn % 8;
+
+int pawnRank = (color == 0) ? rank : 7 - rank;
+int kingRank = (color == 0) ? king / 8 : 7 - king / 8;
+int kingFile = king % 8;
+
+if (pawnRank >= 6) {
+if (abs(kingFile - file) <= 1 && kingRank >= 6)
+return 1;
+}
+
+if (kingRank >= pawnRank + 1 && kingRank <= pawnRank + 2) {
+if (abs(kingFile - file) <= 1)
+return 1;
+}
+
+return 0;
+}
+
+
+int evalKPK(int c) {
+int pawn = getLsb(P.piece[PAWN]);
+int pawnFile = pawn % 8;
+int pawnRank = (c == 0) ? pawn / 8 : 7 - pawn / 8;
+int wk = P.king[c];
+int bk = P.king[c ^ 1];
+
+
+if (pawnFile == 0 || pawnFile == 7) {
+int promoSquare = (c == 0) ? (pawnFile) : (56 + pawnFile);
+if (bk == promoSquare) {
+return 0;
+}
+}
+
+if (inKeySquare(pawn, bk, c)) {
+return 0;
+}
+
+if (inKeySquare(pawn, wk, c)) {
+return MAXSCORE / 4;
+}
+return 50 * pawnRank;
+}
+
+int evalKBKB(int c) {
+int wBishop = getLsb(P.piece[BISHOP] & P.color[0]);
+int bBishop = getLsb(P.piece[BISHOP] & P.color[1]);
+
+int sameColor = ((whitesq & BIT[wBishop]) == (whitesq & BIT[bBishop]));
+
+if (!sameColor) {
+return 0; // opposite color bishops
+}
+return scaleEndgame(evalc(c) - evalc(c ^ 1), c) / 2;
+}
+
+int evalKNBK(int c) {
+int wk = P.king[c];
+(void)wk;
+int bk = P.king[c ^ 1];
+int corner = (bk % 8 == 0 || bk % 8 == 7) && (bk / 8 == 0 || bk / 8 == 7);
+
+if (corner) {
+int bishop = getLsb(P.piece[BISHOP] & P.color[c]);
+int bishopColor = (whitesq & BIT[bishop]) ? 1 : 0;
+int cornerColor = ((bk % 2) ^ (bk / 8 % 2));
+if (bishopColor == cornerColor) {
+return MAXSCORE / 4;
+}
+}
+return 0;
+}
+
+int evalKNNK(int c) {
+(void)c;
+return 0;
+}
+
+int isKRK() {
+    if (P.piece[PAWN] || P.piece[KNIGHT] || P.piece[BISHOP] || P.piece[QUEEN]) {
+        return 0;
+    }
+    return (bitcnt(P.piece[ROOK]) == 1 && bitcnt(P.color[0] | P.color[1]) == 3);
+}
+
+int isKNBK() {
+    if (P.piece[PAWN] || P.piece[ROOK] || P.piece[QUEEN]) {
+        return 0;
+    }
+    return (bitcnt(P.piece[KNIGHT]) == 1 && bitcnt(P.piece[BISHOP]) == 1 && bitcnt(P.color[0] | P.color[1]) == 3);
+}
+
+int isKNNK() {
+    if (P.piece[PAWN] || P.piece[BISHOP] || P.piece[ROOK] || P.piece[QUEEN]) {
+        return 0;
+    }
+    return (bitcnt(P.piece[KNIGHT]) == 2 && bitcnt(P.color[0] | P.color[1]) == 4);
+}
+
+int isKPK() {
+    if (P.piece[KNIGHT] || P.piece[BISHOP] || P.piece[ROOK] || P.piece[QUEEN]) {
+        return 0;
+    }
+    return (bitcnt(P.piece[PAWN]) == 1 && bitcnt(P.color[0] | P.color[1]) == 3);
+}
+
+int isKBKB() {
+    if (P.piece[PAWN] || P.piece[KNIGHT] || P.piece[ROOK] || P.piece[QUEEN]) {
+        return 0;
+    }
+    return (bitcnt(P.piece[BISHOP]) == 2 && bitcnt(P.color[0] | P.color[1]) == 4);
+}
+
+// --- Rook and Queen Endgames ---
+int isKRPvKR() {
+return (bitcnt(P.piece[PAWN]) == 1 &&
+bitcnt(P.piece[ROOK]) == 2 &&
+bitcnt(P.piece[KNIGHT] | P.piece[BISHOP] | P.piece[QUEEN]) == 0);
+}
+
+int evalKRPvKR(int c) {
+int pawn = getLsb(P.piece[PAWN]);
+int pawnRank = (c == 0) ? pawn / 8 : 7 - pawn / 8;
+int wk = P.king[c];
+
+if (pawnRank >= 6 && abs((wk % 8) - (pawn % 8)) <= 1) {
+return MAXSCORE / 4; // Lucena-like
+}
+return 0; // otherwise drawish (Philidor)
+}
+
+
+int isKQvKP() {
+return (bitcnt(P.piece[PAWN]) == 1 &&
+bitcnt(P.piece[QUEEN]) == 1 &&
+bitcnt(P.piece[ROOK] | P.piece[KNIGHT] | P.piece[BISHOP]) == 0);
+}
+
+
+int evalKQvKP(int c) {
+int pawn = getLsb(P.piece[PAWN]);
+int pawnFile = pawn % 8;
+int pawnRank = (c == 0) ? pawn / 8 : 7 - pawn / 8;
+int bk = P.king[c ^ 1];
+
+if (pawnFile == 0 || pawnFile == 7) {
+if (pawnRank >= 6 && (bk % 8 == pawnFile)) {
+return 0; // fortress chance
+}
+}
+
+return MAXSCORE / 2; // winning
+}
+
+
+int isKQvKR() {
+return (bitcnt(P.piece[QUEEN]) == 1 &&
+bitcnt(P.piece[ROOK]) == 1 &&
+bitcnt(P.piece[PAWN] | P.piece[KNIGHT] | P.piece[BISHOP]) == 0);
+}
+
+
+int evalKQvKR(int c) {
+int wk = P.king[c];
+int bk = P.king[c ^ 1];
+
+int distKings = abs((wk % 8) - (bk % 8)) + abs((wk / 8) - (bk / 8));
+
+int score = MAXSCORE / 3;
+score -= distKings * 5;
+
+return score;
+}
+
+
+// --- Pawn Race Detection ---
+int isPawnRace() {
+return (bitcnt(P.piece[PAWN]) >= 2 &&
+bitcnt(P.piece[KNIGHT] | P.piece[BISHOP] | P.piece[ROOK] | P.piece[QUEEN]) == 0);
+}
+
+
+int evalPawnRace(int c) {
+u64 pawnsW = P.piece[PAWN] & P.color[0];
+u64 pawnsB = P.piece[PAWN] & P.color[1];
+int fastestW = 100, fastestB = 100;
+
+
+while (pawnsW) {
+int sq = pullLsb(&pawnsW);
+int rank = sq / 8;
+int dist = 7 - rank;
+// account for king chasing
+int wk = P.king[0];
+int wkDist = abs((wk % 8) - (sq % 8)) + abs((wk / 8) - (sq / 8));
+dist += (wkDist < dist) ? 0 : 1;
+if (dist < fastestW) fastestW = dist;
+}
+while (pawnsB) {
+int sq = pullLsb(&pawnsB);
+int rank = sq / 8;
+int dist = rank;
+int bk = P.king[1];
+int bkDist = abs((bk % 8) - (sq % 8)) + abs((bk / 8) - (sq / 8));
+dist += (bkDist < dist) ? 0 : 1;
+if (dist < fastestB) fastestB = dist;
+}
+
+
+if (fastestW < fastestB) return (c == 0) ? MAXSCORE / 4 : -MAXSCORE / 4;
+if (fastestB < fastestW) return (c == 1) ? MAXSCORE / 4 : -MAXSCORE / 4;
+
+
+return 0;
+}
+
+// --- General Endgame Detection ---
+
+int is_endgame() {
+    int total_pieces = bitcnt(BOARD) - 2; // Total pieces excluding kings
+    
+    // Check for common endgames based on piece count
+    switch (total_pieces) {
+        case 0:
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+            return 1;
+    }   
+    // Check for specific endgame scenarios
+    if (isKRK() || isKNBK() || isKNNK() || isKPK() || isKBKB() || isKRPvKR() || isKQvKP() || isKQvKR() || isPawnRace()) {
+        return 1;
+    }
+    return 0;
 }
 
 
@@ -190,8 +482,6 @@ void setHash(int size_mb) {
   printf("info string Hash table allocated: %llu entries (%.1f MB)\n", hashsize,
          (double)(hashsize * sizeof(entry)) / (1024.0 * 1024.0));
 }
-
-
 
 
 void _parse_fen(char *fen, int reset) {
@@ -831,11 +1121,11 @@ Move pick(Movep *mp, int s, int ply) {
       t = history[m & 0x1FFF];
     if (t > vmax)
       vmax = t, pi = i;
-  }
-  m = mp->list[pi];
-  if (pi != s)
+    }
+    m = mp->list[pi];
+    if (pi != s)
     mp->list[pi] = mp->list[s];
-  return m;
+    return m;
 }
 
 u64 pawnAttack(int c) {
@@ -930,15 +1220,53 @@ int evalc(int c) {
          katt * (P.sf[c] + 2); // Adapt bonus for attacking king squares
 }
 
+
+
 int eval(int c) {
-  int ev = evalc(c) - evalc(c ^ 1);
-  eval1++;
+    eval1++;
 
-  if ((MAT < 0 && NOMATEMAT(1)) || (MAT > 0 && NOMATEMAT(0)))
-    return ev;
+    int material_balance = evalc(c) - evalc(c ^ 1);
+    
+    // Quick exit for material disadvantage leading to no-mate
+    if ((MAT < 0 && NOMATEMAT(1)) || (MAT > 0 && NOMATEMAT(0))) {
+        return material_balance;
+    }
 
-  return ev + (c ? -MAT : MAT);
+    // A more structured way to handle endgames
+    typedef int (*EndgameEvalFunc)(int);
+    struct {
+        int (*condition)();
+        EndgameEvalFunc eval_func;
+    } endgame_table[] = {
+        {isKRK, evalKRK},
+        {isKPK, evalKPK},
+        {isKBKB, evalKBKB},
+        {isKNBK, evalKNBK},
+        {isKNNK, evalKNNK},
+        {isKRPvKR, evalKRPvKR},
+        {isKQvKP, evalKQvKP},
+        {isKQvKR, evalKQvKR},
+        {isPawnRace, evalPawnRace},
+        {NULL, NULL} // Sentinel to mark the end of the table
+    };
+
+    for (int i = 0; endgame_table[i].condition != NULL; i++) {
+        if (endgame_table[i].condition()) {
+            return endgame_table[i].eval_func(c);
+        }
+    }
+
+    // Default evaluation
+    int score = material_balance;
+    if (is_endgame()) { // endgame detection function
+        return scaleEndgame(score, c);
+    } else {
+        return score + (c ? -MAT : MAT);
+    }
 }
+
+
+
 
 int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
   int i, best = -MAXSCORE;
@@ -1030,9 +1358,7 @@ static int nullvariance(int delta) {
   return r;
 }
 
-#define MIN(a, b) (((a) < (b)) ? (a) : (b))
-#define MAX(a, b) (((a) > (b)) ? (a) : (b))
-#define HASHP(c) (P.hash ^ hashxor[flags | 1024 | c << 11])
+
 int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null,
            Move sem) {
   int i, j, n, w, oc = c ^ 1, pvnode = beta > alpha + 1;
@@ -1185,7 +1511,7 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null,
       if (ext < 0 && w > alpha)
         w = -search(nch, oc, nd, ply + 1, -alpha - 1, -alpha, 1, 0);
       if (firstPVNode || (w > alpha && w < beta))
-        w = -search(nch, oc, nd, ply + 1, -beta, -alpha, 0, 0);
+        w = -search(nch, oc, nd + ext, ply + 1, -beta, -alpha, 0, 0);
 
       undoMove(0, c);
       memcpy(&P, &pos, sizeof(Pos));
