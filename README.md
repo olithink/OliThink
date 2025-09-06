@@ -11,3 +11,8 @@ In order to play chess a chess GUI like xboard, cutechess, arena etc. is necessa
 
 In this repository there is a history of sources and executables for Linux, MacOSX and Windows.
 OliThink has been translated into a Java engine. The Java engine is weaker but less than expected.
+
+OliThink playing at LiChess.org: <br>
+https://lichess.org/@/OliThink-5 <br>
+https://lichess.org/@/OliThinkFlash <br>
+https://lichess.org/@/OliThinkNomaterial  <br>
