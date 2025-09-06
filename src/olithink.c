@@ -1,5 +1,5 @@
-#define VER "5.11.9"
-/* OliThink5 (c) Oliver Brausch 27.Aug.2025, ob112@web.de, http://brausch.org */
+#define VER "5.11.9.nomat"
+/* OliThink5 (c) Oliver Brausch 06.Sep.2025, ob112@web.de, http://brausch.org */
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -26,7 +26,6 @@ enum { HASH, NOISY, QUIET, EXIT };
 
 #define HMASK 0x7FFFFFLL
 #define CNODES 0x3FFF
-const int pval[] = {0, 100, 290, 0, 100, 310, 500, 950};
 const int fval[] = {0, 0, 2, 0, 0, 3, 5, 9};
 const int cornbase[] = {4, 4, 2, 1, 0, 0 ,0};
 
@@ -68,7 +67,6 @@ const int cornbase[] = {4, 4, 2, 1, 0, 0 ,0};
 #define CASTLE(c) (flags & (320 << (c)))
 #define COUNT (count & 0x3FF)
 #define MEVAL(w) w > 9999 || w < -9999 ? "mate" : "cp", w > 9999 ? (1+MAXSCORE-w)/2 : w < -9999 ? (-MAXSCORE-w)/2 : w
-#define NOMATEMAT(c) ((P.sf[c] <= 4 || (P.sf[c] <= 8 && P.sf[c] <= P.sf[c^1] + 3)) && (P.piece[PAWN] & P.color[c]) == 0)
 
 typedef struct {
 	int n;
@@ -86,7 +84,7 @@ typedef struct {
 typedef struct {
 	u64 hash;
 	int king[2];
-	int sf[3];
+	int sf[2];
 	u64 color[3];
 	u64 piece[8];
 } Pos;
@@ -106,7 +104,6 @@ static int _king[8] = {-9,-1,7,8,9,1,-7,-8};
 static int sabort, onmove, sd = 64, ttime = 30000, mps = 0, inc = 0, st = 0;
 static char *sfen = "rnbqkbnr/pppppppp/////PPPPPPPP/RNBQKBNR w KQkq - 0 1", line[8192];
 const char pieceChar[] = "*PNK.BRQ";
-#define MAT P.sf[2]
 #define BOARD P.color[2]
 #define RQU (P.piece[QUEEN] | P.piece[ROOK])
 #define BQU (P.piece[QUEEN] | P.piece[BISHOP])
@@ -137,7 +134,6 @@ void _parse_fen(char *fen, int reset) {
 		} else {
 			int p = _getpiece(s, &c), t = row*8 + (col++);
 			if (p == KING) P.king[c] = t;
-			else MAT += changeMat(_CAP(p) | _TO(t), c^1, -1);
 			P.hash ^= hashxor[col | row << 3 | p << 6 | c << 9];
 			P.piece[p] |= BIT[t];
 			P.color[c] |= BIT[t];
@@ -358,16 +354,8 @@ int getDir(int f, int t) {
 	return (!((f - t) % 9)) ? 32 : 64;
 }
 
-int changeMat(int m, int c, int d) {
-	int dm = pval[CAP(m)];
-	if (PROM(m)) dm += -pval[PAWN] + pval[PROM(m)];
-	P.sf[c] += d*fval[PROM(m)];
-	P.sf[c^1] -= d*fval[CAP(m)];
-	return c ? -d*dm : d*dm;
-}
-
 /* move is for both doMove and undoMove, only for undo the globalflags have to be restored (count, castle, enpass..) */
-void move(Move m, int c, int d) {
+void move(Move m, int c) {
 	int f = FROM(m), t = TO(m), p = PIECE(m), a = CAP(m);
 
 	P.color[c] ^= BIT[f] | BIT[t];
@@ -385,7 +373,6 @@ void move(Move m, int c, int d) {
 		P.color[c^1] ^= BIT[t];
 		P.hash ^= hashxor[t | a << 6 | (c^1) << 9];
 		count &= 0x3FF; //Reset Fifty Counter
-		MAT += changeMat(m, c, d);
 	}
 	if (p == PAWN) {
 		if (((f^t)&8) == 0) flags |= f^24; //Enpassant
@@ -394,7 +381,6 @@ void move(Move m, int c, int d) {
 			P.piece[PROM(m)] ^= BIT[t];
 			P.hash ^= hashxor[t | PAWN << 6 | c << 9];
 			P.hash ^= hashxor[t | PROM(m) << 6 | c << 9];
-			if (!a) MAT += changeMat(m, c, d);
 		}
 		count &= 0x3FF; //Reset Fifty Counter
 	} else if (p == KING) {
@@ -418,12 +404,12 @@ void doMove(Move m, int c) {
 	mstack[COUNT] = count | (flags << 17) | (((u64)m) << 27);
 	flags &= 960; // reset en-passant flags
 	count += 0x401; // counter++
-	if (m) move(m, c, 1);
+	if (m) move(m, c);
 }
 
 void undoMove(Move m, int c) {
 	u64 u = mstack[COUNT - 1];
-	if (m) move(m, c, -1);
+	if (m) move(m, c);
 	count = u & 0x1FFFF;
 	flags = (u >> 17L) & 0x3FF;
 }
@@ -595,38 +581,6 @@ int generate(u64 ch, int c, Movep *mp, int noisy, int quiet) {
 	return 0;
 }
 
-int swap(Move m) { //SEE
-	int s_list[32], f = FROM(m), t = TO(m), c = ONMV(m), piece = PIECE(m), nc = 1;
-	u64 temp, cAttacks, occ = BOARD, attacks = ((PCAP(t, 0) | PCAP(t, 1)) & P.piece[PAWN])
-						| (nmoves[t] & P.piece[KNIGHT]) | (kmoves[t] & P.piece[KING]);
-
-	s_list[0] = pval[CAP(m)];
-	occ &= ~BIT[f];
-
-	do {
-		s_list[nc] = -s_list[nc - 1] + pval[piece];
-		c ^= 1;
-		attacks |= (BATT(t, occ) & BQU) | (RATT(t, occ) & RQU);
-		attacks &= occ;
-		if (!(cAttacks = attacks & P.color[c])) break;
-
-		if ((temp = P.piece[PAWN] & cAttacks)) piece = PAWN;
-		else if ((temp = P.piece[KNIGHT] & cAttacks)) piece = KNIGHT;
-		else if ((temp = P.piece[BISHOP] & cAttacks)) piece = BISHOP;
-		else if ((temp = P.piece[ROOK] & cAttacks)) piece = ROOK;
-		else if ((temp = P.piece[QUEEN] & cAttacks)) piece = QUEEN;
-		else { nc += !(P.color[c^1] & attacks); break; } // KING
-
-		occ ^= temp & -temp;
-	} while (pval[piece] >= s_list[nc++]);
-
-	while (--nc)
-		if (s_list[nc] > -s_list[nc - 1])
-			s_list[nc - 1] = -s_list[nc];
-
-	return s_list[0];
-}
-
 /* In normal search basic move ordering heuristics are used, in quiesce (ply < 0) value of captured piece */
 Move pick(Movep* mp, int s, int ply) {
 	Move m;
@@ -634,7 +588,7 @@ Move pick(Movep* mp, int s, int ply) {
 	for (i = s; i < mp->n; i++) {
 		m = mp->list[i];
 		if (ply < 0) {
-			t = pval[CAP(m)] - fval[PIECE(m)];
+			t = fval[CAP(m)]*5 - fval[PIECE(m)];
 		} else if (m == killer[ply]) {
 			pi = i;
 			break;
@@ -706,7 +660,8 @@ int evalc(int c) {
 		f = pullLsb(&b);
 		a = BATT(f, occ) | RATT(f, occ);
 		katt += bitcnt(a & kn);
-		mn += MOBILITY(a, mb) * egf * egf / 80 / 80;
+		mn += MOBILITY(a, mb) * egf * egf / 50 / 50;
+		mn += bitcnt(BATT(f, occ & ocb) | RATT(f, occ & ocb)) << 2;
 	}
 
 	occ ^= P.piece[ROOK]; //Rooks don't block mobility for bishop
@@ -716,6 +671,7 @@ int evalc(int c) {
 		a = BATT(f, occ);
 		katt += bitcnt(a & kn);
 		mn += MOBILITY(a, mb) << 2;
+		mn += bitcnt(BATT(f, occ & ocb)) << 2;
 	}
 
 	b = P.piece[ROOK] & cb;
@@ -724,18 +680,16 @@ int evalc(int c) {
 		a = RATT(f, occ);
 		katt += bitcnt(a & kn);
 		mn += MOBILITY(a, mb) * egf / 40;
+		mn += bitcnt(RATT(f, occ & ocb)) << 2;
 	}
 
-	return mn + kmobilf(c) + katt * (P.sf[c] + 2); //Adapt bonus for attacking king squares
+	return mn*3 + kmobilf(c) + katt * (P.sf[c] + 2); //Adapt bonus for attacking king squares
 }
 
 int eval(int c) {
 	int ev = evalc(c) - evalc(c^1);
 	eval1++;
-
-	if ((MAT < 0 && NOMATEMAT(1)) || (MAT > 0 && NOMATEMAT(0))) return ev;
-
-	return ev + (c ? -MAT : MAT);
+	return ev;
 }
 
 int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
@@ -743,9 +697,6 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 
 	if (ply == 127) return eval(c);
 	if (!ch) do {
-		int cmat = (c ? -MAT : MAT);
-		if (cmat - 125 >= beta) return beta;
-		if (cmat + 85 <= alpha) break;
 		best = eval(c);
 		if (best >= beta) return beta;
 		if (best > alpha) alpha = best;
@@ -757,7 +708,6 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
 	Pos pos; pos.hash = 0;
 	for (i = 0; i < mp.n; i++) {
 		Move m = pick(&mp, i, -1);
-		if (!ch && pval[PIECE(m)] > pval[CAP(m)] && swap(m) < 0) continue;
 
 		if (!pos.hash) memcpy(&pos, &P, sizeof(Pos));
 		doMove(m, c);
@@ -886,15 +836,13 @@ int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null, Move se
 			if (!ch && n == QUIET && mpq.n > 2*d*(raising+1)) {
 				n = EXIT; break; // LMP
 			}
-			if (n != HASH && alpha > -MAXSCORE+500 && d < 8 && swap(m) < -d*60) continue;
-
 			int ext = 0, quiet = !CAP(m) && !PROM(m);
 			if (!pos.hash) memcpy(&pos, &P, sizeof(Pos));
 			doMove(m, c);
 			if (quiet) mpq.list[mpq.n++] = m;
 			u64 nch = attacked(P.king[oc], oc);
 			if (nch || pvnode || ch || (PIECE(m) == PAWN && !(pawnfree[c][TO(m)] & P.piece[PAWN] & P.color[oc])));
-			else if (n == NOISY && d >= 2 && swap(m) < 0) ext-= (d + 1)/(3+raising); //Reduce bad exchanges
+			else if (n == NOISY && d >= 2 && fval[CAP(m)] < fval[PIECE(m)]) ext-= (d + 1)/(3+raising); //Reduce bad exchanges
 			else if (n == QUIET && m != killer[ply]) { // LMR, but don't reduce killers
 				int his = history[m & 0x1FFF];
 				if (his > hismax) hismax = his;
