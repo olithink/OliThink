@@ -1,5 +1,5 @@
-#define VER "5.11.9"
-/* OliThink5 (c) Oliver Brausch 27.Aug.2025, ob112@web.de, http://brausch.org */
+#define VER "5.11.9.underpromote"
+/* OliThink5 (c) Oliver Brausch 07.Sep.2025, ob112@web.de, http://brausch.org */
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -40,7 +40,7 @@ const int cornbase[] = {4, 4, 2, 1, 0, 0 ,0};
 
 #define _TO(x) (x << 6)
 #define _ONMV(x) (x << 12)
-#define _PROM(x) (x << 13)
+#define _PROM(x) ((c == engine && x == QUEEN ? ROOK : x) << 13)
 #define _PIECE(x) (x << 16)
 #define _CAP(x) (x << 19)
 #define PREMOVE(f, p) ((f) | _ONMV(c) | _PIECE(p))
@@ -103,7 +103,7 @@ static Move pv[128][128], killer[128];
 static int wstack[0x400], history[0x2000], kmobil[64], bishcorn[64];
 static int _knight[8] = {-17,-10,6,15,17,10,-6,-15};
 static int _king[8] = {-9,-1,7,8,9,1,-7,-8};
-static int sabort, onmove, sd = 64, ttime = 30000, mps = 0, inc = 0, st = 0;
+static int sabort, onmove, engine = -1, sd = 64, ttime = 30000, mps = 0, inc = 0, st = 0;
 static char *sfen = "rnbqkbnr/pppppppp/////PPPPPPPP/RNBQKBNR w KQkq - 0 1", line[8192];
 const char pieceChar[] = "*PNK.BRQ";
 #define MAT P.sf[2]
@@ -441,7 +441,7 @@ void regPromotions(int f, int c, u64 bt, Movep* mp, int cap, int queen) {
 		Move m = f | _ONMV(c) | _PIECE(PAWN) | _TO(t) | (cap ? _CAP(identPiece(t)) : 0);
 		if (queen) mp->list[mp->n++] = m | _PROM(QUEEN);
 		mp->list[mp->n++] = m | _PROM(KNIGHT);
-		mp->list[mp->n++] = m | _PROM(ROOK);
+		if (c != engine) mp->list[mp->n++] = m | _PROM(ROOK);
 		mp->list[mp->n++] = m | _PROM(BISHOP);
 	}
 }
@@ -1005,7 +1005,7 @@ void calc(int tm) {
 	if (st > 0) maxtime = searchtime = st;
 
 	starttime = getTime();
-	u64 ch = attacked(P.king[onmove], onmove);
+	u64 ch = attacked(P.king[onmove], engine = onmove);
 	memset(history, 0, sizeof(history));
 	memset(killer, 0, sizeof(killer));
 
@@ -1042,7 +1042,7 @@ void calc(int tm) {
 	if (ponder_move) {
 		printf(" ponder "); displaym(ponder_move);
 	}
-	printf("\n");
+	printf("\n"); engine = -1;
 }
 
 void do_uci_position(char* line) {
