@@ -1,5 +1,5 @@
-#define VER "5.11.9.nomat"
-/* OliThink5 (c) Oliver Brausch 06.Sep.2025, ob112@web.de, http://brausch.org */
+#define VER "5.11.9.nomat2"
+/* OliThink5 (c) Oliver Brausch 07.Sep.2025, ob112@web.de, http://brausch.org */
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -644,6 +644,7 @@ int evalc(int c) {
 		ppos += bitcnt(a & cb) << 2;
 		katt += bitcnt(a & kn);
 		mn += ppos;
+		mn += bitcnt(pcaps[c][f] | (pmoves[c][f] & ~ocb)) << 2;
 	}
 
 	b = P.piece[KNIGHT] & cb;
