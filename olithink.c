@@ -1339,6 +1339,7 @@ int try_enable_nnue() {
   return 0;
 }
 
+#define HASHP(c) (P.hash ^ hashxor[flags | 1024 | c << 11])
 int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
   int i, best = -MAXSCORE;
 
@@ -1351,7 +1352,13 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
         return beta;
       if (cmat + 85 <= alpha)
         break;
-      best = eval(c);
+
+		u64 hp = HASHP(c);
+		entry* he = &hashDB[hp & hmask];
+		int wstat = he->key == hp ? he->value : eval(c);
+		if (he->key != hp) *he = (entry) {.key = hp, .move = 0, .value = wstat, .depth = 0, .type = LOWER};
+
+		best = wstat;
       if (best >= beta)
         return beta;
       if (best > alpha)
@@ -1434,7 +1441,6 @@ static int nullvariance(int delta) {
 
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
-#define HASHP(c) (P.hash ^ hashxor[flags | 1024 | c << 11])
 int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null,
            Move sem) {
   int i, j, n, w, oc = c ^ 1, pvnode = beta > alpha + 1;
