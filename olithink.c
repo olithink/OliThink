@@ -17,7 +17,6 @@ struct timeval tv;
 #define getLsb(x) __builtin_ctzll(x)
 #endif
 
-
 #define HYBRID
 
 #include "cerebrum.h"
