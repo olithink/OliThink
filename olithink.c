@@ -17,11 +17,15 @@ struct timeval tv;
 #define getLsb(x) __builtin_ctzll(x)
 #endif
 
+
+#define HYBRID
+
 #include "cerebrum.h"
 
 NN_Accumulator nn_accumulator, nn_accumulator_copy;
 
 static int use_nnue = 1; // default: ON
+static int use_hybrid_eval = 0; // NEW: default: OFF, controlled by UCI option
 static int nnue_reload_pending = 0;
 static char nnue_file_path[256] = "";
 int validate_nnue_state();
@@ -43,6 +47,17 @@ enum { HASH, NOISY, QUIET, EXIT };
 const int pval[] = {0, 100, 290, 0, 100, 310, 500, 950};
 const int fval[] = {0, 0, 2, 0, 0, 3, 5, 9};
 const int cornbase[] = {4, 4, 2, 1, 0, 0, 0};
+
+
+#ifdef HYBRID
+// Configuration for blending NNUE and material score to fix "Halo Effect".
+// Using a blend of (7/8 * NNUE) + (1/8 * Material)
+#define HYBRID_MATERIAL_BLEND_SHIFT 3 // 1/8 = 1 / (1 << 3)
+#define HYBRID_TOTAL_WEIGHT (1 << HYBRID_MATERIAL_BLEND_SHIFT) // 8
+#define HYBRID_NNUE_WEIGHT (HYBRID_TOTAL_WEIGHT - 1) // 7
+#endif
+
+
 
 #define FROM(x) (x & 63)
 #define TO(x) ((x >> 6) & 63)
@@ -1309,15 +1324,38 @@ int eval_traditional(int c) {
 
 int eval(int c) {
   if (nnue_available && use_nnue) {
-    // NNUE returns a float (side-to-move perspective), usually ~[-1.0, 1.0]
-    // Multiply by 1000 to convert to centipawns (consistent with OliThink)
-    float nn_val = nn_evaluate(nn_accumulator, c);
-    return (int)(nn_val * 1000.0f);
-  } else {
-    eval1++;
-    return eval_traditional(c);
+    // 1. Get NNUE score as an integer centipawn value (from side 'c' perspective)
+    float nn_score_stm = nn_evaluate(nn_accumulator, c);
+    int nn_cp_stm = (int)(nn_score_stm * 100.0f);
+
+#ifdef HYBRID
+    // --- Hybrid Evaluation Blending (To fix Halo Effect) ---
+
+    // 2. Convert NNUE score from Side-To-Move (STM) to White's Perspective (WP)
+    // If Black is moving (c=1), invert the score.
+    int nn_cp_wp = c ? -nn_cp_stm : nn_cp_stm;
+    
+    // 3. Material score is already in White's Perspective (MAT)
+    int material_cp_wp = MAT; 
+
+    // 4. Calculate Blended score in White's Perspective (WP):
+    // Blended = (7 * NNUE_WP + 1 * Material_WP) / 8
+    int blended_cp_wp = 
+        ((HYBRID_NNUE_WEIGHT * nn_cp_wp) + material_cp_wp) 
+        >> HYBRID_MATERIAL_BLEND_SHIFT;
+
+    // 5. Final result must be Side-to-Move (STM) perspective for the search function
+    return c ? -blended_cp_wp : blended_cp_wp;
+#else
+    // --- Pure NNUE Evaluation ---
+    // If not using hybrid, return the original NNUE score (which is already STM)
+    return nn_cp_stm;
+#endif
   }
+  // Fallback to traditional evaluation if NNUE is disabled or unavailable
+  return eval_traditional(c);
 }
+
 
 // Optional: Function to manually disable NNUE and fall back to traditional eval
 void disable_nnue() {
@@ -1339,6 +1377,7 @@ int try_enable_nnue() {
   return 0;
 }
 
+#define HASHP(c) (P.hash ^ hashxor[flags | 1024 | c << 11])
 int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
   int i, best = -MAXSCORE;
 
@@ -1351,7 +1390,13 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
         return beta;
       if (cmat + 85 <= alpha)
         break;
-      best = eval(c);
+
+		u64 hp = HASHP(c);
+		entry* he = &hashDB[hp & hmask];
+		int wstat = he->key == hp ? he->value : eval(c);
+		if (he->key != hp) *he = (entry) {.key = hp, .move = 0, .value = wstat, .depth = 0, .type = LOWER};
+
+		best = wstat;
       if (best >= beta)
         return beta;
       if (best > alpha)
@@ -1434,7 +1479,6 @@ static int nullvariance(int delta) {
 
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
-#define HASHP(c) (P.hash ^ hashxor[flags | 1024 | c << 11])
 int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null,
            Move sem) {
   int i, j, n, w, oc = c ^ 1, pvnode = beta > alpha + 1;
@@ -1883,13 +1927,14 @@ void uci_loop() {
 	if (strncmp(line, "uci", 3) == 0) {
       printf("id name OliThink %s\n", VER);
       printf("id author Oliver Brausch\n");
-      printf("option name Ponder type check default true\n");
+      printf("option name Ponder type check default false\n");
       printf("option name Hash type spin default 64 min 8 max 2048\n");
       printf("info string Hash size will be rounded to nearest power of 2 (8, 16, 32, 64, 128, 256, 512, 1024, 2048 MB)\n");
-      #ifdef NNUE_ENABLED // Only in olithink.c
       printf("option name Use NNUE type check default true\n");
-      printf("option name NNUE File type string default %s\n", NN_FILE);
+      #ifdef HYBRID
+      printf("option name Hybrid Eval type check default false\n"); // NEW OPTION
       #endif
+      printf("option name NNUE File type string default %s\n", NN_FILE);
       printf("uciok\n");
     } else if (strncmp(line, "isready", 7) == 0) {
       printf("readyok\n");
@@ -1934,22 +1979,31 @@ void uci_loop() {
 	  if (strncmp(option_name, "Hash", 4) == 0) {
           sscanf(option_value, "%llu", &hashsize);
           setHash(hashsize);
-        } else
-
       
       // Process the options
-	 if (strcmp(option_name, "Use NNUE") == 0) {
-        if (strcmp(option_value, "true") == 0) {
-          use_nnue = 1;
-          if (nnue_available) {
-            printf("info string NNUE enabled\n");
-          } else {
-            printf("info string NNUE not available, using classical eval\n");
-          }
-        } else if (strcmp(option_value, "false") == 0) {
-          use_nnue = 0;
-          printf("info string NNUE disabled, using classical eval\n");
+	
+	
+	} else if (strcmp(option_name, "Use NNUE") == 0) {
+      if (strcmp(option_value, "true") == 0) {
+        use_nnue = 1;
+        if (nnue_available) {
+          printf("info string NNUE enabled\n");
+        } else {
+          printf("info string NNUE not available, using classical eval\n");
         }
+      } else if (strcmp(option_value, "false") == 0) {
+        use_nnue = 0;
+        printf("info string NNUE disabled, using classical eval\n");
+      }
+    } else if (strcmp(option_name, "Hybrid Eval") == 0) { // NEW OPTION HANDLER
+      if (strcmp(option_value, "true") == 0) {
+        use_hybrid_eval = 1;
+        printf("info string Hybrid Eval enabled\n");
+      } else if (strcmp(option_value, "false") == 0) {
+        use_hybrid_eval = 0;
+        printf("info string Hybrid Eval disabled, using pure NNUE eval\n");
+	  }
+	
       } else if (strcmp(option_name, "NNUE File") == 0) {
         strncpy(nnue_file_path, option_value, sizeof(nnue_file_path) - 1);
         nnue_file_path[sizeof(nnue_file_path) - 1] = '\0';
