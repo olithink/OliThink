@@ -154,7 +154,7 @@ static u64 BIT[64], nmoves[64], kmoves[64], bmask135[64], bmask45[64],
 static u64 rankb[8], fileb[8], raysRank[8][64], raysAFile[8][64],
     xrayRank[8][64], xrayAFile[8][64];
 static u64 whitesq, centr, centr2, maxtime, starttime, eval1, nodes, qnodes;
-static u32 crevoke[64], count, flags, pondering = 0;
+static u32 crevoke[64], count, flags, pondering = 0, infinite = 0;
 static Move pv[128][128], killer[128];
 static int wstack[0x400], history[0x2000], kmobil[64], bishcorn[64];
 static int _knight[8] = {-17, -10, 6, 15, 17, 10, -6, -15};
@@ -2097,6 +2097,9 @@ void uci_loop() {
           sd = atoi(token);
         } else if (strcmp(token, "ponder") == 0) {
           pondering = 1;
+		} else if (strcmp(token, "infinite") == 0) { // analysis mode
+          sd = 9999;
+		  infinite = 30000000;  
         } else if (strcmp(token, "movestogo") == 0) {
           token = strtok(NULL, " ");
           mps = atoi(token);
@@ -2104,7 +2107,11 @@ void uci_loop() {
         token = strtok(NULL, " ");
       }
       thinking = 1;
-      calc(ttime);
+      if (infinite) {       // infinite means analysis mode)
+	  calc(infinite);
+	  }else{
+	  calc(ttime);
+	  }
       thinking = 0;
     } else if (strncmp(line, "quit", 4) == 0) {
       break;
