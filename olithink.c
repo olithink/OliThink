@@ -1,9 +1,10 @@
-#define VER "5.11.9-nnue"
+#define VER "5.11.9-nnue-hybrid"
 /* OliThink5 (c) Oliver Brausch 27.Aug.2025, ob112@web.de, http://brausch.org */
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #ifdef _WIN64
 #include <conio.h>
 #include <intrin.h>
@@ -17,20 +18,19 @@ struct timeval tv;
 #define getLsb(x) __builtin_ctzll(x)
 #endif
 
-#define HYBRID
-
 #include "cerebrum.h"
 
 NN_Accumulator nn_accumulator, nn_accumulator_copy;
 
-static int use_nnue = 1; // default: ON
-static int use_hybrid_eval = 0; // NEW: default: OFF, controlled by UCI option
-static int nnue_reload_pending = 0;
-static char nnue_file_path[256] = "";
 int validate_nnue_state();
+static int use_nnue                = true; // default: ON
+static int nnue_reload_pending     = false;
+static char nnue_file_path[256]    = "";
+static int using_pure_nnue_eval    = false;
+static int using_classical_eval    = false;
+static int use_hybrid_eval         = false; 
 
 //#define VALIDATE_NN      // nnue safety check - don't use on production
-
 
 typedef unsigned long long u64;
 typedef unsigned long u32;
@@ -48,14 +48,16 @@ const int fval[] = {0, 0, 2, 0, 0, 3, 5, 9};
 const int cornbase[] = {4, 4, 2, 1, 0, 0, 0};
 
 
-#ifdef HYBRID
-// Configuration for blending NNUE and material score to fix "Halo Effect".
-// Using a blend of (7/8 * NNUE) + (1/8 * Material)
-#define HYBRID_MATERIAL_BLEND_SHIFT 3 // 1/8 = 1 / (1 << 3)
-#define HYBRID_TOTAL_WEIGHT (1 << HYBRID_MATERIAL_BLEND_SHIFT) // 8
-#define HYBRID_NNUE_WEIGHT (HYBRID_TOTAL_WEIGHT - 1) // 7
-#endif
+// Configurable blending for hybrid evaluation to fix "Halo Effect".
+static int hybrid_nnue_ratio = 7;      // NNUE weight (0-255)
+static int hybrid_material_ratio = 1;  // Material weight (0-255)
+static int hybrid_total_weight = 8;    // Sum of the two (for normalization)
 
+// Keep original constants as fallback
+// Using a blend of (7/8 * NNUE) + (1/8 * Material)
+#define HYBRID_MATERIAL_BLEND_SHIFT 3
+#define HYBRID_TOTAL_WEIGHT_DEFAULT (1 << HYBRID_MATERIAL_BLEND_SHIFT)
+#define HYBRID_NNUE_WEIGHT_DEFAULT (HYBRID_TOTAL_WEIGHT_DEFAULT - 1)
 
 
 #define FROM(x) (x & 63)
@@ -137,7 +139,7 @@ static entry *hashDB;
 
 
 // Add a global flag to track NNUE availability
-static int nnue_available = 0;
+static int nnue_available = false;
 static char nnue_filename[256] = NN_FILE; // default network file
 void setup_nnue_for_position();
 
@@ -154,7 +156,7 @@ static u64 BIT[64], nmoves[64], kmoves[64], bmask135[64], bmask45[64],
 static u64 rankb[8], fileb[8], raysRank[8][64], raysAFile[8][64],
     xrayRank[8][64], xrayAFile[8][64];
 static u64 whitesq, centr, centr2, maxtime, starttime, eval1, nodes, qnodes;
-static u32 crevoke[64], count, flags, pondering = 0, infinite = 0;
+static u32 crevoke[64], count, flags, pondering = 0, analyze = 0;
 static Move pv[128][128], killer[128];
 static int wstack[0x400], history[0x2000], kmobil[64], bishcorn[64];
 static int _knight[8] = {-17, -10, 6, 15, 17, 10, -6, -15};
@@ -719,7 +721,7 @@ void _newGame() {
   _parse_fen(sfen, 1);
 
   // WITH this corrected logic:
-  nnue_available = 0;  // Start with NNUE disabled
+  nnue_available = false;  // Start with NNUE disabled
   
   // Determine which file to load
   char* file_to_load = (nnue_file_path[0] != '\0') ? nnue_file_path : NN_FILE;
@@ -736,19 +738,19 @@ void _newGame() {
       load_result = nn_load(file_to_load);
       if (load_result >= 0) {
         printf("info string NNUE file converted and loaded successfully: %s\n", file_to_load);
-        nnue_available = 1;
+        nnue_available = true;
       } else {
-        printf("info string Failed to load converted NNUE file - using traditional evaluation\n");
-        nnue_available = 0;
+        printf("info string Failed to load converted NNUE file - using classical evaluation\n");
+        nnue_available = false;
       }
-    } else {
-      printf("info string Failed to convert NNUE file - using traditional evaluation\n");
-      nnue_available = 0;
-    }
-  } else {
+      } else {
+       printf("info string Failed to convert NNUE file - using classical evaluation\n");
+       nnue_available = false;
+      }
+      } else {
     // Loading successful
-    printf("info string NNUE file loaded successfully: %s\n", file_to_load);
-    nnue_available = 1;
+      printf("info string NNUE file loaded successfully: %s\n", file_to_load);
+       nnue_available = true;
   }
 
   // Initialize NNUE accumulator if available
@@ -761,7 +763,7 @@ void _newGame() {
   }
   
   // Clear any pending reload since we just loaded
-  nnue_reload_pending = 0;
+  nnue_reload_pending = false;
   
 }
 
@@ -1317,49 +1319,54 @@ int evalc(int c) {
 }
 
 // Traditional evaluation function (extracted from your existing evalc)
-int eval_traditional(int c) {
+int eval_classical(int c) {
   return evalc(c) - evalc(c ^ 1) + (c ? -MAT : MAT);
 }
 
+
+
 int eval(int c) {
   if (nnue_available && use_nnue) {
-    // 1. Get NNUE score as an integer centipawn value (from side 'c' perspective)
     float nn_score_stm = nn_evaluate(nn_accumulator, c);
     int nn_cp_stm = (int)(nn_score_stm * 100.0f);
 
-#ifdef HYBRID
-    // --- Hybrid Evaluation Blending (To fix Halo Effect) ---
+    if (use_hybrid_eval) {
+      // --- Hybrid Evaluation Blending with Configurable Ratio ---
+      
+      // Convert NNUE score from STM to White's Perspective
+      int nn_cp_wp = c ? -nn_cp_stm : nn_cp_stm;
+      
+      // Material score is already in White's Perspective
+      int material_cp_wp = MAT;
 
-    // 2. Convert NNUE score from Side-To-Move (STM) to White's Perspective (WP)
-    // If Black is moving (c=1), invert the score.
-    int nn_cp_wp = c ? -nn_cp_stm : nn_cp_stm;
-    
-    // 3. Material score is already in White's Perspective (MAT)
-    int material_cp_wp = MAT; 
+      // Calculate blended score using configurable weights
+      // Blended = (nnue_ratio * NNUE_WP + material_ratio * Material_WP) / total_weight
+      int blended_cp_wp = 
+          ((hybrid_nnue_ratio * nn_cp_wp) + (hybrid_material_ratio * material_cp_wp)) 
+          / hybrid_total_weight;
 
-    // 4. Calculate Blended score in White's Perspective (WP):
-    // Blended = (7 * NNUE_WP + 1 * Material_WP) / 8
-    int blended_cp_wp = 
-        ((HYBRID_NNUE_WEIGHT * nn_cp_wp) + material_cp_wp) 
-        >> HYBRID_MATERIAL_BLEND_SHIFT;
-
-    // 5. Final result must be Side-to-Move (STM) perspective for the search function
-    return c ? -blended_cp_wp : blended_cp_wp;
-#else
-    // --- Pure NNUE Evaluation ---
-    // If not using hybrid, return the original NNUE score (which is already STM)
-    return nn_cp_stm;
-#endif
+      // Return in STM perspective
+      return c ? -blended_cp_wp : blended_cp_wp;
+    } else {
+      // Pure NNUE evaluation
+      using_pure_nnue_eval = true;
+      return nn_cp_stm;
+    }
   }
-  // Fallback to traditional evaluation if NNUE is disabled or unavailable
-  return eval_traditional(c);
+  
+  // Fallback to classical evaluation
+  using_classical_eval = true;
+  eval1++;
+  return eval_classical(c);
 }
 
 
-// Optional: Function to manually disable NNUE and fall back to traditional eval
+
+
+// Optional: Function to manually disable NNUE and fall back to classical eval
 void disable_nnue() {
-  nnue_available = 0;
-  printf("info string NNUE disabled, using traditional evaluation\n");
+  nnue_available = false;
+  printf("info string NNUE disabled, using classical evaluation\n");
 }
 
 // Optional: Function to try re-enabling NNUE
@@ -1369,14 +1376,13 @@ int try_enable_nnue() {
     build_nn_arrays(wp, bp);
     nn_update_all_pieces(nn_accumulator, wp, bp);
 
-    nnue_available = 1;
+    nnue_available = true;
     printf("info string NNUE re-enabled\n");
     return 1;
   }
   return 0;
 }
 
-#define HASHP(c) (P.hash ^ hashxor[flags | 1024 | c << 11])
 int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
   int i, best = -MAXSCORE;
 
@@ -1389,13 +1395,7 @@ int quiesce(u64 ch, int c, int ply, int alpha, int beta) {
         return beta;
       if (cmat + 85 <= alpha)
         break;
-
-		u64 hp = HASHP(c);
-		entry* he = &hashDB[hp & hmask];
-		int wstat = he->key == hp ? he->value : eval(c);
-		if (he->key != hp) *he = (entry) {.key = hp, .move = 0, .value = wstat, .depth = 0, .type = LOWER};
-
-		best = wstat;
+      best = eval(c);
       if (best >= beta)
         return beta;
       if (best > alpha)
@@ -1478,6 +1478,7 @@ static int nullvariance(int delta) {
 
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
+#define HASHP(c) (P.hash ^ hashxor[flags | 1024 | c << 11])
 int search(u64 ch, int c, int d, int ply, int alpha, int beta, int null,
            Move sem) {
   int i, j, n, w, oc = c ^ 1, pvnode = beta > alpha + 1;
@@ -1772,7 +1773,7 @@ void reset_uci_parameters() {
   st = 0;
   mps = 0;
   pondering = 0;
-
+  analyze = 0;
 }
 
 
@@ -1835,9 +1836,6 @@ void calc(int tm) {
   }
   printf("\n");
 }
-
-
-
 
 
 
@@ -1916,6 +1914,35 @@ void debug_print_bitboards() {
 }
 
 
+// ============================================================================
+// Helper function to validate and normalize blend ratios
+// ============================================================================
+
+void set_hybrid_blend_ratio(int nnue_w, int material_w) {
+  // Clamp values to reasonable range
+  if (nnue_w < 0) nnue_w = 0;
+  if (nnue_w > 255) nnue_w = 255;
+  if (material_w < 0) material_w = 0;
+  if (material_w > 255) material_w = 255;
+  
+  // Prevent division by zero
+  if (nnue_w == 0 && material_w == 0) {
+    nnue_w = 7;
+    material_w = 1;
+  }
+  
+  hybrid_nnue_ratio = nnue_w;
+  hybrid_material_ratio = material_w;
+  hybrid_total_weight = nnue_w + material_w;
+  
+  printf("info string Hybrid blend set to: NNUE=%d, Material=%d, Total=%d (%.1f%% NNUE)\n",
+         hybrid_nnue_ratio, hybrid_material_ratio, hybrid_total_weight,
+         100.0f * hybrid_nnue_ratio / hybrid_total_weight);
+}
+
+
+
+
 void uci_loop() {
   
   while (fgets(line, sizeof(line), stdin)) {
@@ -1924,17 +1951,22 @@ void uci_loop() {
     if (newline) *newline = '\0';
     
 	if (strncmp(line, "uci", 3) == 0) {
-      printf("id name OliThink %s\n", VER);
-      printf("id author Oliver Brausch\n");
-      printf("option name Ponder type check default false\n");
-      printf("option name Hash type spin default 64 min 8 max 2048\n");
-      printf("info string Hash size will be rounded to nearest power of 2 (8, 16, 32, 64, 128, 256, 512, 1024, 2048 MB)\n");
-      printf("option name Use NNUE type check default true\n");
-      #ifdef HYBRID
-      printf("option name Hybrid Eval type check default false\n"); // NEW OPTION
-      #endif
-      printf("option name NNUE File type string default %s\n", NN_FILE);
-      printf("uciok\n");
+  printf("id name OliThink %s\n", VER);
+  printf("id author Oliver Brausch\n");
+  printf("option name Ponder type check default false\n");
+  printf("option name Hash type spin default 64 min 8 max 2048\n");
+  printf("info string Hash size will be rounded to nearest power of 2 (8, 16, 32, 64, 128, 256, 512, 1024, 2048 MB)\n");
+  printf("option name Use NNUE type check default true\n");
+  printf("option name Hybrid Eval type check default false\n");
+  printf("option name NNUE File type string default %s\n", NN_FILE);
+  
+  // NEW UCI OPTIONS FOR CONFIGURABLE BLENDING
+  printf("option name Hybrid NNUE Weight type spin default 7 min 0 max 255\n");
+  printf("option name Hybrid Material Weight type spin default 1 min 0 max 255\n");
+  printf("option name Hybrid Blend Preset type combo default balanced var pure-nnue var 7-1-blend var 6-2-blend var 5-3-blend var 4-4-blend var balanced var 3-5-blend var material-heavy\n");
+  
+  printf("uciok\n");
+	    
     } else if (strncmp(line, "isready", 7) == 0) {
       printf("readyok\n");
 	} else if (strncmp(line, "ucinewgame", 10) == 0) {
@@ -1978,35 +2010,63 @@ void uci_loop() {
 	  if (strncmp(option_name, "Hash", 4) == 0) {
           sscanf(option_value, "%llu", &hashsize);
           setHash(hashsize);
-      
+        
+
+} else if (strcmp(option_name, "Hybrid NNUE Weight") == 0) {
+  int nnue_w = atoi(option_value);
+  set_hybrid_blend_ratio(nnue_w, hybrid_material_ratio);
+  
+} else if (strcmp(option_name, "Hybrid Material Weight") == 0) {
+  int mat_w = atoi(option_value);
+  set_hybrid_blend_ratio(hybrid_nnue_ratio, mat_w);
+  
+} else if (strcmp(option_name, "Hybrid Blend Preset") == 0) {
+  // Preset configurations for common blending ratios
+  if (strcmp(option_value, "pure-nnue") == 0) {
+    set_hybrid_blend_ratio(100, 0);
+  } else if (strcmp(option_value, "7-1-blend") == 0) {
+    set_hybrid_blend_ratio(7, 1);
+  } else if (strcmp(option_value, "6-2-blend") == 0) {
+    set_hybrid_blend_ratio(6, 2);
+  } else if (strcmp(option_value, "5-3-blend") == 0) {
+    set_hybrid_blend_ratio(5, 3);
+  } else if (strcmp(option_value, "4-4-blend") == 0) {
+    set_hybrid_blend_ratio(4, 4);
+  } else if (strcmp(option_value, "balanced") == 0) {
+    set_hybrid_blend_ratio(5, 5);
+  } else if (strcmp(option_value, "3-5-blend") == 0) {
+    set_hybrid_blend_ratio(3, 5);
+  } else if (strcmp(option_value, "material-heavy") == 0) {
+    set_hybrid_blend_ratio(2, 8);
+  }
+    
       // Process the options
-	
-	
 	} else if (strcmp(option_name, "Use NNUE") == 0) {
-      if (strcmp(option_value, "true") == 0) {
-        use_nnue = 1;
-        if (nnue_available) {
-          printf("info string NNUE enabled\n");
-        } else {
-          printf("info string NNUE not available, using classical eval\n");
+        if (strcmp(option_value, "true") == 0) {
+          use_nnue = true;
+          if (nnue_available) {
+            printf("info string NNUE enabled\n");
+          } else {
+            printf("info string NNUE not available, using classical eval\n");
+          }
+        } else if (strcmp(option_value, "false") == 0) {
+          use_nnue = false;
+          printf("info string NNUE disabled, using classical eval\n");
         }
-      } else if (strcmp(option_value, "false") == 0) {
-        use_nnue = 0;
-        printf("info string NNUE disabled, using classical eval\n");
-      }
-    } else if (strcmp(option_name, "Hybrid Eval") == 0) { // NEW OPTION HANDLER
+		
+		 } else if (strcmp(option_name, "Hybrid Eval") == 0) { // NEW OPTION HANDLER
       if (strcmp(option_value, "true") == 0) {
-        use_hybrid_eval = 1;
+        use_hybrid_eval = use_nnue = nnue_available = true;
         printf("info string Hybrid Eval enabled\n");
       } else if (strcmp(option_value, "false") == 0) {
-        use_hybrid_eval = 0;
-        printf("info string Hybrid Eval disabled, using pure NNUE eval\n");
-	  }
-	
+        use_hybrid_eval = false;
+		if (use_nnue == true) printf("info string Hybrid Eval disabled, using pure NNUE eval\n");
+	  } 
+
       } else if (strcmp(option_name, "NNUE File") == 0) {
         strncpy(nnue_file_path, option_value, sizeof(nnue_file_path) - 1);
         nnue_file_path[sizeof(nnue_file_path) - 1] = '\0';
-        nnue_reload_pending = 1;
+        nnue_reload_pending = true;
         printf("info string NNUE file path set to: %s (will reload on next search)\n", nnue_file_path);
       }
     } else if (strncmp(line, "nnue status", 11) == 0) {
@@ -2029,14 +2089,14 @@ void uci_loop() {
                            (nnue_file_path[0] != '\0') ? nnue_file_path : NN_FILE;
 
       if (thinking) {
-        nnue_reload_pending = 1;
+        nnue_reload_pending = true;
         printf("info string NNUE reload of '%s' scheduled after search finishes\n", file_to_load);
       } else {
         if (nn_load(file_to_load) < 0) {
           printf("info string Failed to reload NNUE file: %s\n", file_to_load);
-          nnue_available = 0;
+          nnue_available = false;
         } else {
-          nnue_available = 1;
+          nnue_available = true;
           nn_init_accumulator(nn_accumulator);
           setup_nnue_for_position();
 
@@ -2057,9 +2117,9 @@ void uci_loop() {
         
         if (nn_load(file_to_load) < 0) {
           printf("info string Failed to load NNUE file: %s - using classical evaluation\n", file_to_load);
-          nnue_available = 0;
+          nnue_available = false;
         } else {
-          nnue_available = 1;
+          nnue_available = true;
           nn_init_accumulator(nn_accumulator);
           setup_nnue_for_position();
 		  #ifdef VALIDATE_NN
@@ -2067,7 +2127,7 @@ void uci_loop() {
 		  #endif
           printf("info string NNUE loaded successfully: %s\n", file_to_load);
         }
-        nnue_reload_pending = 0;
+        nnue_reload_pending = false;
       }
 
       char *token = strtok(line + 3, " ");
@@ -2097,9 +2157,10 @@ void uci_loop() {
           sd = atoi(token);
         } else if (strcmp(token, "ponder") == 0) {
           pondering = 1;
-		} else if (strcmp(token, "infinite") == 0) { // analysis mode
-          sd = 9999;
-		  infinite = 30000000;  
+		} else if (strcmp(token, "infinite") == 0) {  // analysis mode
+          analyze = 1;
+		  ttime = 3000000;
+		  sd = 99;
         } else if (strcmp(token, "movestogo") == 0) {
           token = strtok(NULL, " ");
           mps = atoi(token);
@@ -2107,14 +2168,25 @@ void uci_loop() {
         token = strtok(NULL, " ");
       }
       thinking = 1;
-      if (infinite) {       // infinite means analysis mode)
-	  calc(infinite);
-	  }else{
-	  calc(ttime);
-	  }
+	  
+	  if (using_classical_eval) printf("info string using classical eval\n");
+	  else
+	  if (use_hybrid_eval) printf("info string using hybrid NNUE eval\n");
+      else
+	  if (using_pure_nnue_eval) printf("info string using pure NNUE eval\n");
+	  
+      calc(ttime);
       thinking = 0;
+    
+	 } else if (strncmp(line, "stop", 4) == 0) {
+      sabort = 1;
+    } else if (strncmp(line, "ponderhit", 9) == 0) {
+      pondering = 0;
+      sabort = 0;
     } else if (strncmp(line, "quit", 4) == 0) {
       break;
+
+	
     }
   }
 }
@@ -2179,8 +2251,8 @@ int main() {
     printf("info string Could not find NN file, converting from text file.\n");
     if (nn_convert() != 0) {
       printf("info string Failed to create NN file from text. Using "
-             "traditional eval. \n");
-      nnue_available = 0;
+             "classical eval. \n");
+      nnue_available = false;
     } else {
       printf("info string NN file created successfully. Attempting to load "
              "again.\n");
@@ -2192,9 +2264,9 @@ int main() {
   }
   
   // Initialize NNUE-related globals
-  nnue_available = 0;
-  use_nnue = 1;  // Default to enabled
-  nnue_reload_pending = 0;
+  nnue_available      = false;
+  use_nnue            = true;  // Default to enabled
+  nnue_reload_pending = false;
   nnue_file_path[0] = '\0';  // Start with empty path (use default)
   strcpy(nnue_filename, NN_FILE);  // Set default filename
   

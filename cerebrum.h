@@ -36,7 +36,11 @@
 #include <assert.h>
 #include <string.h>
 #include <inttypes.h>
+#ifdef __ANDROID__
+#include <arm_neon.h>
+#else
 #include "immintrin.h"
+#endif
 
 
 /****************************************************************************/
